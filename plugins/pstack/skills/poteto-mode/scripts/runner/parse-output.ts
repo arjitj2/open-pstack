@@ -164,6 +164,11 @@ export function parseProviderOutput(
   requestedModel: string
 ): ParsedOutput {
   switch (provider) {
+    case "devin": {
+      const text = stdout.trim();
+      if (text.length === 0) throw new Error("devin did not emit a response");
+      return { text, reportedModel: null, sessionId: null, usage: null, costUsd: null };
+    }
     case "claude":
       return parseClaude(stdout, requestedModel);
     case "codex":

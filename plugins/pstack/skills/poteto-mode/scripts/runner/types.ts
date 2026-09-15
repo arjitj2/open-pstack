@@ -1,11 +1,11 @@
 export const PARENTS = ["claude", "codex"] as const;
-export const PROVIDERS = ["claude", "codex", "grok"] as const;
+export const PROVIDERS = ["claude", "codex", "grok", "devin"] as const;
 export const EFFORTS = ["low", "medium", "high", "xhigh", "max"] as const;
 export const ACCESS_MODES = ["read-only", "isolated-write"] as const;
 
 export type Parent = (typeof PARENTS)[number];
 export type Provider = (typeof PROVIDERS)[number];
-export type Effort = (typeof EFFORTS)[number];
+export type Effort = (typeof EFFORTS)[number] | "default";
 export type AccessMode = (typeof ACCESS_MODES)[number];
 
 export interface RunnerOptions {

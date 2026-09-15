@@ -15,9 +15,26 @@ pstack model choices are provider-qualified descriptors:
 | grok | grok-4.6-fast-xhigh | grok | grok-4.6 | xhigh | low medium high xhigh max | - |
 | opus | opus | claude | opus | xhigh | low medium high xhigh max | opus |
 
-The allowed effort universe is exactly `low`, `medium`, `high`, `xhigh`, `max`. First-run requested efforts are the Default effort cell of each row. A Claude-native agent stem of `-` means the family has no Claude-native agent. Otherwise the shipped agent name is `pstack-<stem>-<effort>`.
+For the default matrix, the allowed effort universe is exactly `low`, `medium`, `high`, `xhigh`, `max`. First-run requested efforts are the Default effort cell of each row. A Claude-native agent stem of `-` means the family has no Claude-native agent. Otherwise the shipped agent name is `pstack-<stem>-<effort>`.
 
 `fable` and `opus` are Claude Code's rolling aliases. Claude resolves each alias to the latest available family revision. A runner receipt keeps the requested alias in `model` and the concrete provider-reported revision in `reportedModel`; verification accepts only a numeric `claude-fable-*` or `claude-opus-*` revision from the matching family.
+
+## Optional Devin models
+
+Devin is an external provider from either parent, not a parent harness. These opt-in families do not change the four-model default panel.
+
+| Family | Provider | Model | Default effort | Selectable efforts | CLI model UID |
+|---|---|---|---|---|---|
+| swe-2 | devin | swe-2 | high | medium high max | swe-2-<effort> |
+| swe-1.6 | devin | swe-1.6 | default | default | swe-1-6 |
+
+Use descriptors such as `devin:swe-2@high` or `devin:swe-1.6@default`. `default` records that SWE-1.6 has no selectable effort; it is rejected for other providers. Never clamp SWE-2's unsupported `low` or `xhigh` to another level. The runner pins the exact CLI UID instead of a rolling family alias or Fusion pairing.
+
+Install and sign in to [Devin CLI](https://docs.devin.ai/cli). Inspect `devin models list --format json` and probe each selected pair: listing a model does not prove the account can execute it. An upgrade-required response is an unavailable-model failure, never permission to substitute another model.
+
+The runner uses `--print` and a private temporary `--config` file, deleted after completion or failure. It disables recursive subagents and imports from other tools, and denies MCP and fetch calls. Read-only lanes deny edit, write, and shell execution; use them for file inspection, not test execution. Writer lanes use `--sandbox --permission-mode accept-edits` in the dedicated worktree. Devin's own project configuration, rules, plugins, and hooks can still load; this is not a clean-room execution environment. Do not assign an untrusted checkout or rely on this adapter to isolate startup hooks. Verify effective permission behavior in the target CLI before release.
+
+Devin print output is captured as response text. It does not supply a structured provider model report or usage receipt, so `modelVerified` is false, `modelEvidence` is `pinned-argv`, and model-report, session, usage, and cost fields are null. A successful print process is not proof of hidden applied reasoning depth.
 
 ## Read-time normalization
 
@@ -31,10 +48,10 @@ This read-time rule makes an older installed sheet use the latest family revisio
 
 The top-level harness resolves the route once. A child receives an assigned provider, model, effort, access mode, prompt, working directory, and output path. A child never detects the harness, chooses a provider, or launches another model. Environment markers may corroborate the top-level harness before fan-out, but nested processes inherit parent markers and must not use them for routing.
 
-| Parent | `claude:*` | `codex:*` | `grok:*` |
-|---|---|---|---|
-| Claude Code | native `Agent` | external runner | external runner |
-| Codex | external runner | native `spawn_agent` | external runner |
+| Parent | `claude:*` | `codex:*` | `grok:*` | `devin:*` |
+|---|---|---|---|---|
+| Claude Code | native `Agent` | external runner | external runner | external runner |
+| Codex | external runner | native `spawn_agent` | external runner | external runner |
 
 `inherit-parent` and `auto` remain aliases. They use the parent's current model and effort through its native subagent primitive. In a panel they still consume one lane, but they reduce provider diversity; say so in the synthesis record.
 
@@ -54,9 +71,9 @@ The launcher lives at `skills/poteto-mode/scripts/runner/pstack-runner` under th
 ```text
 pstack-runner \
   --parent <claude|codex> \
-  --provider <claude|codex|grok> \
+  --provider <claude|codex|grok|devin> \
   --model <real CLI model> \
-  --effort <low|medium|high|xhigh|max> \
+  --effort <low|medium|high|xhigh|max|default> \
   --mode <read-only|isolated-write> \
   --prompt <unique prompt file> \
   --cwd <repository or dedicated worktree> \
