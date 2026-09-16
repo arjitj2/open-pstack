@@ -1,3 +1,4 @@
+import { cursorHasApiKey } from "./cursor.ts";
 import type {
   AccessMode,
   Effort,
@@ -14,7 +15,11 @@ export interface CommandSpec {
 export function preflightCommand(provider: Provider): CommandSpec {
   switch (provider) {
     case "cursor":
-      return { command: "cursor-agent", args: ["status", "--format", "json"], stdin: "none" };
+      return {
+        command: "cursor-agent",
+        args: cursorHasApiKey() ? ["--version"] : ["status", "--format", "json"],
+        stdin: "none",
+      };
     case "claude":
       return {
         command: "claude",

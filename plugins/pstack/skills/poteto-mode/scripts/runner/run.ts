@@ -11,7 +11,7 @@ import {
 } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { invocationCommand, preflightCommand, type CommandSpec } from "./commands.ts";
-import { cursorConfigDirectory, cursorConfig, validateCursorModel } from "./cursor.ts";
+import { cursorConfigDirectory, cursorConfig, cursorHasApiKey, cursorUserConfigPath, validateCursorModel } from "./cursor.ts";
 import { versionedClaudeAlias } from "./model-aliases.ts";
 import { parseProviderOutput, reportedModelMatches } from "./parse-output.ts";
 import type {
@@ -352,11 +352,12 @@ async function waitForGrokPreflightRetry(
   }
 }
 
-function preflightPassed(provider: Provider, model: string, result: ProcessResult): boolean {
+function preflightPassed(provider: Provider, model: string, result: ProcessResult, apiKeyAuth: boolean = false): boolean {
   if (result.exitCode !== 0 || result.timedOut) return false;
   const combined = `${result.stdout}\n${result.stderr}`;
   switch (provider) {
     case "cursor": {
+      if (apiKeyAuth) return true;
       try {
         const value: unknown = JSON.parse(result.stdout);
         return value !== null && typeof value === "object" &&
@@ -384,14 +385,15 @@ function preflightPassed(provider: Provider, model: string, result: ProcessResul
   }
 }
 
-function successfulPreflightEvidence(provider: Provider, model: string): string {
+function successfulPreflightEvidence(provider: Provider, model: string, apiKeyAuth: boolean = false): string {
+  if (apiKeyAuth) return "CURSOR_API_KEY supplied; authentication deferred to model execution";
   return provider === "grok"
     ? `authenticated; model ${model} available`
     : "authenticated";
 }
 
 function unavailableStatus(value: string): ReceiptStatus {
-  if (/not logged in|unauthenticated|authentication|sign in|login required/i.test(value)) {
+  if (/not logged in|unauthenticated|authentication|sign in|login required|\b401\b|\bunauthori[sz]ed\b|invalid.{0,12}api.?key|api.?key.{0,20}(invalid|expired)/i.test(value)) {
     return "unauthenticated";
   }
   if (/model.{0,40}(not found|unknown|unavailable|unsupported|not supported|invalid)|invalid.{0,20}model/i.test(value)) {
@@ -548,6 +550,7 @@ async function executeLane(
   const startedAt = new Date(started).toISOString();
   const prompt = readFileSync(options.promptPath, "utf8");
   const env = childEnvironment(options.provider);
+  const apiKeyAuth = options.provider === "cursor" && cursorHasApiKey(env);
   if (options.provider === "cursor") env.CURSOR_CONFIG_DIR = cursorConfigDirectory(options);
   const executable = Bun.which(invocation.command, {
     PATH: env.PATH,
@@ -642,9 +645,9 @@ async function executeLane(
     cancellation
   );
   let rawPreflightEvidence = evidence(`${preflightResult.stdout}\n${preflightResult.stderr}`);
-  let passed = preflightPassed(options.provider, options.model, preflightResult);
+  let passed = preflightPassed(options.provider, options.model, preflightResult, apiKeyAuth);
   let preflightEvidence = passed
-    ? successfulPreflightEvidence(options.provider, options.model)
+    ? successfulPreflightEvidence(options.provider, options.model, apiKeyAuth)
     : rawPreflightEvidence;
 
   if (
@@ -686,11 +689,11 @@ async function executeLane(
       cancellation
     );
     rawPreflightEvidence = evidence(`${preflightResult.stdout}\n${preflightResult.stderr}`);
-    passed = preflightPassed(options.provider, options.model, preflightResult);
+    passed = preflightPassed(options.provider, options.model, preflightResult, apiKeyAuth);
     preflightEvidence = retriedPreflightEvidence(
       firstPreflightEvidence,
       passed
-        ? successfulPreflightEvidence(options.provider, options.model)
+        ? successfulPreflightEvidence(options.provider, options.model, apiKeyAuth)
         : rawPreflightEvidence,
       passed
     );
@@ -888,7 +891,7 @@ export async function runLane(
         const directory = cursorConfigDirectory(options);
         mkdirSync(directory, { mode: 0o700 });
         createdCursorConfig = true;
-        writeFileSync(`${directory}/cli-config.json`, JSON.stringify(cursorConfig(options.mode)), { flag: "wx", mode: 0o600 });
+        writeFileSync(`${directory}/cli-config.json`, JSON.stringify(cursorConfig(options.mode, cursorUserConfigPath(process.env, undefined, options.cwd))), { flag: "wx", mode: 0o600 });
       }
       return await executeLane(
         options,

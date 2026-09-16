@@ -3,7 +3,7 @@ import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSy
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { invocationCommand } from "./commands.ts";
-import { cursorConfigDirectory } from "./cursor.ts";
+import { cursorConfig, cursorUserConfigPath, cursorConfigDirectory } from "./cursor.ts";
 import { parseArgs } from "./cli.ts";
 import { runLane, validateOptions } from "./run.ts";
 import type { RunnerOptions } from "./types.ts";
@@ -11,6 +11,7 @@ import type { RunnerOptions } from "./types.ts";
 let scratch = "";
 let originalPath: string | undefined;
 let originalConfig: string | undefined;
+let originalApiKey: string | undefined;
 const fake = `#!/usr/bin/env bun
 import { readFileSync, writeFileSync, statSync } from "node:fs";
 const cwd = process.cwd();
@@ -18,17 +19,18 @@ const fixture = JSON.parse(readFileSync(cwd + "/fixture.json", "utf8"));
 const directory = process.env.CURSOR_CONFIG_DIR;
 const config = JSON.parse(readFileSync(directory + "/cli-config.json", "utf8"));
 const args = process.argv.slice(2);
-if (args[0] === "status") {
+if (args[0] === "status" || args[0] === "--version") {
   writeFileSync(cwd + "/observed.json", JSON.stringify({
-    config, directory, directoryMode: statSync(directory).mode & 511,
+    args, config, directory, directoryMode: statSync(directory).mode & 511,
     configMode: statSync(directory + "/cli-config.json").mode & 511,
     codex: process.env.CODEX_THREAD_ID, claude: process.env.CLAUDECODE,
   }));
+  if (args[0] === "--version") { console.log("2026.09.10-fixture"); process.exit(fixture.versionExit ?? 0); }
   console.log(JSON.stringify(fixture.auth ?? {isAuthenticated:true}));
   process.exit(fixture.authExit ?? 0);
 }
 const prompt = await Bun.stdin.text();
-writeFileSync(cwd + "/invoked.json", JSON.stringify({args,prompt,cwd}));
+writeFileSync(cwd + "/invoked.json", JSON.stringify({args,prompt,cwd,hasApiKey:!!process.env.CURSOR_API_KEY}));
 if (fixture.delay) await Bun.sleep(fixture.delay);
 if (fixture.exit) { console.error(fixture.error); process.exit(fixture.exit); }
 console.log(fixture.raw ?? JSON.stringify(fixture.result ?? {
@@ -45,10 +47,12 @@ beforeEach(() => {
   chmodSync(executable, 0o755);
   originalPath = process.env.PATH;
   originalConfig = process.env.CURSOR_CONFIG_DIR;
+  originalApiKey = process.env.CURSOR_API_KEY;
+  delete process.env.CURSOR_API_KEY;
   process.env.PATH = `${bin}:${originalPath}`;
   process.env.CURSOR_CONFIG_DIR = join(scratch, "user-config");
   mkdirSync(process.env.CURSOR_CONFIG_DIR);
-  writeFileSync(join(process.env.CURSOR_CONFIG_DIR, "cli-config.json"), "USER CONFIG");
+  writeFileSync(join(process.env.CURSOR_CONFIG_DIR, "cli-config.json"), "{}");
   writeFileSync(join(scratch, "prompt.md"), "Read file named 'a b'; reply with CURSOR_OK.\n");
   writeFileSync(join(scratch, "fixture.json"), "{}");
 });
@@ -57,6 +61,8 @@ afterEach(() => {
   else process.env.PATH = originalPath;
   if (originalConfig === undefined) delete process.env.CURSOR_CONFIG_DIR;
   else process.env.CURSOR_CONFIG_DIR = originalConfig;
+  if (originalApiKey === undefined) delete process.env.CURSOR_API_KEY;
+  else process.env.CURSOR_API_KEY = originalApiKey;
   rmSync(scratch, { recursive: true, force: true });
 });
 function options(overrides: Partial<RunnerOptions> = {}): RunnerOptions {
@@ -90,9 +96,71 @@ describe("Cursor external lanes", () => {
       expect(config.codex).toBeUndefined();
       expect(config.claude).toBeUndefined();
       expect(existsSync(cursorConfigDirectory(opts))).toBe(false);
-      expect(readFileSync(join(scratch,"user-config","cli-config.json"),"utf8")).toBe("USER CONFIG");
+      expect(readFileSync(join(scratch,"user-config","cli-config.json"),"utf8")).toBe("{}");
     });
   }
+  it("defers API-key authentication to the actual model invocation", async () => {
+    process.env.CURSOR_API_KEY = "fixture-secret-key";
+    fixture({auth:{isAuthenticated:false}});
+    const result = await runLane(options());
+    expect(result.receipt.status).toBe("complete");
+    expect(observed("observed.json").args).toEqual(["--version"]);
+    expect(observed("invoked.json").hasApiKey).toBe(true);
+    expect(JSON.stringify(result.receipt)).toContain("authentication deferred");
+    for (const value of [result.receipt, observed("observed.json"), observed("invoked.json")]) {
+      expect(JSON.stringify(value)).not.toContain("fixture-secret-key");
+    }
+  });
+  it("does not skip a failed executable preflight with an API key", async () => {
+    process.env.CURSOR_API_KEY = "fixture-key";
+    fixture({versionExit:1});
+    expect((await runLane(options())).receipt.status).not.toBe("complete");
+    expect(existsSync(join(scratch,"invoked.json"))).toBe(false);
+  });
+  it("keeps blank API keys on the strict OAuth preflight", async () => {
+    process.env.CURSOR_API_KEY = "  ";
+    fixture({auth:{isAuthenticated:false}});
+    expect((await runLane(options())).receipt.status).toBe("unauthenticated");
+    expect(observed("observed.json").args).toEqual(["status","--format","json"]);
+  });
+  for (const error of ["HTTP 401", "Unauthorized", "Invalid API key", "API key has expired"]) {
+    it(`classifies model authentication rejection: ${error}`, async () => {
+      process.env.CURSOR_API_KEY = "fixture-key";
+      fixture({exit:1,error});
+      const opts = options();
+      expect((await runLane(opts)).receipt.status).toBe("unauthenticated");
+      expect(existsSync(join(scratch,"invoked.json"))).toBe(true);
+      expect(existsSync(opts.outputPath)).toBe(false);
+      expect(existsSync(cursorConfigDirectory(opts))).toBe(false);
+    });
+  }
+  for (const useHttp1ForAgent of [true, false, "true"]) {
+    it(`preserves only a boolean transport option: ${JSON.stringify(useHttp1ForAgent)}`, async () => {
+      const path = join(scratch,"user-config","cli-config.json");
+      const original = JSON.stringify({network:{useHttp1ForAgent,endpoint:"unsafe"},permissions:{allow:["Shell(*)"]},hooks:{run:"unsafe"},apiKey:"secret-sentinel"});
+      writeFileSync(path,original);
+      expect((await runLane(options())).receipt.status).toBe("complete");
+      const config = observed("observed.json").config;
+      expect(config.network).toEqual(typeof useHttp1ForAgent === "boolean" ? {useHttp1ForAgent} : undefined);
+      expect(config.permissions.allow).toEqual([]);
+      expect(config.hooks).toBeUndefined();
+      expect(JSON.stringify(config)).not.toContain("secret-sentinel");
+      expect(readFileSync(path,"utf8")).toBe(original);
+    });
+  }
+  it("resolves source configuration before creating the private override", () => {
+    expect(cursorUserConfigPath({CURSOR_CONFIG_DIR:"relative config",XDG_CONFIG_HOME:"/xdg"},"/user","/workspace")).toBe("/workspace/relative config/cli-config.json");
+    expect(cursorUserConfigPath({XDG_CONFIG_HOME:"/xdg"},"/user","/workspace")).toBe("/xdg/cursor/cli-config.json");
+    expect(cursorUserConfigPath({},"/user","/workspace")).toBe("/user/.cursor/cli-config.json");
+    expect(cursorConfig("read-only",join(scratch,"missing.json"))).not.toHaveProperty("network");
+  });
+  it("fails safely on malformed source config without launching or leaving private files", async () => {
+    writeFileSync(join(scratch,"user-config","cli-config.json"),"not JSON");
+    const opts = options();
+    expect((await runLane(opts)).receipt.status).toBe("child-failed");
+    expect(existsSync(join(scratch,"observed.json"))).toBe(false);
+    expect(existsSync(cursorConfigDirectory(opts))).toBe(false);
+  });
   it("accepts default effort through the command-line parser", () => {
     const parsed = parseArgs(["--parent","codex","--provider","cursor","--model","composer-2.5","--effort","default","--mode","read-only","--prompt",join(scratch,"prompt.md"),"--cwd",scratch,"--output",join(scratch,"out"),"--receipt",join(scratch,"receipt")]);
     expect(parsed?.effort).toBe("default");
