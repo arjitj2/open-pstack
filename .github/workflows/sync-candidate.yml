@@ -1,0 +1,98 @@
+name: Validate upstream sync candidate
+on:
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: Mirror pull request number
+        required: true
+      head:
+        description: Expected upstream mirror commit
+        required: true
+      base:
+        description: Expected maintained main commit
+        required: true
+permissions: {}
+concurrency:
+  group: sync-candidate-${{ inputs.pr }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    if: github.repository == 'arjitj2/open-pstack' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify identity and build the proposed merge
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CANDIDATE_PR: ${{ inputs.pr }}
+          CANDIDATE_HEAD: ${{ inputs.head }}
+          CANDIDATE_BASE: ${{ inputs.base }}
+        run: |
+          python3 - <<'PY'
+          import json, os, re, subprocess
+          pr, head, base = [os.environ[k] for k in ('CANDIDATE_PR', 'CANDIDATE_HEAD', 'CANDIDATE_BASE')]
+          assert re.fullmatch(r'[1-9][0-9]*', pr)
+          assert all(re.fullmatch(r'[0-9a-f]{40}', sha) for sha in (head, base))
+          data = json.loads(subprocess.check_output(['gh', 'api', f'repos/arjitj2/open-pstack/pulls/{pr}']))
+          assert data['state'] == 'open'
+          assert data['head']['repo']['full_name'] == 'arjitj2/open-pstack'
+          assert data['head']['ref'] == 'upstream-main' and data['head']['sha'] == head
+          assert data['base']['ref'] == 'main' and data['base']['sha'] == base
+          subprocess.run(['git', 'fetch', 'origin', 'upstream-main'], check=True)
+          subprocess.run(['git', 'checkout', '--detach', base], check=True)
+          subprocess.run(['git', '-c', 'user.name=Sync validation', '-c', 'user.email=actions@users.noreply.github.com', 'merge', '--no-commit', '--no-ff', head], check=True)
+          PY
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.23.2
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.0
+      - name: Test and typecheck merge candidate
+        working-directory: plugins/pstack/skills/poteto-mode/scripts
+        run: |
+          bun install --frozen-lockfile
+          bun run test
+          bun run typecheck
+      - name: Test fork maintenance
+        run: python3 tests/test-fork-maintenance.py
+      - name: Validate manifests and static invariants
+        run: |
+          bun -e 'for (const path of [".claude-plugin/marketplace.json", ".agents/plugins/marketplace.json", "plugins/pstack/.claude-plugin/plugin.json", "plugins/pstack/.codex-plugin/plugin.json"]) JSON.parse(await Bun.file(path).text())'
+          PSTACK_STATIC_ONLY=1 bash tests/skill-collision-repro.sh
+  report:
+    needs: verify
+    if: always() && github.repository == 'arjitj2/open-pstack' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      statuses: write
+      pull-requests: read
+    steps:
+      - name: Attach result to the reviewed head
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CANDIDATE_HEAD: ${{ inputs.head }}
+          CANDIDATE_PR: ${{ inputs.pr }}
+          CANDIDATE_BASE: ${{ inputs.base }}
+          RESULT: ${{ needs.verify.result }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          python3 - <<'PY'
+          import json, os, re, subprocess
+          head = os.environ['CANDIDATE_HEAD']
+          assert re.fullmatch(r'[0-9a-f]{40}', head)
+          pr = os.environ['CANDIDATE_PR']
+          assert re.fullmatch(r'[1-9][0-9]*', pr)
+          current = json.loads(subprocess.check_output(['gh', 'api', f'repos/arjitj2/open-pstack/pulls/{pr}']))
+          if current['head']['sha'] != head or current['base']['sha'] != os.environ['CANDIDATE_BASE']:
+              raise SystemExit('Candidate was superseded; no stale status published.')
+          payload = {'state': 'success' if os.environ['RESULT'] == 'success' else 'failure', 'context': 'Upstream sync candidate', 'description': 'Tests for the proposed merge; installed live validation remains required.', 'target_url': os.environ['RUN_URL']}
+          subprocess.run(['gh', 'api', f'repos/arjitj2/open-pstack/statuses/{head}', '--method', 'POST', '--input', '-'], input=json.dumps(payload), text=True, check=True)
+          PY

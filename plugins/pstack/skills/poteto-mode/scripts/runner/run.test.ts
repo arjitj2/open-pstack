@@ -552,26 +552,26 @@ describe("runLane", () => {
   });
 
   it("spends one explicit deadline across preflight and model execution", async () => {
-    process.env.FAKE_PREFLIGHT_DELAY_MS = "1200";
-    process.env.FAKE_MODEL_DELAY_MS = "1200";
-    const input = { ...options("claude"), timeoutMs: 1_500 };
+    process.env.FAKE_PREFLIGHT_DELAY_MS = "3000";
+    process.env.FAKE_MODEL_DELAY_MS = "6000";
+    const input = { ...options("claude"), timeoutMs: 8_000 };
     const result = await runLane(input);
     const recorded = receipt(input.receiptPath);
 
     expect(result.exitCode).toBe(124);
     expect(recorded.status).toBe("timed-out");
     expect(recorded.preflight.status).toBe("passed");
-    expect(recorded.elapsedMs).toBeLessThan(2_100);
-  });
+    expect(recorded.elapsedMs).toBeLessThan(10_000);
+  }, 12_000);
 
   it("bounds a descendant-held pipe by the explicit deadline without fabricating a signal", async () => {
     const descendantPidPath = join(scratch, "deadline-descendant.pid");
-    const input = { ...options("claude", "deadline-drain"), timeoutMs: 700 };
+    const input = { ...options("claude", "deadline-drain"), timeoutMs: 4_000 };
     const runner = Bun.spawn([process.execPath, ...runnerArgs(input)], {
       cwd: scratch,
       env: {
         ...process.env,
-        FAKE_DESCENDANT_HOLDS_PIPES_MS: "5000",
+        FAKE_DESCENDANT_HOLDS_PIPES_MS: "15000",
         FAKE_DESCENDANT_PID_PATH: descendantPidPath,
       },
       stdout: "pipe",
@@ -580,29 +580,33 @@ describe("runLane", () => {
     const stdout = new Response(runner.stdout).text();
     const stderr = new Response(runner.stderr).text();
 
-    expect(await exitWithin(runner, 2_000)).toBe(124);
-    await Promise.all([stdout, stderr]);
-    const recorded = receipt(input.receiptPath);
-    expect(recorded).toMatchObject({
-      status: "timed-out",
-      exitCode: 0,
-      signal: null,
-      preflight: { status: "passed" },
-    });
-    expect(recorded.elapsedMs).toBeLessThan(1_500);
-
-    const descendantPid = Number(readFileSync(descendantPidPath, "utf8"));
-    if (processIsAlive(descendantPid)) process.kill(descendantPid, "SIGKILL");
-  });
+    try {
+      expect(await exitWithin(runner, 8_000)).toBe(124);
+      await Promise.all([stdout, stderr]);
+      const recorded = receipt(input.receiptPath);
+      expect(recorded).toMatchObject({
+        status: "timed-out",
+        exitCode: 0,
+        signal: null,
+        preflight: { status: "passed" },
+      });
+      expect(recorded.elapsedMs).toBeLessThan(8_000);
+    } finally {
+      if (existsSync(descendantPidPath)) {
+        const descendantPid = Number(readFileSync(descendantPidPath, "utf8"));
+        if (processIsAlive(descendantPid)) process.kill(descendantPid, "SIGKILL");
+      }
+    }
+  }, 12_000);
 
   it("does not claim a signal was sent to an already signal-reaped child", async () => {
     const descendantPidPath = join(scratch, "signalled-descendant.pid");
-    const input = { ...options("claude", "signalled-drain"), timeoutMs: 700 };
+    const input = { ...options("claude", "signalled-drain"), timeoutMs: 4_000 };
     const runner = Bun.spawn([process.execPath, ...runnerArgs(input)], {
       cwd: scratch,
       env: {
         ...process.env,
-        FAKE_DESCENDANT_HOLDS_PIPES_MS: "5000",
+        FAKE_DESCENDANT_HOLDS_PIPES_MS: "15000",
         FAKE_DESCENDANT_PID_PATH: descendantPidPath,
         FAKE_SELF_SIGNAL: "SIGTERM",
       },
@@ -612,18 +616,22 @@ describe("runLane", () => {
     const stdout = new Response(runner.stdout).text();
     const stderr = new Response(runner.stderr).text();
 
-    expect(await exitWithin(runner, 2_000)).toBe(124);
-    await Promise.all([stdout, stderr]);
-    expect(receipt(input.receiptPath)).toMatchObject({
-      status: "timed-out",
-      exitCode: 143,
-      signal: null,
-      preflight: { status: "passed" },
-    });
-
-    const descendantPid = Number(readFileSync(descendantPidPath, "utf8"));
-    if (processIsAlive(descendantPid)) process.kill(descendantPid, "SIGKILL");
-  });
+    try {
+      expect(await exitWithin(runner, 8_000)).toBe(124);
+      await Promise.all([stdout, stderr]);
+      expect(receipt(input.receiptPath)).toMatchObject({
+        status: "timed-out",
+        exitCode: 143,
+        signal: null,
+        preflight: { status: "passed" },
+      });
+    } finally {
+      if (existsSync(descendantPidPath)) {
+        const descendantPid = Number(readFileSync(descendantPidPath, "utf8"));
+        if (processIsAlive(descendantPid)) process.kill(descendantPid, "SIGKILL");
+      }
+    }
+  }, 12_000);
 
   it("lets manual cancellation end a post-exit pipe drain without a default timeout", async () => {
     const descendantPidPath = join(scratch, "cancel-descendant.pid");

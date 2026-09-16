@@ -1,0 +1,28 @@
+name: Sync open-pstack upstream
+on:
+  schedule:
+    - cron: '23 11 * * *'
+  workflow_dispatch:
+permissions: {}
+concurrency:
+  group: fork-maintenance
+  cancel-in-progress: false
+jobs:
+  sync:
+    if: github.repository == 'arjitj2/open-pstack'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      statuses: write
+      actions: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Mirror upstream, prepare review, and check alerts
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/fork-maintenance.py daily

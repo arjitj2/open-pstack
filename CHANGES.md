@@ -2,6 +2,16 @@
 
 This port applies the Cursor → Claude Code substitutions in skill bodies. Earlier drafts left them flagged; this revision resolves them. A later pass added a Codex build that shares the same skills; see [Codex port](#codex-port) below.
 
+## Unreleased: optional Devin workers
+
+Adds `devin` to the external runner for both Claude Code and Codex parents. SWE-2 supports medium/high/max through exact model UIDs; SWE-1.6 uses a fixed `default` effort token. Setup probes opted-in Devin families while preserving existing default panels. Arena uses the shared completion contract, which accepts matching Codex and Devin pinned-argv evidence. The upstream sync point is unchanged.
+
+The adapter extracts the final response from a private conversation export, records pinned-argv evidence without claiming a provider model report, and leaves unreported usage/cost/session fields null. Per-run configuration disables nested subagents and imported tool settings. Read-only workers deny shell and writes; writers use sandboxed shell commands for edits and tests in the assigned worktree, with direct unsandboxed file tools denied and explicit shell-only guidance prepended in a private prompt copy. Per-run shell onboarding is suppressed; a private conversation export must end with a final agent message without tool calls, preventing banner-only output, progress messages, and denied headless tools from counting as completed answers. Only final response text is retained; the export is removed on every outcome. Devin project settings and startup hooks remain a live-verification concern. Account restrictions fail without fallback.
+
+## Unreleased: setup only requires assigned providers
+
+Setup selects roles before collecting efforts and probing models. Existing assignments and lane order remain the default; users can explicitly replace roles or remove panel entries without installing every provider in the default panel. Only assigned families are probed. Selected failures leave the sheet and parent integration unchanged until the user repairs availability or changes the affected assignments. Complete role coverage, native Why/Reflect roles, confirmation, and snapshot/readback rollback remain required. Any aliases require an inherited native-agent probe before saving, including alias-only configurations, followed by native behavioral smoke; reduced provider diversity is reported. Architect requires at least two independent runner entries, which may repeat the same model or native alias, to preserve its design comparison without requiring another provider.
+
 ## 1.4.1 syncs to Cursor pstack 0.15.1
 
 Open Pstack 1.4.1 tracks Cursor pstack 0.15.1 at `f8abeddd1862dc73704e3d719dd73df0d51b8c71`. Poteto-mode now requires each claim to include its evidence or a measured, inferred, or guess label in the same sentence. Agents also run any check they can run themselves instead of handing that check to the user. No playbook, model, runtime, or dependency changed.
@@ -392,3 +402,5 @@ If you want a clean re-port (e.g. when upstream releases v0.2.0), the rebuild re
 - Upstream deslop: [cursor/plugins/cursor-team-kit/skills/deslop @ e46364b](https://github.com/cursor/plugins/tree/e46364b8be46000b7df0f260550cd712afbb8d36/cursor-team-kit/skills/deslop) — MIT, (c) 2026 Cursor.
 - babysit: independently authored; workflow informed by Cursor's public `/babysit` behavior — no code or prose copied.
 - Inspected for prior-art decisions: [v1truv1us/ai-eng-system](https://github.com/v1truv1us/ai-eng-system) (namespaces pstack under `pstack/` but keeps Cursor refs intact); [Evan-Kim2028/agent-fleet](https://github.com/Evan-Kim2028/agent-fleet) (vendors pstack under `base-kit/pstack/`, same posture).
+
+- Add opt-in Cursor external workers through `cursor-agent`, exact model slugs and `@default`, private per-run permissions, JSON receipts, and setup probes. API-key authentication is checked by model execution; private configuration preserves the global HTTP/1 transport option without copying other user settings. Parent completion accepts explicitly pinned Cursor arguments without claiming served-model verification. Cursor project hooks/rules and recursive subagents remain provider limitations.

@@ -1,5 +1,7 @@
 # open-pstack
 
+Arjit's maintained distribution adds Devin and Cursor workers and setup limited to assigned providers. It follows [ericlitman/open-pstack](https://github.com/ericlitman/open-pstack) for Cursor adaptations. See [installation and update policy](docs/fork-maintenance.md).
+
 [![CI](https://github.com/ericlitman/open-pstack/actions/workflows/ci.yml/badge.svg)](https://github.com/ericlitman/open-pstack/actions/workflows/ci.yml)
 [![Latest release](https://img.shields.io/github/v/release/ericlitman/open-pstack)](https://github.com/ericlitman/open-pstack/releases/latest)
 [![MIT license](https://img.shields.io/github/license/ericlitman/open-pstack)](LICENSE)
@@ -39,7 +41,7 @@ You need a current Claude Code or Codex installation. For the full four-model re
 Run these commands inside Claude Code:
 
 ```text
-/plugin marketplace add ericlitman/open-pstack
+/plugin marketplace add arjitj2/open-pstack#v1.4.1-arjit.1
 /plugin install pstack@open-pstack
 /reload-plugins
 ```
@@ -49,7 +51,7 @@ Run these commands inside Claude Code:
 Run these commands in your shell:
 
 ```shell
-codex plugin marketplace add ericlitman/open-pstack --ref main
+codex plugin marketplace add arjitj2/open-pstack --ref v1.4.1-arjit.1
 codex plugin add pstack@open-pstack
 ```
 
@@ -120,11 +122,17 @@ That is the main workflow. The other skills are there when poteto-mode needs the
 
 Plugin skills include `pstack:` in their name. In Claude Code, invoke a native skill such as `/pstack:architect`. In Codex, ask for the skill, such as `Use pstack:architect for this design.` See the [technical reference](docs/reference.md) for the full list.
 
+## Optional Devin workers
+
+Codex or Claude Code can delegate selected roles to SWE-2 or SWE-1.6 through an authenticated [Devin CLI](https://docs.devin.ai/cli). Ask `setup-pstack` to use `devin:swe-2@high` (medium/high/max) or `devin:swe-1.6@default` for named roles. Devin remains an external worker; the default four-model panel stays unchanged.
+
+This adapter extracts the final response from a private conversation export and pins the CLI model UID. It does not report provider-verified model identity, tokens, or cost. Read-only workers cannot execute shell commands. See the [Devin dispatch contract](plugins/pstack/skills/poteto-mode/references/provider-dispatch.md#optional-devin-models) for permissions and live verification requirements.
+
 ## Models and token use
 
 Some pstack workflows use one model. Skills such as `architect`, `arena`, and `interrogate` can run several models in parallel. Each model run uses the subscription and token allowance of its own command-line tool.
 
-`setup-pstack` lets you choose the models, one requested effort per model family, and how many run in parallel. A model from the app you are using runs inside that app. Other models run through their own command-line tools. Open Pstack does not quietly replace a failed model with a weaker one.
+`setup-pstack` lets you choose the models, one requested effort per assigned model family, and how many run in parallel. Choose role assignments first; setup checks only the models those roles use. Unused providers need no CLI or subscription. If a selected model fails, repair its availability or explicitly change the affected roles before saving. A model from the app you are using runs inside that app. Other models run through their own command-line tools. Open Pstack does not quietly replace a failed model with a weaker one.
 
 ## Claude Code and Codex
 
@@ -136,6 +144,8 @@ Both apps read the same pstack skills. Only the way they start those skills and 
 | Runs inside the app | Claude models stay inside Claude Code. | The Sol model stays inside Codex. |
 | Other models | Codex and Grok run through their signed-in command-line tools. | Claude and Grok run through their signed-in command-line tools. |
 | Skills and workflows | Shared with Codex. | Shared with Claude Code. |
+
+Cursor models can also join as optional external workers through the signed-in `cursor-agent` CLI. Choose an exact slug from `cursor-agent models` and configure `cursor:<slug>@default` with `/setup-pstack`; the CLI has no separate effort flag. This uses Cursor's account access and limits, and does not make Cursor a parent harness for this port.
 
 Grok can take part in a multi-model review. You cannot use Grok as the main app running pstack.
 

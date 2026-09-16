@@ -15,9 +15,30 @@ pstack model choices are provider-qualified descriptors:
 | grok | grok-4.6-fast-xhigh | grok | grok-4.6 | xhigh | low medium high xhigh max | - |
 | opus | opus | claude | opus | xhigh | low medium high xhigh max | opus |
 
-The allowed effort universe is exactly `low`, `medium`, `high`, `xhigh`, `max`. First-run requested efforts are the Default effort cell of each row. A Claude-native agent stem of `-` means the family has no Claude-native agent. Otherwise the shipped agent name is `pstack-<stem>-<effort>`.
+For the default matrix, the allowed effort universe is exactly `low`, `medium`, `high`, `xhigh`, `max`. First-run requested efforts are the Default effort cell of each row. A Claude-native agent stem of `-` means the family has no Claude-native agent. Otherwise the shipped agent name is `pstack-<stem>-<effort>`.
 
 `fable` and `opus` are Claude Code's rolling aliases. Claude resolves each alias to the latest available family revision. A runner receipt keeps the requested alias in `model` and the concrete provider-reported revision in `reportedModel`; verification accepts only a numeric `claude-fable-*` or `claude-opus-*` revision from the matching family.
+
+## Optional Devin models
+
+Devin is an external provider from either parent, not a parent harness. These opt-in families do not change the four-model default panel.
+
+| Family | Provider | Model | Default effort | Selectable efforts | CLI model UID |
+|---|---|---|---|---|---|
+| swe-2 | devin | swe-2 | high | medium high max | swe-2-<effort> |
+| swe-1.6 | devin | swe-1.6 | default | default | swe-1-6 |
+
+Use descriptors such as `devin:swe-2@high` or `devin:swe-1.6@default`. `default` records that SWE-1.6 has no selectable effort; it is also used for Cursor slugs without a separate effort flag. Never clamp SWE-2's unsupported `low` or `xhigh` to another level. The runner pins the exact CLI UID instead of a rolling family alias or Fusion pairing.
+
+Install and sign in to [Devin CLI](https://docs.devin.ai/cli). Inspect `devin models list --format json` and probe each selected pair: listing a model does not prove the account can execute it. An upgrade-required response is an unavailable-model failure, never permission to substitute another model.
+
+The runner uses `--print` and a private temporary `--config` file, deleted after completion or failure. It disables recursive subagents and imports from other tools, and denies MCP and fetch calls. Read-only lanes deny edit, write, and shell execution; use them for file inspection, not test execution. Writer lanes use `--sandbox` in the dedicated worktree and perform edits and tests through sandboxed `exec`. Direct `edit`/`write` tools are denied in both modes: they run outside Devin's OS sandbox and can require interactive confirmation even with scoped write grants. The adapter prefixes each writer task with these execution constraints in a private prompt copy, preserving the assigned prompt and its receipt path. File-tool-only prompts are unsupported. Devin's own project configuration, rules, plugins, and hooks can still load; this is not a clean-room execution environment. Do not assign an untrusted checkout or rely on this adapter to isolate startup hooks. Verify effective permission behavior in the target CLI before release.
+
+The temporary config marks shell onboarding complete. The runner requests a private ATIF-v1.7 conversation export and accepts only a final agent step with a nonempty message and no tool calls. A progress message followed by denied or pending tools cannot count as completion, even if Devin exits zero without stderr. Only the final message is returned; system context, reasoning, and tool observations are never copied into output or receipts. The export directory is private and removed after every outcome. The adapter continues to use `pinned-argv` model evidence rather than treating the export's display model name as verified identity; model-report, session, usage, and cost fields remain null.
+
+## Optional Cursor models
+
+Cursor is an external provider from both parents. Install and authenticate `cursor-agent`, run `cursor-agent models`, and choose an exact available slug as `cursor:<slug>@default` (for example, `cursor:composer-2.5@default` when listed). `default` means no separate effort flag is available; select any reasoning variant by its exact model slug. Do not translate Claude/Codex/Grok slugs into Cursor slugs or use Cursor's `auto` selector. Model availability and subscription limits remain Cursor's responsibility. Adding a Cursor lane does not alter the four baseline families.
 
 ## Read-time normalization
 
@@ -31,10 +52,10 @@ This read-time rule makes an older installed sheet use the latest family revisio
 
 The top-level harness resolves the route once. A child receives an assigned provider, model, effort, access mode, prompt, working directory, and output path. A child never detects the harness, chooses a provider, or launches another model. Environment markers may corroborate the top-level harness before fan-out, but nested processes inherit parent markers and must not use them for routing.
 
-| Parent | `claude:*` | `codex:*` | `grok:*` |
-|---|---|---|---|
-| Claude Code | native `Agent` | external runner | external runner |
-| Codex | external runner | native `spawn_agent` | external runner |
+| Parent | `claude:*` | `codex:*` | `grok:*` | `devin:*` | `cursor:*` |
+|---|---|---|---|---|---|
+| Claude Code | native `Agent` | external runner | external runner | external runner | external runner |
+| Codex | external runner | native `spawn_agent` | external runner | external runner | external runner |
 
 `inherit-parent` and `auto` remain aliases. They use the parent's current model and effort through its native subagent primitive. In a panel they still consume one lane, but they reduce provider diversity; say so in the synthesis record.
 
@@ -54,9 +75,9 @@ The launcher lives at `skills/poteto-mode/scripts/runner/pstack-runner` under th
 ```text
 pstack-runner \
   --parent <claude|codex> \
-  --provider <claude|codex|grok> \
+  --provider <claude|codex|grok|devin|cursor> \
   --model <real CLI model> \
-  --effort <low|medium|high|xhigh|max> \
+  --effort <low|medium|high|xhigh|max|default> \
   --mode <read-only|isolated-write> \
   --prompt <unique prompt file> \
   --cwd <repository or dedicated worktree> \
@@ -82,6 +103,12 @@ The runner and its preflight have no implicit timeout. Do not invent a duration 
 
 Read-only mode maps to Claude plan mode with project-only settings and an explicit tool list, Codex's read-only sandbox, and Grok plan mode plus its `read-only` sandbox and read-oriented tool list. Grok's built-in read-only profile deliberately keeps its own state and system temporary directories writable, so point a read-only Grok lane at the actual checkout rather than a worktree under `/tmp`, `/var/tmp`, or the host's temporary directory. `isolated-write` maps to Claude `acceptEdits` with project-only settings, Codex `workspace-write`, and Grok `acceptEdits` plus its `workspace` sandbox and write-capable tool list. Give every writer only a dedicated worktree or output directory. Never route a writer into the primary checkout.
 
+Cursor uses the explicit `cursor-agent` executable, not `agent` (which can name another CLI). For stored OAuth credentials, preflight requires `cursor-agent status --format json` to return `isAuthenticated: true`. With a nonblank `CURSOR_API_KEY`, preflight checks `cursor-agent --version` only and records that authentication is deferred to the real model invocation; Cursor status does not report API-key authentication. The key stays in the environment. Authentication failures from execution fail the lane. Setup always performs a real model probe because preflight alone does not prove model access. The runner sends the prompt through stdin, pins `--model`, requests a successful JSON terminal result, and uses `--workspace` with `--sandbox enabled`. Read-only adds `--mode ask` and denies `Write(**)` and `Shell(*)`; it cannot run shell-based tests. Writers use the sandbox in their dedicated workspace without `--force` or `--yolo`.
+
+Each Cursor attempt exclusively creates a private `<receipt>.cursor-config` directory (0700) containing `cli-config.json` (0600), sets `CURSOR_CONFIG_DIR` for preflight and execution, and removes that directory on completion, failure, timeout, or handled cancellation. Existing paths are never overwritten or removed. The temporary permissions deny `Mcp(*:*)` and `WebFetch(*)`; no user configuration is edited and no credentials are copied. Cursor's authentication storage is separate from this configuration directory. Before overriding the directory, the runner reads the original global configuration (`CURSOR_CONFIG_DIR`, otherwise `XDG_CONFIG_HOME/cursor`, otherwise `~/.cursor`) and preserves only a boolean `network.useHttp1ForAgent`, needed by some proxies. It never copies permissions, hooks, credentials, endpoints, or other settings. An unreadable or malformed existing configuration fails the lane instead of silently losing its transport setting.
+
+Cursor's CLI currently exposes no supported switch to disable recursive subagents, project rules, skills, plugins, or hooks. The runner passes `--trust` for the assigned workspace so headless execution can start; this may authorize project startup hooks. Use only trusted workspaces and keep the parent-owned assignment in the prompt. These settings are not a clean-room guarantee, and the receipt does not prove that project hooks or every descendant were sandboxed. Cursor's native child tools also differ from the parent's tools; MCP-dependent work must stay native. See Cursor's [configuration](https://cursor.com/docs/cli/reference/configuration), [permissions](https://cursor.com/docs/cli/reference/permissions), and [output format](https://cursor.com/docs/cli/reference/output-format) contracts.
+
 Every concurrent external lane needs distinct prompt, output, and receipt paths. The launcher reserves output and receipt paths exclusively and refuses to overwrite them.
 
 ## Completion and dropouts
@@ -90,10 +117,10 @@ Success requires all of these:
 
 1. Exit status `0`.
 2. Receipt status `complete`.
-3. Either `modelVerified: true` with `modelEvidence: "provider-report"`, or a Codex receipt with `reportedModel: null`, `modelVerified: false`, and `modelEvidence: "pinned-argv"`. For Claude's `fable` and `opus` aliases, the concrete provider report must belong to the requested family. Codex 0.149.0 accepts the exact `--model` argument but does not report the served model in its JSONL stream.
+3. Either `modelVerified: true` with `modelEvidence: "provider-report"`, or a Codex, Devin, or Cursor receipt with `reportedModel: null`, `modelVerified: false`, and `modelEvidence: "pinned-argv"`. For Claude's `fable` and `opus` aliases, the concrete provider report must belong to the requested family. For pinned-argv evidence, verify the receipt provider, model, and effort match the assignment and its argv pins the expected CLI model. Codex and Cursor pin the assigned model directly; Cursor requires `effort: "default"`; Devin uses the exact UID mapping in Optional Devin models (for example, `swe-2@high` pins `--model swe-2-high`). These providers may omit a provider model report; do not describe pinned argv as provider-verified identity.
 4. A non-empty output file.
 
-The receipt also carries elapsed time, token usage when the CLI exposes it, and cost when available. Keep it with the arena or review artifacts so parent-harness comparisons are evidence-based.
+The receipt also carries elapsed time, token usage when the CLI exposes it, and cost when available. Cursor returns session IDs and may return token usage; missing model identity, usage, or cost stays null. Keep it with the arena or review artifacts so parent-harness comparisons are evidence-based.
 
 Any missing CLI, failed login, unavailable model, explicit timeout, cancellation, catchable post-reservation launcher failure, non-zero child exit, malformed result, or model mismatch is a receipt-bearing dropout. Record it and apply the calling skill's existing dropout policy. A `cancelled` receipt proves that the runner received the signal; its `signal` field is non-null only when the runner sent that signal to a still-active direct CLI child, and remains null when cancellation only stopped a post-exit pipe drain. The provider CLI owns any processes it starts beneath that direct child; the receipt does not claim a process-tree kill. Do not delete or overwrite the receipt. Never substitute the parent model, retry another provider, or reinterpret an external descriptor as a native model slug.
 

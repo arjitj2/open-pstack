@@ -157,6 +157,34 @@ function parseCodex(stdout: string): ParsedOutput {
   };
 }
 
+function parseCursor(stdout: string): ParsedOutput {
+  let raw: unknown;
+  try {
+    raw = JSON.parse(stdout);
+  } catch {
+    throw new Error("cursor did not emit valid JSON");
+  }
+  const value = object(raw);
+  if (value?.type !== "result" || value.subtype !== "success" || value.is_error !== false) {
+    throw new Error("cursor did not report a successful result");
+  }
+  const text = nullableString(value.result);
+  if (text === null || text.trim().length === 0) throw new Error("cursor result did not contain final text");
+  const usage = object(value.usage);
+  return {
+    text,
+    reportedModel: nullableString(value.model),
+    sessionId: nullableString(value.session_id),
+    usage: normalizedUsage(usage === null ? null : {
+      input_tokens: usage.inputTokens,
+      output_tokens: usage.outputTokens,
+      cached_input_tokens: usage.cacheReadTokens,
+      cache_creation_input_tokens: usage.cacheWriteTokens,
+    }),
+    costUsd: finiteNumber(value.total_cost_usd) ?? null,
+  };
+}
+
 export function parseProviderOutput(
   provider: Provider,
   stdout: string,
@@ -164,6 +192,31 @@ export function parseProviderOutput(
   requestedModel: string
 ): ParsedOutput {
   switch (provider) {
+    case "devin": {
+      if (/^warning: rejected a tool call that requires confirmation\./im.test(stderr)) {
+        throw new Error("devin could not approve a tool in non-interactive mode");
+      }
+      let exported: JsonObject | null;
+      try {
+        exported = object(JSON.parse(stdout));
+      } catch {
+        throw new Error("devin export is not valid JSON");
+      }
+      if (exported?.schema_version !== "ATIF-v1.7" || !Array.isArray(exported.steps)) {
+        throw new Error("devin export has an unsupported schema");
+      }
+      const last = object(exported.steps.at(-1));
+      const calls = last?.tool_calls;
+      if (last?.source !== "agent" ||
+          (calls !== undefined && (!Array.isArray(calls) || calls.length !== 0)) ||
+          typeof last.message !== "string" || last.message.trim().length === 0) {
+        throw new Error("devin export did not end with a final agent response");
+      }
+      const text = last.message.trim();
+      return { text, reportedModel: null, sessionId: null, usage: null, costUsd: null };
+    }
+    case "cursor":
+      return parseCursor(stdout);
     case "claude":
       return parseClaude(stdout, requestedModel);
     case "codex":
@@ -179,6 +232,7 @@ export function reportedModelMatches(
   reported: string | null
 ): boolean {
   if (reported === null) return false;
+  if (provider === "cursor") return reported === requested;
   if (provider === "claude" && isRollingClaudeAlias(requested)) {
     return concreteModelMatchesRollingAlias(requested, reported);
   }

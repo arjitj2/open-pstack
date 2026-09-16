@@ -1,13 +1,13 @@
 {
   "name": "pstack",
   "displayName": "pstack",
-  "version": "1.4.1",
+  "version": "1.4.1-arjit.1",
   "description": "if you want to go fast, go deep first. pstack helps you write less, but higher quality code. rigorous agent workflows you can parallelize with confidence. Ported from cursor/plugins/pstack for Claude Code and Codex.",
   "author": {
     "name": "Lauren Tan"
   },
-  "homepage": "https://github.com/ericlitman/open-pstack",
-  "repository": "https://github.com/ericlitman/open-pstack",
+  "homepage": "https://github.com/arjitj2/open-pstack",
+  "repository": "https://github.com/arjitj2/open-pstack",
   "license": "MIT",
   "keywords": [
     "pstack",

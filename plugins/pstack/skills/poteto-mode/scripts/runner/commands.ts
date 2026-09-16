@@ -1,9 +1,12 @@
+import { cursorHasApiKey } from "./cursor.ts";
 import type {
   AccessMode,
   Effort,
   Provider,
   RunnerOptions,
 } from "./types.ts";
+
+import { devinConfigPath, devinExportPath, devinModel, devinPromptPath } from "./devin.ts";
 
 export interface CommandSpec {
   readonly command: string;
@@ -13,6 +16,14 @@ export interface CommandSpec {
 
 export function preflightCommand(provider: Provider): CommandSpec {
   switch (provider) {
+    case "devin":
+      return { command: "devin", args: ["auth", "status"], stdin: "none" };
+    case "cursor":
+      return {
+        command: "cursor-agent",
+        args: cursorHasApiKey() ? ["--version"] : ["status", "--format", "json"],
+        stdin: "none",
+      };
     case "claude":
       return {
         command: "claude",
@@ -65,6 +76,39 @@ function effortOverride(effort: Effort): string {
 
 export function invocationCommand(options: RunnerOptions): CommandSpec {
   switch (options.provider) {
+    case "devin":
+      return {
+        command: "devin",
+        args: [
+          "--config",
+          devinConfigPath(options),
+          "--model",
+          devinModel(options.model, options.effort),
+          ...(options.mode === "isolated-write"
+            ? ["--sandbox"]
+            : ["--permission-mode", "auto"]),
+          "--respect-workspace-trust",
+          "false",
+          "--prompt-file",
+          devinPromptPath(options),
+          "--export",
+          devinExportPath(options),
+          "--print",
+        ],
+        stdin: "none",
+      };
+    case "cursor":
+      return {
+        command: "cursor-agent",
+        args: [
+          "--print", "--output-format", "json", "--trust",
+          "--model", options.model,
+          "--workspace", options.cwd,
+          "--sandbox", "enabled",
+          ...(options.mode === "read-only" ? ["--mode", "ask"] : []),
+        ],
+        stdin: "prompt",
+      };
     case "claude":
       return {
         command: "claude",

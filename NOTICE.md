@@ -34,8 +34,11 @@ Summary of structural changes:
 - `plugins/pstack/skills/babysit/` is independently authored as the Claude Code analog of Cursor's `/babysit` built-in. It has no upstream pstack equivalent; its workflow is informed by Cursor's public `/babysit` behavior. No code or prose was copied from any source.
 - `plugins/pstack/skills/poteto-mode/scripts/` is vendored from upstream (`watch-pr`, `orch`, `bootstrap.ts`, `worktree-audit.sh`, `package.json`, `bun.lock`) with these port edits: `worktree-audit.sh` reads `~/.claude/projects/` instead of Cursor's transcript directory and warns when `jq` or `rg` is missing (their absence silently blanks the columns the prune decision reads), the private workspace package is named `@open-pstack/poteto-mode-tools`, `bootstrap.ts` rejects Node before it reads Bun-only APIs, and `package.json` includes the port-authored tests in `bun run test`. `check-plan.mjs` is the Cursor 0.14.3 checker adapted for the shared Claude Code and Codex skeleton. `bootstrap.test.ts` and `check-plan.test.ts` are authored for this port.
 - `plugins/pstack/agents/comment-sicko.md` is upstream's `Comment Sicko` agent, renamed to `comment-sicko` so the name works as a Claude Code `subagent_type`. The body is verbatim.
+- The setup workflow selects role assignments before probing and requires only assigned model families, with explicit recovery from selected-provider failures and native MCP-dependent roles preserved. This is a port-authored adaptation.
 - Claude-native Fable and Opus lanes are port-authored agent definitions. They select the rolling family alias plus requested effort for every selectable Claude-native pair in the provider-dispatch model matrix.
 - A Codex build shares the same `skills/` tree. It adds `plugins/pstack/.codex-plugin/plugin.json`, a root `.agents/plugins/marketplace.json`, and `plugins/pstack/skills/poteto-mode/references/codex-tools.md` (the Claude-to-Codex tool, model, and built-in map), plus a one-line Platform note in the skills that name a Claude primitive. The skill content itself is unchanged. See [CHANGES.md](CHANGES.md#codex-port).
+
+The external runner also includes an independently authored Devin CLI adapter for optional SWE-2 and SWE-1.6 workers. It does not import Cognition source code.
 
 ## Modifications
 
@@ -57,3 +60,5 @@ Files authored for this port (not derived from upstream):
 - `README.md`
 - `CHANGES.md`
 - `LICENSE-cursor-team-kit` (copied verbatim from upstream cursor-team-kit MIT)
+
+- Cursor external-provider support in `skills/poteto-mode/scripts/runner/` and its setup/dispatch documentation is independently authored for this port against Cursor CLI public interfaces; no Cursor CLI implementation code is copied.

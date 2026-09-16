@@ -28,6 +28,8 @@ jobs:
       - name: Typecheck
         working-directory: plugins/pstack/skills/poteto-mode/scripts
         run: bun run typecheck
+      - name: Test fork maintenance
+        run: python3 tests/test-fork-maintenance.py
       - name: Validate manifests and static invariants
         run: |
           bun -e 'for (const path of [".claude-plugin/marketplace.json", ".agents/plugins/marketplace.json", "plugins/pstack/.claude-plugin/plugin.json", "plugins/pstack/.codex-plugin/plugin.json"]) JSON.parse(await Bun.file(path).text())'
