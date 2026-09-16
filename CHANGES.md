@@ -4,7 +4,7 @@ This port applies the Cursor → Claude Code substitutions in skill bodies. Earl
 
 ## Unreleased: setup only requires assigned providers
 
-Setup selects roles before collecting efforts and probing models. Existing assignments and lane order remain the default; users can explicitly replace roles or remove panel entries without installing every provider in the default panel. Only assigned families are probed. Selected failures leave the sheet and parent integration unchanged until the user repairs availability or changes the affected assignments. Complete role coverage, native Why/Reflect roles, confirmation, and snapshot/readback rollback remain required. Any aliases require an inherited native-agent probe before saving, including alias-only configurations, followed by native behavioral smoke; reduced provider diversity is reported.
+Setup selects roles before collecting efforts and probing models. Existing assignments and lane order remain the default; users can explicitly replace roles or remove panel entries without installing every provider in the default panel. Only assigned families are probed. Selected failures leave the sheet and parent integration unchanged until the user repairs availability or changes the affected assignments. Complete role coverage, native Why/Reflect roles, confirmation, and snapshot/readback rollback remain required. Any aliases require an inherited native-agent probe before saving, including alias-only configurations, followed by native behavioral smoke; reduced provider diversity is reported. Architect requires at least two independent runner entries, which may repeat the same model or native alias, to preserve its design comparison without requiring another provider.
 
 ## 1.4.1 syncs to Cursor pstack 0.15.1
 
