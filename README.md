@@ -41,7 +41,7 @@ You need a current Claude Code or Codex installation. For the full four-model re
 Run these commands inside Claude Code:
 
 ```text
-/plugin marketplace add ericlitman/open-pstack
+/plugin marketplace add arjitj2/open-pstack#v1.4.1-arjit.1
 /plugin install pstack@open-pstack
 /reload-plugins
 ```
@@ -51,7 +51,7 @@ Run these commands inside Claude Code:
 Run these commands in your shell:
 
 ```shell
-codex plugin marketplace add ericlitman/open-pstack --ref main
+codex plugin marketplace add arjitj2/open-pstack --ref v1.4.1-arjit.1
 codex plugin add pstack@open-pstack
 ```
 
