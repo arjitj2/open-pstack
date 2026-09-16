@@ -23,6 +23,21 @@ export function devinExportPath(options: RunnerOptions): string {
   return `${devinExportDirectory(options)}/turn.json`;
 }
 
+export function devinPromptPath(options: RunnerOptions): string {
+  return options.mode === "isolated-write"
+    ? `${devinExportDirectory(options)}/prompt.md`
+    : options.promptPath;
+}
+
+export function devinWriterPrompt(prompt: string): string {
+  return "Execution constraints for this Devin worker:\n" +
+    "You are running non-interactively in an isolated-write workspace. " +
+    "Direct write and edit tools are disabled and terminate the run if attempted. " +
+    "Use sandboxed exec for ALL file creation, modification, and testing, including the first file operation. " +
+    "Do not request permissions or use direct write/edit tools. " +
+    "Keep all changes inside the assigned working directory.\n\nAssigned task:\n" + prompt;
+}
+
 export function readDevinExport(options: RunnerOptions): string {
   try {
     return readFileSync(devinExportPath(options), "utf8");

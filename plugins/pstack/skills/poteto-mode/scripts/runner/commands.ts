@@ -5,7 +5,7 @@ import type {
   RunnerOptions,
 } from "./types.ts";
 
-import { devinConfigPath, devinExportPath, devinModel } from "./devin.ts";
+import { devinConfigPath, devinExportPath, devinModel, devinPromptPath } from "./devin.ts";
 
 export interface CommandSpec {
   readonly command: string;
@@ -83,7 +83,7 @@ export function invocationCommand(options: RunnerOptions): CommandSpec {
           "--respect-workspace-trust",
           "false",
           "--prompt-file",
-          options.promptPath,
+          devinPromptPath(options),
           "--export",
           devinExportPath(options),
           "--print",

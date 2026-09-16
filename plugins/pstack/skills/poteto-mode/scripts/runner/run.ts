@@ -20,7 +20,7 @@ import type {
   RunnerReceipt,
 } from "./types.ts";
 import { UsageError } from "./types.ts";
-import { devinConfig, devinConfigPath, devinExportDirectory, devinExportPath, devinModel, readDevinExport } from "./devin.ts";
+import { devinConfig, devinConfigPath, devinExportDirectory, devinExportPath, devinModel, devinPromptPath, devinWriterPrompt, readDevinExport } from "./devin.ts";
 
 const ERROR_EVIDENCE_LIMIT = 4_000;
 const GROK_PREFLIGHT_RETRY_DELAY_MS = 5_000;
@@ -889,6 +889,11 @@ export async function runLane(
         mkdirSync(devinExportDirectory(options), { mode: 0o700 });
         devinExportCreated = true;
         reserve(devinExportPath(options));
+        if (options.mode === "isolated-write") {
+          writeFileSync(devinPromptPath(options), devinWriterPrompt(readFileSync(options.promptPath, "utf8")), {
+            encoding: "utf8", mode: 0o600, flag: "wx",
+          });
+        }
       }
       return await executeLane(
         options,

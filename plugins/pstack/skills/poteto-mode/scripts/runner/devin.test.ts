@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { devinConfig, devinConfigPath, devinExportDirectory, devinExportPath, devinModel } from "./devin.ts";
+import { devinConfig, devinConfigPath, devinExportDirectory, devinExportPath, devinModel, devinPromptPath } from "./devin.ts";
 import { invocationCommand } from "./commands.ts";
 import { childEnvironment, runLane } from "./run.ts";
 import { parseArgs } from "./cli.ts";
@@ -53,6 +53,9 @@ if (args[0] === "auth") {
 }
 const config = await Bun.file(args[args.indexOf("--config") + 1]).json();
 if (config.subagents_enabled !== false) throw new Error("recursive agents enabled");
+const promptPath = args[args.indexOf("--prompt-file") + 1];
+await Bun.write(${JSON.stringify(join(scratch, "captured-prompt.txt"))}, await Bun.file(promptPath).text());
+if (args.includes("--sandbox") && (statSync(promptPath).mode & 0o777) !== 0o600) throw new Error("prompt not private");
 const exportPath = args[args.indexOf("--export") + 1];
 if ((statSync(exportPath).mode & 0o777) !== 0o600) throw new Error("export file not private");
 if ((statSync(dirname(exportPath)).mode & 0o777) !== 0o700) throw new Error("export directory not private");
@@ -129,6 +132,22 @@ describe("Devin external provider", () => {
       });
     }
   }
+
+  it("adds writer tool constraints without modifying the assigned prompt", async () => {
+    const original = "Create a file.\nThen run its test.\n";
+    writeFileSync(options.promptPath, original);
+    fakeDevin("DONE");
+    const input = { ...options, mode: "isolated-write" as const };
+    const result = await runLane(input);
+    expect(result.exitCode).toBe(0);
+    const sent = readFileSync(join(scratch, "captured-prompt.txt"), "utf8");
+    expect(sent).toContain("Use sandboxed exec for ALL file creation, modification, and testing");
+    expect(sent.endsWith(original)).toBe(true);
+    expect(readFileSync(options.promptPath, "utf8")).toBe(original);
+    expect(result.receipt.promptPath).toBe(options.promptPath);
+    expect(result.receipt.argv).toContain(devinPromptPath(input));
+    expect(existsSync(devinExportDirectory(input))).toBe(false);
+  });
 
   it("reports account restrictions without substituting another model", async () => {
     fakeDevin("Upgrade to Pro to access this model", 1);
