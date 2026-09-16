@@ -271,7 +271,7 @@ describe("Devin external provider", () => {
   });
 
   it("does not allow fixed effort for existing providers", async () => {
-    await expect(runLane({ ...options, provider: "claude", model: "fable", effort: "default" })).rejects.toThrow("only for Devin");
+    await expect(runLane({ ...options, provider: "claude", model: "fable", effort: "default" })).rejects.toThrow("only for Cursor or Devin SWE-1.6");
   });
 
   it("removes both parent identity sets from Devin's environment", () => {
