@@ -52,7 +52,7 @@ const SETUP_SECTION_ORDER = [
   "### 2. Load current state",
   "### 3. Parse per-family efforts",
   "### 4. Collect one requested effort per family",
-  "### 5. Probe the four requested pairs",
+  "### 5. Probe the requested pairs",
   "### 6. Render, preserving role families",
   "### 7. Confirm and commit",
 ] as const;
