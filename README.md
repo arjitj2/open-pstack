@@ -41,7 +41,7 @@ You need a current Claude Code or Codex installation. For the full four-model re
 Run these commands inside Claude Code:
 
 ```text
-/plugin marketplace add arjitj2/open-pstack#v1.4.1-arjit.1
+/plugin marketplace add arjitj2/open-pstack#v1.4.1-arjit.2
 /plugin install pstack@open-pstack
 /reload-plugins
 ```
@@ -51,7 +51,7 @@ Run these commands inside Claude Code:
 Run these commands in your shell:
 
 ```shell
-codex plugin marketplace add arjitj2/open-pstack --ref v1.4.1-arjit.1
+codex plugin marketplace add arjitj2/open-pstack --ref v1.4.1-arjit.2
 codex plugin add pstack@open-pstack
 ```
 
@@ -84,7 +84,9 @@ Use pstack:setup-pstack to configure pstack.
 
 Setup checks the models you can actually run, shows how each one will start, and asks before saving the choices. The current default group uses Fable, GPT-5.6 Sol, Grok 4.6, and Opus.
 
-An older model sheet starts using the rolling aliases in memory as soon as this release is installed. Run setup once after updating to persist that migration. It replaces versioned Fable and Opus entries while preserving every role assignment and effort selection.
+An older model sheet starts using the rolling aliases in memory as soon as this release is installed. Run setup once after updating to persist that migration. It replaces versioned Fable, Opus, and Sonnet entries while preserving every role assignment and effort selection.
+
+Sonnet, GPT-6 Astra, GPT-5.6 Luna, and GPT-5.6 Terra are also available as opt-in role assignments in setup. They do not change the four-family first-run defaults. Only assigned families are probed; native probes and smoke candidates run within available agent capacity.
 
 ### 2. Use poteto-mode
 
@@ -141,7 +143,7 @@ Both apps read the same pstack skills. Only the way they start those skills and 
 | | Claude Code | Codex |
 | --- | --- | --- |
 | Start poteto-mode | Claude loads a small startup instruction that can route non-trivial work into it. You can also run `/pstack:poteto-mode` yourself. | Ask for `pstack:poteto-mode` by name. Codex does not load the Claude startup instruction. |
-| Runs inside the app | Claude models stay inside Claude Code. | The Sol model stays inside Codex. |
+| Runs inside the app | Claude models stay inside Claude Code. | Codex models stay inside Codex. |
 | Other models | Codex and Grok run through their signed-in command-line tools. | Claude and Grok run through their signed-in command-line tools. |
 | Skills and workflows | Shared with Codex. | Shared with Claude Code. |
 

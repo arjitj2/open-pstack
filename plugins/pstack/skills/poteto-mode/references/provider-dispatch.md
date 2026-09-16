@@ -8,16 +8,20 @@ pstack model choices are provider-qualified descriptors:
 
 ## Model matrix
 
-| Family | Upstream pstack choice | Provider | Model | Default effort | Selectable efforts | Claude-native agent stem |
-|---|---|---|---|---|---|---|
-| fable | fable | claude | fable | max | low medium high xhigh max | fable |
-| sol | gpt-5.6-sol-max | codex | gpt-5.6-sol | max | low medium high xhigh max | - |
-| grok | grok-4.6-fast-xhigh | grok | grok-4.6 | xhigh | low medium high xhigh max | - |
-| opus | opus | claude | opus | xhigh | low medium high xhigh max | opus |
+| Family | Upstream pstack choice | Provider | Model | Default effort | Selectable efforts | Claude-native agent stem | First-run active |
+|---|---|---|---|---|---|---|---|
+| fable | fable | claude | fable | max | low medium high xhigh max | fable | yes |
+| sol | gpt-5.6-sol-max | codex | gpt-5.6-sol | max | low medium high xhigh max | - | yes |
+| grok | grok-4.6-fast-xhigh | grok | grok-4.6 | xhigh | low medium high xhigh max | - | yes |
+| opus | opus | claude | opus | xhigh | low medium high xhigh max | opus | yes |
+| sonnet | - | claude | sonnet | high | low medium high xhigh max | sonnet | no |
+| astra | - | codex | gpt-6-astra | high | low medium high xhigh max | - | no |
+| luna | - | codex | gpt-5.6-luna | high | low medium high xhigh max | - | no |
+| terra | - | codex | gpt-5.6-terra | high | low medium high xhigh max | - | no |
 
-For the default matrix, the allowed effort universe is exactly `low`, `medium`, `high`, `xhigh`, `max`. First-run requested efforts are the Default effort cell of each row. A Claude-native agent stem of `-` means the family has no Claude-native agent. Otherwise the shipped agent name is `pstack-<stem>-<effort>`.
+For the model matrix, the allowed effort universe is exactly `low`, `medium`, `high`, `xhigh`, `max`. A `-` in Upstream pstack choice means the portable build added that family. First run activates only rows whose First-run active cell is `yes`, in matrix order, and uses each active row's Default effort. Later runs derive the active family set from the non-alias descriptors in the normalized final role map. No separate active-family setting exists. A Claude-native agent stem of `-` means the family has no Claude-native agent. Otherwise the shipped agent name is `pstack-<stem>-<effort>`.
 
-`fable` and `opus` are Claude Code's rolling aliases. Claude resolves each alias to the latest available family revision. A runner receipt keeps the requested alias in `model` and the concrete provider-reported revision in `reportedModel`; verification accepts only a numeric `claude-fable-*` or `claude-opus-*` revision from the matching family.
+`fable`, `opus`, and `sonnet` are Claude Code's rolling aliases. Claude resolves each alias to the latest available family revision. A runner receipt keeps the requested alias in `model` and the concrete provider-reported revision in `reportedModel`; verification accepts only a numeric `claude-fable-*`, `claude-opus-*`, or `claude-sonnet-*` revision from the matching family.
 
 ## Optional Devin models
 
@@ -42,9 +46,9 @@ Cursor is an external provider from both parents. Install and authenticate `curs
 
 ## Read-time normalization
 
-Normalize configured descriptors before matching them to the matrix or choosing a route. If a provider-qualified Claude model starts with `claude-fable-` or `claude-opus-` and its remaining revision contains only digits and hyphens, replace that model component in memory with `fable` or `opus`. Preserve provider, effort, role, and lane order. Use only the normalized descriptor for native dispatch or runner argv. Never pass the versioned predecessor to Claude.
+Normalize configured descriptors before matching them to the matrix or choosing a route. If a provider-qualified Claude model starts with `claude-fable-`, `claude-opus-`, or `claude-sonnet-` and its remaining revision contains only digits and hyphens, replace that model component in memory with `fable`, `opus`, or `sonnet`. Preserve provider, effort, role, and lane order. Use only the normalized descriptor for native dispatch or runner argv. Never pass the versioned predecessor to Claude.
 
-This read-time rule makes an older installed sheet use the latest family revision immediately without writing user files. Once per parent run, report that the persisted sheet is stale and that `/setup-pstack` will rewrite it after its normal probes and confirmation. Unknown versioned Claude models remain invalid. The external runner rejects a missed Fable or Opus version pin instead of silently executing it.
+This read-time rule makes an older installed sheet use the latest family revision immediately without writing user files. Once per parent run, report that the persisted sheet is stale and that `/setup-pstack` will rewrite it after its normal probes and confirmation. Unknown versioned Claude models remain invalid. The external runner rejects a missed Fable, Opus, or Sonnet version pin instead of silently executing it.
 
 `fast` is part of Cursor's Grok selector, not a Grok Build CLI model or effort flag. The portable Grok route pins the current CLI model `grok-4.6`. The first-run Grok effort is `xhigh`.
 
@@ -117,7 +121,7 @@ Success requires all of these:
 
 1. Exit status `0`.
 2. Receipt status `complete`.
-3. Either `modelVerified: true` with `modelEvidence: "provider-report"`, or a Codex, Devin, or Cursor receipt with `reportedModel: null`, `modelVerified: false`, and `modelEvidence: "pinned-argv"`. For Claude's `fable` and `opus` aliases, the concrete provider report must belong to the requested family. For pinned-argv evidence, verify the receipt provider, model, and effort match the assignment and its argv pins the expected CLI model. Codex and Cursor pin the assigned model directly; Cursor requires `effort: "default"`; Devin uses the exact UID mapping in Optional Devin models (for example, `swe-2@high` pins `--model swe-2-high`). These providers may omit a provider model report; do not describe pinned argv as provider-verified identity.
+3. Either `modelVerified: true` with `modelEvidence: "provider-report"`, or a Codex, Devin, or Cursor receipt with `reportedModel: null`, `modelVerified: false`, and `modelEvidence: "pinned-argv"`. For Claude's `fable`, `opus`, and `sonnet` aliases, the concrete provider report must belong to the requested family. For pinned-argv evidence, verify the receipt provider, model, and effort match the assignment and its argv pins the expected CLI model. Codex and Cursor pin the assigned model directly; Cursor requires `effort: "default"`; Devin uses the exact UID mapping in Optional Devin models (for example, `swe-2@high` pins `--model swe-2-high`). These providers may omit a provider model report; do not describe pinned argv as provider-verified identity.
 4. A non-empty output file.
 
 The receipt also carries elapsed time, token usage when the CLI exposes it, and cost when available. Cursor returns session IDs and may return token usage; missing model identity, usage, or cost stays null. Keep it with the arena or review artifacts so parent-harness comparisons are evidence-based.

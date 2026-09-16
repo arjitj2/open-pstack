@@ -20,13 +20,13 @@ Install only a uniquely named tested release tag or full commit from this fork. 
 
 ## Installed release
 
-The initial combined release is `v1.4.1-arjit.1` (plugin `1.4.1-arjit.1`). Codex uses the existing `open-pstack` marketplace name, preserving the `pstack:` skill namespace. To switch an existing upstream installation:
+The initial combined release is `v1.4.1-arjit.1` (plugin `1.4.1-arjit.1`). Codex uses the existing `open-pstack` marketplace name, preserving the `pstack:` skill namespace. The optional-family release is `v1.4.1-arjit.2` (plugin `1.4.1-arjit.2`); install it only after the exact candidate passes both installed host lanes. To switch an existing installation:
 
 ```sh
 codex plugin remove pstack@open-pstack
 codex plugin marketplace remove open-pstack
-codex plugin marketplace add https://github.com/arjitj2/open-pstack.git --ref v1.4.1-arjit.1
+codex plugin marketplace add https://github.com/arjitj2/open-pstack.git --ref v1.4.1-arjit.2
 codex plugin add pstack@open-pstack
 ```
 
-Start a new Codex task to discover the installed skills. Run `setup-pstack` when you want to change model assignments; installation does not rewrite your model sheet. To roll back, replace the marketplace URL with `https://github.com/ericlitman/open-pstack.git` and the ref with the previously tested upstream tag `v1.4.1`.
+Start a new Codex task to discover the installed skills. Run `setup-pstack` when you want to change model assignments; installation does not rewrite your model sheet. To roll back, keep the fork marketplace URL and restore the previously tested ref `v1.4.1-arjit.1`.
