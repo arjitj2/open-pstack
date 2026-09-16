@@ -11,6 +11,7 @@ import {
 } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { invocationCommand, preflightCommand, type CommandSpec } from "./commands.ts";
+import { cursorConfigDirectory, cursorConfig, cursorHasApiKey, cursorUserConfigPath, validateCursorModel } from "./cursor.ts";
 import { versionedClaudeAlias } from "./model-aliases.ts";
 import { parseProviderOutput, reportedModelMatches } from "./parse-output.ts";
 import type {
@@ -352,10 +353,20 @@ async function waitForGrokPreflightRetry(
   }
 }
 
-function preflightPassed(provider: Provider, model: string, result: ProcessResult): boolean {
+function preflightPassed(provider: Provider, model: string, result: ProcessResult, apiKeyAuth: boolean = false): boolean {
   if (result.exitCode !== 0 || result.timedOut) return false;
   const combined = `${result.stdout}\n${result.stderr}`;
   switch (provider) {
+    case "cursor": {
+      if (apiKeyAuth) return true;
+      try {
+        const value: unknown = JSON.parse(result.stdout);
+        return value !== null && typeof value === "object" &&
+          (value as { isAuthenticated?: unknown }).isAuthenticated === true;
+      } catch {
+        return false;
+      }
+    }
     case "claude": {
       try {
         const value: unknown = JSON.parse(result.stdout);
@@ -377,14 +388,15 @@ function preflightPassed(provider: Provider, model: string, result: ProcessResul
   }
 }
 
-function successfulPreflightEvidence(provider: Provider, model: string): string {
+function successfulPreflightEvidence(provider: Provider, model: string, apiKeyAuth: boolean = false): string {
+  if (apiKeyAuth) return "CURSOR_API_KEY supplied; authentication deferred to model execution";
   return provider === "grok"
     ? `authenticated; model ${model} available`
     : "authenticated";
 }
 
 function unavailableStatus(value: string): ReceiptStatus {
-  if (/not logged in|unauthenticated|authentication|sign in|login required/i.test(value)) {
+  if (/not logged in|unauthenticated|authentication|sign in|login required|\b401\b|\bunauthori[sz]ed\b|invalid.{0,12}api.?key|api.?key.{0,20}(invalid|expired)/i.test(value)) {
     return "unauthenticated";
   }
   if (/upgrade to .{0,30}to access this model/i.test(value)) return "unavailable-model";
@@ -455,7 +467,7 @@ function modelProof(
       modelEvidence: "provider-report",
     };
   }
-  if ((provider === "codex" || provider === "devin") && reported === null) {
+  if ((provider === "codex" || provider === "devin" || provider === "cursor") && reported === null) {
     return {
       reportedModel: null,
       modelVerified: false,
@@ -488,6 +500,7 @@ function completeReceipt(
 }
 
 export function validateOptions(options: RunnerOptions): void {
+  if (options.provider === "cursor") validateCursorModel(options.model, options.effort);
   if (options.parent === options.provider) {
     throw new UsageError(
       `provider ${options.provider} is native to parent ${options.parent}; use the parent subagent primitive`
@@ -496,8 +509,8 @@ export function validateOptions(options: RunnerOptions): void {
   if (options.model.trim().length === 0) throw new UsageError("model must not be empty");
   if (options.provider === "devin") {
     devinModel(options.model, options.effort);
-  } else if (options.effort === "default") {
-    throw new UsageError("default effort is supported only for Devin SWE-1.6");
+  } else if (options.provider !== "cursor" && options.effort === "default") {
+    throw new UsageError("default effort is supported only for Cursor or Devin SWE-1.6");
   }
   const staleAlias = options.provider === "claude"
     ? versionedClaudeAlias(options.model)
@@ -545,6 +558,8 @@ async function executeLane(
   const startedAt = new Date(started).toISOString();
   const prompt = readFileSync(options.promptPath, "utf8");
   const env = childEnvironment(options.provider);
+  const apiKeyAuth = options.provider === "cursor" && cursorHasApiKey(env);
+  if (options.provider === "cursor") env.CURSOR_CONFIG_DIR = cursorConfigDirectory(options);
   const executable = Bun.which(invocation.command, {
     PATH: env.PATH,
     cwd: options.cwd,
@@ -638,9 +653,9 @@ async function executeLane(
     cancellation
   );
   let rawPreflightEvidence = evidence(`${preflightResult.stdout}\n${preflightResult.stderr}`);
-  let passed = preflightPassed(options.provider, options.model, preflightResult);
+  let passed = preflightPassed(options.provider, options.model, preflightResult, apiKeyAuth);
   let preflightEvidence = passed
-    ? successfulPreflightEvidence(options.provider, options.model)
+    ? successfulPreflightEvidence(options.provider, options.model, apiKeyAuth)
     : rawPreflightEvidence;
 
   if (
@@ -682,11 +697,11 @@ async function executeLane(
       cancellation
     );
     rawPreflightEvidence = evidence(`${preflightResult.stdout}\n${preflightResult.stderr}`);
-    passed = preflightPassed(options.provider, options.model, preflightResult);
+    passed = preflightPassed(options.provider, options.model, preflightResult, apiKeyAuth);
     preflightEvidence = retriedPreflightEvidence(
       firstPreflightEvidence,
       passed
-        ? successfulPreflightEvidence(options.provider, options.model)
+        ? successfulPreflightEvidence(options.provider, options.model, apiKeyAuth)
         : rawPreflightEvidence,
       passed
     );
@@ -876,6 +891,7 @@ export async function runLane(
     argv: [invocation.command, ...invocation.args],
   };
   const cancellation = installRunCancellation();
+  let createdCursorConfig = false;
   let devinConfigCreated = false;
   let devinExportCreated = false;
   try {
@@ -894,6 +910,12 @@ export async function runLane(
             encoding: "utf8", mode: 0o600, flag: "wx",
           });
         }
+      }
+      if (options.provider === "cursor") {
+        const directory = cursorConfigDirectory(options);
+        mkdirSync(directory, { mode: 0o700 });
+        createdCursorConfig = true;
+        writeFileSync(`${directory}/cli-config.json`, JSON.stringify(cursorConfig(options.mode, cursorUserConfigPath(process.env, undefined, options.cwd))), { flag: "wx", mode: 0o600 });
       }
       return await executeLane(
         options,
@@ -946,9 +968,13 @@ export async function runLane(
       return { exitCode: statusExitCode(status), receipt };
     }
   } finally {
-    cancellation.dispose();
-    if (devinConfigCreated) removeIfExists(devinConfigPath(options));
-    if (devinExportCreated) rmSync(devinExportDirectory(options), { recursive: true, force: true });
+    try {
+      if (devinConfigCreated) removeIfExists(devinConfigPath(options));
+      if (devinExportCreated) rmSync(devinExportDirectory(options), { recursive: true, force: true });
+      if (createdCursorConfig) rmSync(cursorConfigDirectory(options), { recursive: true, force: true });
+    } finally {
+      cancellation.dispose();
+    }
   }
 }
 

@@ -157,6 +157,34 @@ function parseCodex(stdout: string): ParsedOutput {
   };
 }
 
+function parseCursor(stdout: string): ParsedOutput {
+  let raw: unknown;
+  try {
+    raw = JSON.parse(stdout);
+  } catch {
+    throw new Error("cursor did not emit valid JSON");
+  }
+  const value = object(raw);
+  if (value?.type !== "result" || value.subtype !== "success" || value.is_error !== false) {
+    throw new Error("cursor did not report a successful result");
+  }
+  const text = nullableString(value.result);
+  if (text === null || text.trim().length === 0) throw new Error("cursor result did not contain final text");
+  const usage = object(value.usage);
+  return {
+    text,
+    reportedModel: nullableString(value.model),
+    sessionId: nullableString(value.session_id),
+    usage: normalizedUsage(usage === null ? null : {
+      input_tokens: usage.inputTokens,
+      output_tokens: usage.outputTokens,
+      cached_input_tokens: usage.cacheReadTokens,
+      cache_creation_input_tokens: usage.cacheWriteTokens,
+    }),
+    costUsd: finiteNumber(value.total_cost_usd) ?? null,
+  };
+}
+
 export function parseProviderOutput(
   provider: Provider,
   stdout: string,
@@ -187,6 +215,8 @@ export function parseProviderOutput(
       const text = last.message.trim();
       return { text, reportedModel: null, sessionId: null, usage: null, costUsd: null };
     }
+    case "cursor":
+      return parseCursor(stdout);
     case "claude":
       return parseClaude(stdout, requestedModel);
     case "codex":
@@ -202,6 +232,7 @@ export function reportedModelMatches(
   reported: string | null
 ): boolean {
   if (reported === null) return false;
+  if (provider === "cursor") return reported === requested;
   if (provider === "claude" && isRollingClaudeAlias(requested)) {
     return concreteModelMatchesRollingAlias(requested, reported);
   }

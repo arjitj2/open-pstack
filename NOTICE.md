@@ -59,3 +59,5 @@ Files authored for this port (not derived from upstream):
 - `README.md`
 - `CHANGES.md`
 - `LICENSE-cursor-team-kit` (copied verbatim from upstream cursor-team-kit MIT)
+
+- Cursor external-provider support in `skills/poteto-mode/scripts/runner/` and its setup/dispatch documentation is independently authored for this port against Cursor CLI public interfaces; no Cursor CLI implementation code is copied.
