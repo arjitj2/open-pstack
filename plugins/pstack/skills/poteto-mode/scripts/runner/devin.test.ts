@@ -31,7 +31,7 @@ afterEach(() => {
   rmSync(scratch, { recursive: true, force: true });
 });
 
-function fakeDevin(response: string, exitCode = 0, auth = "Logged in (via Devin).") {
+function fakeDevin(response: string, exitCode = 0, auth = "Logged in (via Devin).", stderr = "") {
   const path = join(scratch, "devin");
   writeFileSync(path, `#!/usr/bin/env bun
 const args = process.argv.slice(2);
@@ -42,6 +42,7 @@ if (args[0] === "auth") {
 const config = await Bun.file(args[args.indexOf("--config") + 1]).json();
 if (config.subagents_enabled !== false) throw new Error("recursive agents enabled");
 console.log(${JSON.stringify(response)});
+console.error(${JSON.stringify(stderr)});
 process.exit(${exitCode});
 `);
   chmodSync(path, 0o755);
@@ -81,12 +82,16 @@ describe("Devin external provider", () => {
 
   it("disables child delegation and imports, and denies writes and shell in read-only mode", () => {
     const config = devinConfig(options);
+    expect(config.shell.setup_complete).toBe(true);
     expect(config.subagents_enabled).toBe(false);
     expect(Object.values(config.read_config_from).every(value => value === false)).toBe(true);
     expect(config.permissions.deny).toEqual(expect.arrayContaining(["Write(**)", "exec", "mcp__*"]));
     const writer = invocationCommand({ ...options, mode: "isolated-write" });
     expect(writer.args).toContain("--sandbox");
-    expect(writer.args).toContain("accept-edits");
+    expect(writer.args).not.toContain("--permission-mode");
+    const writerConfig = devinConfig({ ...options, mode: "isolated-write" });
+    expect(writerConfig.permissions.deny).toEqual(expect.arrayContaining(["edit", "write"]));
+    expect(writerConfig.permissions.deny).not.toContain("exec");
     expect(writer.args).not.toContain("dangerous");
   });
 
@@ -126,6 +131,39 @@ describe("Devin external provider", () => {
   it("does not report an empty successful process as a completed answer", async () => {
     fakeDevin(" ");
     const result = await runLane(options);
+    expect(result.receipt.status).toBe("malformed-output");
+    expect(existsSync(options.outputPath)).toBe(false);
+  });
+
+  const welcome = "\x1b[1mWelcome to Devin CLI!\x1b[0m\n\n ✓ Logged in as test@example.com.\n\n\x1b[?2004lYou're all set. Run \x1b[1mdevin\x1b[0m to get started.";
+
+  it("rejects the observed onboarding-only zero-exit output", async () => {
+    fakeDevin(welcome);
+    const result = await runLane(options);
+    expect(result.exitCode).not.toBe(0);
+    expect(result.receipt.status).toBe("malformed-output");
+    expect(existsSync(options.outputPath)).toBe(false);
+  });
+
+  it("keeps the answer after a recognized onboarding banner", async () => {
+    fakeDevin(`${welcome}\nPSTACK_READ_OK`);
+    const result = await runLane(options);
+    expect(result.exitCode).toBe(0);
+    expect(readFileSync(options.outputPath, "utf8")).toBe("PSTACK_READ_OK");
+  });
+
+  it("keeps response text that merely mentions the welcome message", async () => {
+    const response = "Welcome to Devin CLI! is the banner shown on first run.";
+    fakeDevin(response);
+    const result = await runLane(options);
+    expect(result.exitCode).toBe(0);
+    expect(readFileSync(options.outputPath, "utf8")).toBe(response);
+  });
+
+  it("rejects an incomplete turn when headless tool confirmation fails", async () => {
+    fakeDevin("I will create the file.", 0, "Logged in (via Devin).",
+      "warning: rejected a tool call that requires confirmation. Running in non-interactive mode. Use --permission-mode dangerous to auto-approve all tools.");
+    const result = await runLane({ ...options, mode: "isolated-write" });
     expect(result.receipt.status).toBe("malformed-output");
     expect(existsSync(options.outputPath)).toBe(false);
   });

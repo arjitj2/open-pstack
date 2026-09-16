@@ -77,9 +77,9 @@ export function invocationCommand(options: RunnerOptions): CommandSpec {
           devinConfigPath(options),
           "--model",
           devinModel(options.model, options.effort),
-          "--permission-mode",
-          options.mode === "read-only" ? "auto" : "accept-edits",
-          ...(options.mode === "isolated-write" ? ["--sandbox"] : []),
+          ...(options.mode === "isolated-write"
+            ? ["--sandbox"]
+            : ["--permission-mode", "auto"]),
           "--respect-workspace-trust",
           "false",
           "--prompt-file",

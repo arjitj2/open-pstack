@@ -6,7 +6,7 @@ This port applies the Cursor → Claude Code substitutions in skill bodies. Earl
 
 Adds `devin` to the external runner for both Claude Code and Codex parents. SWE-2 supports medium/high/max through exact model UIDs; SWE-1.6 uses a fixed `default` effort token. Setup probes opted-in Devin families while preserving existing default panels. Arena uses the shared completion contract, which accepts matching Codex and Devin pinned-argv evidence. The upstream sync point is unchanged.
 
-The adapter captures non-interactive print output, records pinned-argv evidence without claiming a provider model report, and leaves unreported usage/cost/session fields null. Per-run configuration disables nested subagents and imported tool settings. Read-only workers deny shell and writes; writers request Devin's OS sandbox in the assigned worktree. Devin project settings and startup hooks remain a live-verification concern. Account restrictions fail without fallback.
+The adapter captures non-interactive print output, records pinned-argv evidence without claiming a provider model report, and leaves unreported usage/cost/session fields null. Per-run configuration disables nested subagents and imported tool settings. Read-only workers deny shell and writes; writers use sandboxed shell commands for edits and tests in the assigned worktree, with direct unsandboxed file tools denied. Per-run shell onboarding is suppressed; banner-only output and failed headless tool confirmations cannot count as completed answers. Devin project settings and startup hooks remain a live-verification concern. Account restrictions fail without fallback.
 
 ## 1.4.1 syncs to Cursor pstack 0.15.1
 

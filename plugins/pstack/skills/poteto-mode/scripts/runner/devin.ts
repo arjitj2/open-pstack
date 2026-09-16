@@ -16,6 +16,7 @@ export function devinConfigPath(options: RunnerOptions): string {
 
 export function devinConfig(options: RunnerOptions) {
   return {
+    shell: { setup_complete: true },
     subagents_enabled: false,
     auto_update: false,
     notify: "never",
@@ -30,8 +31,8 @@ export function devinConfig(options: RunnerOptions) {
     },
     permissions: {
       deny: [
-        "mcp__*", "fetch",
-        ...(options.mode === "read-only" ? ["exec", "edit", "write", "Write(**)"] : []),
+        "mcp__*", "fetch", "edit", "write",
+        ...(options.mode === "read-only" ? ["exec", "Write(**)"] : []),
       ],
     },
   };

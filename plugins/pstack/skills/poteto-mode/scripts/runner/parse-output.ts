@@ -1,3 +1,4 @@
+import { stripVTControlCharacters } from "node:util";
 import type {
   NormalizedUsage,
   ParsedOutput,
@@ -165,7 +166,13 @@ export function parseProviderOutput(
 ): ParsedOutput {
   switch (provider) {
     case "devin": {
-      const text = stdout.trim();
+      if (/^warning: rejected a tool call that requires confirmation\./im.test(stderr)) {
+        throw new Error("devin could not approve a tool in non-interactive mode");
+      }
+      const text = stripVTControlCharacters(stdout).replace(
+        /^Welcome to Devin CLI!\r?\n\s*✓ Logged in as [^\r\n]+\r?\n\s*You're all set\. Run devin to get started\.\s*/,
+        ""
+      ).trim();
       if (text.length === 0) throw new Error("devin did not emit a response");
       return { text, reportedModel: null, sessionId: null, usage: null, costUsd: null };
     }
