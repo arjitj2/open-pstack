@@ -50,10 +50,10 @@ const SHEET_ROLES = [
 ] as const;
 const SETUP_SECTION_ORDER = [
   "### 2. Load current state",
-  "### 3. Parse per-family efforts",
-  "### 4. Collect one requested effort per family",
-  "### 5. Probe the four requested pairs",
-  "### 6. Render, preserving role families",
+  "### 3. Select role assignments",
+  "### 4. Validate and choose assigned efforts",
+  "### 5. Probe the assigned routes",
+  "### 6. Render the selected role map",
   "### 7. Confirm and commit",
 ] as const;
 
@@ -314,16 +314,17 @@ describe("model matrix", () => {
       expect(current).toBeGreaterThan(previous);
       previous = current;
     }
-    expect(setup).toContain("Do not invent a precedence rule.");
-    expect(setup).toContain("Do not probe or write while any inconsistency is unresolved.");
-    expect(setup).toContain("A failed probe writes nothing:");
-    expect(setup).toContain("Run one probe per family");
-    expect(setup).toContain("normalized complete role map from step 2");
+    expect(setup).toContain("Do not invent precedence.");
+    expect(setup).toContain("resolve them through an explicit matrix family or alias replacement before probing or writing.");
+    expect(setup).toContain("A failed probe writes nothing.");
+    expect(setup).toContain("Probe each distinct assigned `provider:model@effort` pair once");
+    expect(setup).toContain("There is no requirement to assign every matrix family.");
+    expect(setup).toContain("all required assigned-pair and inherited native-route probes pass");
     expect(setup).toContain("starts with `claude-fable-` or `claude-opus-`");
     expect(setup).toContain("preserving the provider, effort, role, and lane order");
     expect(setup).toContain("Show any rolling-alias migrations");
     expect(setup).toContain("Every documented role remains present.");
-    expect(setup).toContain("An effort-only rerun cannot change a role's family.");
+    expect(setup).toContain("An effort-only rerun preserves each role's family and lane order.");
     expect(setup).toContain("<!-- pstack:models:begin -->");
     expect(setup).toContain("<!-- pstack:models:end -->");
   });

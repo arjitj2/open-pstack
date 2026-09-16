@@ -2,6 +2,10 @@
 
 This port applies the Cursor → Claude Code substitutions in skill bodies. Earlier drafts left them flagged; this revision resolves them. A later pass added a Codex build that shares the same skills; see [Codex port](#codex-port) below.
 
+## Unreleased: setup only requires assigned providers
+
+Setup selects roles before collecting efforts and probing models. Existing assignments and lane order remain the default; users can explicitly replace roles or remove panel entries without installing every provider in the default panel. Only assigned families are probed. Selected failures leave the sheet and parent integration unchanged until the user repairs availability or changes the affected assignments. Complete role coverage, native Why/Reflect roles, confirmation, and snapshot/readback rollback remain required. Any aliases require an inherited native-agent probe before saving, including alias-only configurations, followed by native behavioral smoke; reduced provider diversity is reported.
+
 ## 1.4.1 syncs to Cursor pstack 0.15.1
 
 Open Pstack 1.4.1 tracks Cursor pstack 0.15.1 at `f8abeddd1862dc73704e3d719dd73df0d51b8c71`. Poteto-mode now requires each claim to include its evidence or a measured, inferred, or guess label in the same sentence. Agents also run any check they can run themselves instead of handing that check to the user. No playbook, model, runtime, or dependency changed.
