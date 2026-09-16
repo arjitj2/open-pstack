@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
-import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { devinConfig, devinConfigPath, devinModel } from "./devin.ts";
+import { devinConfig, devinConfigPath, devinExportDirectory, devinExportPath, devinModel } from "./devin.ts";
 import { invocationCommand } from "./commands.ts";
 import { childEnvironment, runLane } from "./run.ts";
 import { parseArgs } from "./cli.ts";
@@ -31,9 +31,21 @@ afterEach(() => {
   rmSync(scratch, { recursive: true, force: true });
 });
 
-function fakeDevin(response: string, exitCode = 0, auth = "Logged in (via Devin).", stderr = "") {
+function transcript(message: string, toolCalls: unknown = []): { schema_version: string; steps: Record<string, unknown>[] } {
+  return {
+    schema_version: "ATIF-v1.7",
+    steps: [
+      { source: "system", message: "PRIVATE_SYSTEM_CONTEXT" },
+      { source: "agent", message, tool_calls: toolCalls, reasoning_content: "PRIVATE_REASONING" },
+    ],
+  };
+}
+
+function fakeDevin(response: string, exitCode = 0, auth = "Logged in (via Devin).", stderr = "", exported: unknown = transcript(response), omitExport = false) {
   const path = join(scratch, "devin");
   writeFileSync(path, `#!/usr/bin/env bun
+import { statSync, unlinkSync } from "node:fs";
+import { dirname } from "node:path";
 const args = process.argv.slice(2);
 if (args[0] === "auth") {
   console.log(${JSON.stringify(auth)});
@@ -41,6 +53,11 @@ if (args[0] === "auth") {
 }
 const config = await Bun.file(args[args.indexOf("--config") + 1]).json();
 if (config.subagents_enabled !== false) throw new Error("recursive agents enabled");
+const exportPath = args[args.indexOf("--export") + 1];
+if ((statSync(exportPath).mode & 0o777) !== 0o600) throw new Error("export file not private");
+if ((statSync(dirname(exportPath)).mode & 0o777) !== 0o700) throw new Error("export directory not private");
+if (${omitExport}) unlinkSync(exportPath);
+else await Bun.write(exportPath, ${JSON.stringify(typeof exported === "string" ? exported : JSON.stringify(exported))});
 console.log(${JSON.stringify(response)});
 console.error(${JSON.stringify(stderr)});
 process.exit(${exitCode});
@@ -108,6 +125,7 @@ describe("Devin external provider", () => {
         expect(result.receipt.usage).toBeNull();
         expect(result.receipt.argv).toContain(devinModel(model, input.effort));
         expect(existsSync(devinConfigPath(input))).toBe(false);
+        expect(existsSync(devinExportDirectory(input))).toBe(false);
       });
     }
   }
@@ -118,6 +136,7 @@ describe("Devin external provider", () => {
     expect(result.receipt.status).toBe("unavailable-model");
     expect(existsSync(options.outputPath)).toBe(false);
     expect(existsSync(devinConfigPath(options))).toBe(false);
+    expect(existsSync(devinExportDirectory(options))).toBe(false);
   });
 
   it("fails authentication even when auth status exits zero", async () => {
@@ -138,7 +157,7 @@ describe("Devin external provider", () => {
   const welcome = "\x1b[1mWelcome to Devin CLI!\x1b[0m\n\n ✓ Logged in as test@example.com.\n\n\x1b[?2004lYou're all set. Run \x1b[1mdevin\x1b[0m to get started.";
 
   it("rejects the observed onboarding-only zero-exit output", async () => {
-    fakeDevin(welcome);
+    fakeDevin(welcome, 0, "Logged in (via Devin).", "", { schema_version: "ATIF-v1.7", steps: [] });
     const result = await runLane(options);
     expect(result.exitCode).not.toBe(0);
     expect(result.receipt.status).toBe("malformed-output");
@@ -146,7 +165,7 @@ describe("Devin external provider", () => {
   });
 
   it("keeps the answer after a recognized onboarding banner", async () => {
-    fakeDevin(`${welcome}\nPSTACK_READ_OK`);
+    fakeDevin(`${welcome}\nProgress text`, 0, "Logged in (via Devin).", "", transcript("PSTACK_READ_OK"));
     const result = await runLane(options);
     expect(result.exitCode).toBe(0);
     expect(readFileSync(options.outputPath, "utf8")).toBe("PSTACK_READ_OK");
@@ -166,6 +185,62 @@ describe("Devin external provider", () => {
     const result = await runLane({ ...options, mode: "isolated-write" });
     expect(result.receipt.status).toBe("malformed-output");
     expect(existsSync(options.outputPath)).toBe(false);
+  });
+
+  for (const [name, exported] of [
+    ["progress before rejected tools", transcript("I'll attempt both writes now.", [{ function_name: "write" }])],
+    ["tool-only turn", transcript("", [{ function_name: "exec" }])],
+    ["malformed tool calls", transcript("Done", null)],
+    ["non-agent final step", { schema_version: "ATIF-v1.7", steps: [{ source: "user", message: "Done" }] }],
+    ["invalid JSON", "PRIVATE_INVALID_JSON"],
+    ["unknown schema", { schema_version: "ATIF-v9", steps: [] }],
+    ["malformed steps", { schema_version: "ATIF-v1.7", steps: {} }],
+  ]) {
+    it(`rejects ${name} without exposing private transcript content`, async () => {
+      fakeDevin("Public progress", 0, "Logged in (via Devin).", "", exported);
+      const result = await runLane(options);
+      expect(result.receipt.status).toBe("malformed-output");
+      expect(existsSync(options.outputPath)).toBe(false);
+      expect(existsSync(devinExportDirectory(options))).toBe(false);
+      expect(JSON.stringify(result.receipt)).not.toContain("PRIVATE_");
+    });
+  }
+
+  it("returns only the final writer message after a successful tool step", async () => {
+    const exported = transcript("PSTACK_TEST_PASSED");
+    exported.steps.splice(1, 0, { source: "agent", message: "Editing", tool_calls: [{ function_name: "exec" }] });
+    fakeDevin("Editing\nPSTACK_TEST_PASSED", 0, "Logged in (via Devin).", "", exported);
+    const result = await runLane({ ...options, mode: "isolated-write" });
+    expect(result.exitCode).toBe(0);
+    expect(readFileSync(options.outputPath, "utf8")).toBe("PSTACK_TEST_PASSED");
+    expect(existsSync(devinExportDirectory(options))).toBe(false);
+  });
+
+  it("fails closed when the CLI omits its export", async () => {
+    fakeDevin("Looks finished", 0, "Logged in (via Devin).", "", undefined, true);
+    const result = await runLane(options);
+    expect(result.receipt.status).toBe("malformed-output");
+    expect(result.receipt.error?.message).toBe("devin did not produce a readable export");
+    expect(existsSync(options.outputPath)).toBe(false);
+    expect(existsSync(devinExportDirectory(options))).toBe(false);
+  });
+
+  it("cleans private artifacts when an explicit deadline expires before dispatch", async () => {
+    fakeDevin("SHOULD_NOT_RUN");
+    const result = await runLane({ ...options, timeoutMs: 1 }, Date.now() - 100);
+    expect(result.receipt.status).toBe("timed-out");
+    expect(existsSync(devinConfigPath(options))).toBe(false);
+    expect(existsSync(devinExportDirectory(options))).toBe(false);
+  });
+
+  it("preserves an existing export directory on collision", async () => {
+    fakeDevin("SHOULD_NOT_RUN");
+    mkdirSync(devinExportDirectory(options));
+    writeFileSync(devinExportPath(options), "existing");
+    const result = await runLane(options);
+    expect(result.receipt.status).toBe("child-failed");
+    expect(readFileSync(devinExportPath(options), "utf8")).toBe("existing");
+    expect(existsSync(devinConfigPath(options))).toBe(false);
   });
 
   it("preserves a pre-existing config path on collision", async () => {

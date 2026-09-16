@@ -4,6 +4,7 @@ import {
   mkdirSync,
   openSync,
   readFileSync,
+  rmSync,
   statSync,
   unlinkSync,
   writeFileSync,
@@ -19,7 +20,7 @@ import type {
   RunnerReceipt,
 } from "./types.ts";
 import { UsageError } from "./types.ts";
-import { devinConfig, devinConfigPath, devinModel } from "./devin.ts";
+import { devinConfig, devinConfigPath, devinExportDirectory, devinExportPath, devinModel, readDevinExport } from "./devin.ts";
 
 const ERROR_EVIDENCE_LIMIT = 4_000;
 const GROK_PREFLIGHT_RETRY_DELAY_MS = 5_000;
@@ -810,7 +811,7 @@ async function executeLane(
   try {
     const parsed = parseProviderOutput(
       options.provider,
-      result.stdout,
+      options.provider === "devin" ? readDevinExport(options) : result.stdout,
       result.stderr,
       options.model
     );
@@ -876,6 +877,7 @@ export async function runLane(
   };
   const cancellation = installRunCancellation();
   let devinConfigCreated = false;
+  let devinExportCreated = false;
   try {
     reserveOutputs(options);
     try {
@@ -884,6 +886,9 @@ export async function runLane(
           encoding: "utf8", mode: 0o600, flag: "wx",
         });
         devinConfigCreated = true;
+        mkdirSync(devinExportDirectory(options), { mode: 0o700 });
+        devinExportCreated = true;
+        reserve(devinExportPath(options));
       }
       return await executeLane(
         options,
@@ -938,6 +943,7 @@ export async function runLane(
   } finally {
     cancellation.dispose();
     if (devinConfigCreated) removeIfExists(devinConfigPath(options));
+    if (devinExportCreated) rmSync(devinExportDirectory(options), { recursive: true, force: true });
   }
 }
 

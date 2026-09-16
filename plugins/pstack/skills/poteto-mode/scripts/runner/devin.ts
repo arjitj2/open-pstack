@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { UsageError, type Effort, type RunnerOptions } from "./types.ts";
 
 export function devinModel(model: string, effort: Effort): string {
@@ -12,6 +13,22 @@ export function devinModel(model: string, effort: Effort): string {
 
 export function devinConfigPath(options: RunnerOptions): string {
   return `${options.receiptPath}.devin-config.json`;
+}
+
+export function devinExportDirectory(options: RunnerOptions): string {
+  return `${options.receiptPath}.devin-export`;
+}
+
+export function devinExportPath(options: RunnerOptions): string {
+  return `${devinExportDirectory(options)}/turn.json`;
+}
+
+export function readDevinExport(options: RunnerOptions): string {
+  try {
+    return readFileSync(devinExportPath(options), "utf8");
+  } catch {
+    throw new Error("devin did not produce a readable export");
+  }
 }
 
 export function devinConfig(options: RunnerOptions) {
