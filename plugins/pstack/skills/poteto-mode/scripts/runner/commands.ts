@@ -13,6 +13,8 @@ export interface CommandSpec {
 
 export function preflightCommand(provider: Provider): CommandSpec {
   switch (provider) {
+    case "cursor":
+      return { command: "cursor-agent", args: ["status", "--format", "json"], stdin: "none" };
     case "claude":
       return {
         command: "claude",
@@ -65,6 +67,18 @@ function effortOverride(effort: Effort): string {
 
 export function invocationCommand(options: RunnerOptions): CommandSpec {
   switch (options.provider) {
+    case "cursor":
+      return {
+        command: "cursor-agent",
+        args: [
+          "--print", "--output-format", "json", "--trust",
+          "--model", options.model,
+          "--workspace", options.cwd,
+          "--sandbox", "enabled",
+          ...(options.mode === "read-only" ? ["--mode", "ask"] : []),
+        ],
+        stdin: "prompt",
+      };
     case "claude":
       return {
         command: "claude",

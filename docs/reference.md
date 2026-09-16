@@ -2,7 +2,7 @@
 
 This page contains the full skill, dependency, runtime, and porting reference. For the plain-English introduction and quick start, see the [main README](../README.md).
 
-[Poteto](https://x.com/poteto)'s [pstack](https://github.com/cursor/plugins/tree/main/pstack), adapted to run in Claude Code and Codex without Cursor. One shared skill tree serves both harnesses; Grok remains available as a model-provider lane. Version 1.4.1 is synced to Cursor pstack v0.15.1 at `f8abeddd1862dc73704e3d719dd73df0d51b8c71`. See [UPSTREAM.md](../UPSTREAM.md) for the exact sync contract.
+[Poteto](https://x.com/poteto)'s [pstack](https://github.com/cursor/plugins/tree/main/pstack), adapted to run in Claude Code and Codex without Cursor. One shared skill tree serves both harnesses; Grok and Cursor remain available as external model-provider lanes. Version 1.4.1 is synced to Cursor pstack v0.15.1 at `f8abeddd1862dc73704e3d719dd73df0d51b8c71`. See [UPSTREAM.md](../UPSTREAM.md) for the exact sync contract.
 
 Original by Lauren Tan. This distribution builds on Michael Denyer's [pstack-claude](https://github.com/michael-denyer/pstack-claude) port and retains its history and MIT attribution. It imports seven MIT-licensed skills from [cursor-team-kit](https://github.com/cursor/plugins/tree/main/cursor-team-kit): `deslop`, `thermo-nuclear-code-quality-review`, `make-pr-easy-to-review`, `fix-ci`, `fix-merge-conflicts`, `get-pr-comments`, `what-did-i-get-done`.
 
@@ -227,3 +227,9 @@ MIT. Three upstream LICENSE files are preserved:
 - [LICENSE](../LICENSE) — pstack (Lauren Tan)
 - [LICENSE-cursor-team-kit](../LICENSE-cursor-team-kit) — Cursor (covers the `deslop` and `thermo-nuclear-code-quality-review` skills)
 - [LICENSE-superpowers](../LICENSE-superpowers) — superpowers, Jesse Vincent (covers the vendored `hooks/run-hook.cmd`)
+
+### Optional Cursor workers
+
+`cursor:<exact-model-slug>@default` starts `cursor-agent` from either parent; discover slugs with `cursor-agent models`. Setup probes only assigned optional Cursor models. The adapter preserves the exact selection, successful JSON result, session ID, and optional token usage. A missing model report is recorded as pinned-argv evidence, not verified served-model identity.
+
+Cursor workers use their own tools and do not inherit the parent's MCP tools or conversation. Supply complete task context. Read-only uses ask mode with shell/write denied; writers need a dedicated workspace and sandbox. A private per-run configuration isolates global permission settings without copying credentials. Project configuration and startup hooks can still load, and recursive Cursor subagents cannot currently be disabled by a supported flag. See [provider dispatch](../plugins/pstack/skills/poteto-mode/references/provider-dispatch.md) for the full contract.

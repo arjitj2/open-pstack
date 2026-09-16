@@ -4,12 +4,14 @@ import {
   mkdirSync,
   openSync,
   readFileSync,
+  rmSync,
   statSync,
   unlinkSync,
   writeFileSync,
 } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { invocationCommand, preflightCommand, type CommandSpec } from "./commands.ts";
+import { cursorConfigDirectory, cursorConfig, validateCursorModel } from "./cursor.ts";
 import { versionedClaudeAlias } from "./model-aliases.ts";
 import { parseProviderOutput, reportedModelMatches } from "./parse-output.ts";
 import type {
@@ -354,6 +356,15 @@ function preflightPassed(provider: Provider, model: string, result: ProcessResul
   if (result.exitCode !== 0 || result.timedOut) return false;
   const combined = `${result.stdout}\n${result.stderr}`;
   switch (provider) {
+    case "cursor": {
+      try {
+        const value: unknown = JSON.parse(result.stdout);
+        return value !== null && typeof value === "object" &&
+          (value as { isAuthenticated?: unknown }).isAuthenticated === true;
+      } catch {
+        return false;
+      }
+    }
     case "claude": {
       try {
         const value: unknown = JSON.parse(result.stdout);
@@ -450,7 +461,7 @@ function modelProof(
       modelEvidence: "provider-report",
     };
   }
-  if (provider === "codex" && reported === null) {
+  if ((provider === "codex" || provider === "cursor") && reported === null) {
     return {
       reportedModel: null,
       modelVerified: false,
@@ -483,6 +494,8 @@ function completeReceipt(
 }
 
 export function validateOptions(options: RunnerOptions): void {
+  if (options.provider === "cursor") validateCursorModel(options.model, options.effort);
+  else if (options.effort === "default") throw new UsageError("default effort is only supported by Cursor");
   if (options.parent === options.provider) {
     throw new UsageError(
       `provider ${options.provider} is native to parent ${options.parent}; use the parent subagent primitive`
@@ -535,6 +548,7 @@ async function executeLane(
   const startedAt = new Date(started).toISOString();
   const prompt = readFileSync(options.promptPath, "utf8");
   const env = childEnvironment(options.provider);
+  if (options.provider === "cursor") env.CURSOR_CONFIG_DIR = cursorConfigDirectory(options);
   const executable = Bun.which(invocation.command, {
     PATH: env.PATH,
     cwd: options.cwd,
@@ -866,9 +880,16 @@ export async function runLane(
     argv: [invocation.command, ...invocation.args],
   };
   const cancellation = installRunCancellation();
+  let createdCursorConfig = false;
   try {
     reserveOutputs(options);
     try {
+      if (options.provider === "cursor") {
+        const directory = cursorConfigDirectory(options);
+        mkdirSync(directory, { mode: 0o700 });
+        createdCursorConfig = true;
+        writeFileSync(`${directory}/cli-config.json`, JSON.stringify(cursorConfig(options.mode)), { flag: "wx", mode: 0o600 });
+      }
       return await executeLane(
         options,
         cancellation,
@@ -920,7 +941,11 @@ export async function runLane(
       return { exitCode: statusExitCode(status), receipt };
     }
   } finally {
-    cancellation.dispose();
+    try {
+      if (createdCursorConfig) rmSync(cursorConfigDirectory(options), { recursive: true, force: true });
+    } finally {
+      cancellation.dispose();
+    }
   }
 }
 

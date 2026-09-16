@@ -137,6 +137,8 @@ Both apps read the same pstack skills. Only the way they start those skills and 
 | Other models | Codex and Grok run through their signed-in command-line tools. | Claude and Grok run through their signed-in command-line tools. |
 | Skills and workflows | Shared with Codex. | Shared with Claude Code. |
 
+Cursor models can also join as optional external workers through the signed-in `cursor-agent` CLI. Choose an exact slug from `cursor-agent models` and configure `cursor:<slug>@default` with `/setup-pstack`; the CLI has no separate effort flag. This uses Cursor's account access and limits, and does not make Cursor a parent harness for this port.
+
 Grok can take part in a multi-model review. You cannot use Grok as the main app running pstack.
 
 ## Learn from the original

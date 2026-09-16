@@ -62,3 +62,5 @@ Some triggers name skills that ship with Claude Code, not pstack. They do not ex
 ## Instructions file
 
 Where a pstack skill says "your instructions file", on Codex that is `AGENTS.md` (project root, plus `~/.codex/AGENTS.md` global). On Claude Code it is `CLAUDE.md`.
+
+Cursor descriptors (`cursor:<exact-model-slug>@default`) always use the external runner through `cursor-agent`. Follow the optional Cursor contract in `provider-dispatch.md`; keep MCP-dependent roles native.
