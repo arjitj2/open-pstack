@@ -1,7 +1,7 @@
 {
   "name": "open-pstack",
   "owner": {
-    "name": "Eric Litman"
+    "name": "Arjit Jaiswal"
   },
   "description": "Pstack for Claude Code and Codex, tracking Cursor's upstream pstack.",
   "plugins": [
@@ -9,11 +9,11 @@
       "name": "pstack",
       "source": "./plugins/pstack",
       "description": "if you want to go fast, go deep first. pstack helps you write less, but higher quality code. rigorous agent workflows you can parallelize with confidence.",
-      "version": "1.4.1",
+      "version": "1.4.1-arjit.1",
       "author": {
         "name": "Lauren Tan (original)"
       },
-      "homepage": "https://github.com/ericlitman/open-pstack",
+      "homepage": "https://github.com/arjitj2/open-pstack",
       "license": "MIT",
       "keywords": [
         "pstack",

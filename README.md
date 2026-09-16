@@ -1,5 +1,7 @@
 # open-pstack
 
+Arjit's maintained distribution adds Devin and Cursor workers and setup limited to assigned providers. It follows [ericlitman/open-pstack](https://github.com/ericlitman/open-pstack) for Cursor adaptations. See [installation and update policy](docs/fork-maintenance.md).
+
 [![CI](https://github.com/ericlitman/open-pstack/actions/workflows/ci.yml/badge.svg)](https://github.com/ericlitman/open-pstack/actions/workflows/ci.yml)
 [![Latest release](https://img.shields.io/github/v/release/ericlitman/open-pstack)](https://github.com/ericlitman/open-pstack/releases/latest)
 [![MIT license](https://img.shields.io/github/license/ericlitman/open-pstack)](LICENSE)
