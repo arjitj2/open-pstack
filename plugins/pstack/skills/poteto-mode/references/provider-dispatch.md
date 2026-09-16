@@ -15,9 +15,26 @@ pstack model choices are provider-qualified descriptors:
 | grok | grok-4.6-fast-xhigh | grok | grok-4.6 | xhigh | low medium high xhigh max | - |
 | opus | opus | claude | opus | xhigh | low medium high xhigh max | opus |
 
-The allowed effort universe is exactly `low`, `medium`, `high`, `xhigh`, `max`. First-run requested efforts are the Default effort cell of each row. A Claude-native agent stem of `-` means the family has no Claude-native agent. Otherwise the shipped agent name is `pstack-<stem>-<effort>`.
+For the default matrix, the allowed effort universe is exactly `low`, `medium`, `high`, `xhigh`, `max`. First-run requested efforts are the Default effort cell of each row. A Claude-native agent stem of `-` means the family has no Claude-native agent. Otherwise the shipped agent name is `pstack-<stem>-<effort>`.
 
 `fable` and `opus` are Claude Code's rolling aliases. Claude resolves each alias to the latest available family revision. A runner receipt keeps the requested alias in `model` and the concrete provider-reported revision in `reportedModel`; verification accepts only a numeric `claude-fable-*` or `claude-opus-*` revision from the matching family.
+
+## Optional Devin models
+
+Devin is an external provider from either parent, not a parent harness. These opt-in families do not change the four-model default panel.
+
+| Family | Provider | Model | Default effort | Selectable efforts | CLI model UID |
+|---|---|---|---|---|---|
+| swe-2 | devin | swe-2 | high | medium high max | swe-2-<effort> |
+| swe-1.6 | devin | swe-1.6 | default | default | swe-1-6 |
+
+Use descriptors such as `devin:swe-2@high` or `devin:swe-1.6@default`. `default` records that SWE-1.6 has no selectable effort; it is rejected for other providers. Never clamp SWE-2's unsupported `low` or `xhigh` to another level. The runner pins the exact CLI UID instead of a rolling family alias or Fusion pairing.
+
+Install and sign in to [Devin CLI](https://docs.devin.ai/cli). Inspect `devin models list --format json` and probe each selected pair: listing a model does not prove the account can execute it. An upgrade-required response is an unavailable-model failure, never permission to substitute another model.
+
+The runner uses `--print` and a private temporary `--config` file, deleted after completion or failure. It disables recursive subagents and imports from other tools, and denies MCP and fetch calls. Read-only lanes deny edit, write, and shell execution; use them for file inspection, not test execution. Writer lanes use `--sandbox` in the dedicated worktree and perform edits and tests through sandboxed `exec`. Direct `edit`/`write` tools are denied in both modes: they run outside Devin's OS sandbox and can require interactive confirmation even with scoped write grants. The adapter prefixes each writer task with these execution constraints in a private prompt copy, preserving the assigned prompt and its receipt path. File-tool-only prompts are unsupported. Devin's own project configuration, rules, plugins, and hooks can still load; this is not a clean-room execution environment. Do not assign an untrusted checkout or rely on this adapter to isolate startup hooks. Verify effective permission behavior in the target CLI before release.
+
+The temporary config marks shell onboarding complete. The runner requests a private ATIF-v1.7 conversation export and accepts only a final agent step with a nonempty message and no tool calls. A progress message followed by denied or pending tools cannot count as completion, even if Devin exits zero without stderr. Only the final message is returned; system context, reasoning, and tool observations are never copied into output or receipts. The export directory is private and removed after every outcome. The adapter continues to use `pinned-argv` model evidence rather than treating the export's display model name as verified identity; model-report, session, usage, and cost fields remain null.
 
 ## Read-time normalization
 
@@ -31,10 +48,10 @@ This read-time rule makes an older installed sheet use the latest family revisio
 
 The top-level harness resolves the route once. A child receives an assigned provider, model, effort, access mode, prompt, working directory, and output path. A child never detects the harness, chooses a provider, or launches another model. Environment markers may corroborate the top-level harness before fan-out, but nested processes inherit parent markers and must not use them for routing.
 
-| Parent | `claude:*` | `codex:*` | `grok:*` |
-|---|---|---|---|
-| Claude Code | native `Agent` | external runner | external runner |
-| Codex | external runner | native `spawn_agent` | external runner |
+| Parent | `claude:*` | `codex:*` | `grok:*` | `devin:*` |
+|---|---|---|---|---|
+| Claude Code | native `Agent` | external runner | external runner | external runner |
+| Codex | external runner | native `spawn_agent` | external runner | external runner |
 
 `inherit-parent` and `auto` remain aliases. They use the parent's current model and effort through its native subagent primitive. In a panel they still consume one lane, but they reduce provider diversity; say so in the synthesis record.
 
@@ -54,9 +71,9 @@ The launcher lives at `skills/poteto-mode/scripts/runner/pstack-runner` under th
 ```text
 pstack-runner \
   --parent <claude|codex> \
-  --provider <claude|codex|grok> \
+  --provider <claude|codex|grok|devin> \
   --model <real CLI model> \
-  --effort <low|medium|high|xhigh|max> \
+  --effort <low|medium|high|xhigh|max|default> \
   --mode <read-only|isolated-write> \
   --prompt <unique prompt file> \
   --cwd <repository or dedicated worktree> \
@@ -90,7 +107,7 @@ Success requires all of these:
 
 1. Exit status `0`.
 2. Receipt status `complete`.
-3. Either `modelVerified: true` with `modelEvidence: "provider-report"`, or a Codex receipt with `reportedModel: null`, `modelVerified: false`, and `modelEvidence: "pinned-argv"`. For Claude's `fable` and `opus` aliases, the concrete provider report must belong to the requested family. Codex 0.149.0 accepts the exact `--model` argument but does not report the served model in its JSONL stream.
+3. Either `modelVerified: true` with `modelEvidence: "provider-report"`, or a Codex or Devin receipt with `reportedModel: null`, `modelVerified: false`, and `modelEvidence: "pinned-argv"`. For Claude's `fable` and `opus` aliases, the concrete provider report must belong to the requested family. For pinned-argv evidence, verify the receipt provider, model, and effort match the assignment and its argv pins the expected CLI model. Codex pins the assigned model directly; Devin uses the exact UID mapping in Optional Devin models (for example, `swe-2@high` pins `--model swe-2-high`). Neither Codex JSONL nor Devin print output supplies a provider model report; do not describe pinned argv as provider-verified identity.
 4. A non-empty output file.
 
 The receipt also carries elapsed time, token usage when the CLI exposes it, and cost when available. Keep it with the arena or review artifacts so parent-harness comparisons are evidence-based.

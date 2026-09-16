@@ -5,6 +5,8 @@ import type {
   RunnerOptions,
 } from "./types.ts";
 
+import { devinConfigPath, devinExportPath, devinModel, devinPromptPath } from "./devin.ts";
+
 export interface CommandSpec {
   readonly command: string;
   readonly args: readonly string[];
@@ -13,6 +15,8 @@ export interface CommandSpec {
 
 export function preflightCommand(provider: Provider): CommandSpec {
   switch (provider) {
+    case "devin":
+      return { command: "devin", args: ["auth", "status"], stdin: "none" };
     case "claude":
       return {
         command: "claude",
@@ -65,6 +69,27 @@ function effortOverride(effort: Effort): string {
 
 export function invocationCommand(options: RunnerOptions): CommandSpec {
   switch (options.provider) {
+    case "devin":
+      return {
+        command: "devin",
+        args: [
+          "--config",
+          devinConfigPath(options),
+          "--model",
+          devinModel(options.model, options.effort),
+          ...(options.mode === "isolated-write"
+            ? ["--sandbox"]
+            : ["--permission-mode", "auto"]),
+          "--respect-workspace-trust",
+          "false",
+          "--prompt-file",
+          devinPromptPath(options),
+          "--export",
+          devinExportPath(options),
+          "--print",
+        ],
+        stdin: "none",
+      };
     case "claude":
       return {
         command: "claude",

@@ -4,6 +4,7 @@ import {
   mkdirSync,
   openSync,
   readFileSync,
+  rmSync,
   statSync,
   unlinkSync,
   writeFileSync,
@@ -19,6 +20,7 @@ import type {
   RunnerReceipt,
 } from "./types.ts";
 import { UsageError } from "./types.ts";
+import { devinConfig, devinConfigPath, devinExportDirectory, devinExportPath, devinModel, devinPromptPath, devinWriterPrompt, readDevinExport } from "./devin.ts";
 
 const ERROR_EVIDENCE_LIMIT = 4_000;
 const GROK_PREFLIGHT_RETRY_DELAY_MS = 5_000;
@@ -368,6 +370,8 @@ function preflightPassed(provider: Provider, model: string, result: ProcessResul
     }
     case "codex":
       return /logged in/i.test(combined);
+    case "devin":
+      return /^Logged in\b/im.test(combined);
     case "grok":
       return /logged in/i.test(combined) && combined.includes(model);
   }
@@ -383,6 +387,7 @@ function unavailableStatus(value: string): ReceiptStatus {
   if (/not logged in|unauthenticated|authentication|sign in|login required/i.test(value)) {
     return "unauthenticated";
   }
+  if (/upgrade to .{0,30}to access this model/i.test(value)) return "unavailable-model";
   if (/model.{0,40}(not found|unknown|unavailable|unsupported|not supported|invalid)|invalid.{0,20}model/i.test(value)) {
     return "unavailable-model";
   }
@@ -450,7 +455,7 @@ function modelProof(
       modelEvidence: "provider-report",
     };
   }
-  if (provider === "codex" && reported === null) {
+  if ((provider === "codex" || provider === "devin") && reported === null) {
     return {
       reportedModel: null,
       modelVerified: false,
@@ -489,6 +494,11 @@ export function validateOptions(options: RunnerOptions): void {
     );
   }
   if (options.model.trim().length === 0) throw new UsageError("model must not be empty");
+  if (options.provider === "devin") {
+    devinModel(options.model, options.effort);
+  } else if (options.effort === "default") {
+    throw new UsageError("default effort is supported only for Devin SWE-1.6");
+  }
   const staleAlias = options.provider === "claude"
     ? versionedClaudeAlias(options.model)
     : null;
@@ -801,7 +811,7 @@ async function executeLane(
   try {
     const parsed = parseProviderOutput(
       options.provider,
-      result.stdout,
+      options.provider === "devin" ? readDevinExport(options) : result.stdout,
       result.stderr,
       options.model
     );
@@ -866,9 +876,25 @@ export async function runLane(
     argv: [invocation.command, ...invocation.args],
   };
   const cancellation = installRunCancellation();
+  let devinConfigCreated = false;
+  let devinExportCreated = false;
   try {
     reserveOutputs(options);
     try {
+      if (options.provider === "devin") {
+        writeFileSync(devinConfigPath(options), JSON.stringify(devinConfig(options)), {
+          encoding: "utf8", mode: 0o600, flag: "wx",
+        });
+        devinConfigCreated = true;
+        mkdirSync(devinExportDirectory(options), { mode: 0o700 });
+        devinExportCreated = true;
+        reserve(devinExportPath(options));
+        if (options.mode === "isolated-write") {
+          writeFileSync(devinPromptPath(options), devinWriterPrompt(readFileSync(options.promptPath, "utf8")), {
+            encoding: "utf8", mode: 0o600, flag: "wx",
+          });
+        }
+      }
       return await executeLane(
         options,
         cancellation,
@@ -921,6 +947,8 @@ export async function runLane(
     }
   } finally {
     cancellation.dispose();
+    if (devinConfigCreated) removeIfExists(devinConfigPath(options));
+    if (devinExportCreated) rmSync(devinExportDirectory(options), { recursive: true, force: true });
   }
 }
 

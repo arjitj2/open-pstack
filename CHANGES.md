@@ -2,6 +2,12 @@
 
 This port applies the Cursor → Claude Code substitutions in skill bodies. Earlier drafts left them flagged; this revision resolves them. A later pass added a Codex build that shares the same skills; see [Codex port](#codex-port) below.
 
+## Unreleased: optional Devin workers
+
+Adds `devin` to the external runner for both Claude Code and Codex parents. SWE-2 supports medium/high/max through exact model UIDs; SWE-1.6 uses a fixed `default` effort token. Setup probes opted-in Devin families while preserving existing default panels. Arena uses the shared completion contract, which accepts matching Codex and Devin pinned-argv evidence. The upstream sync point is unchanged.
+
+The adapter extracts the final response from a private conversation export, records pinned-argv evidence without claiming a provider model report, and leaves unreported usage/cost/session fields null. Per-run configuration disables nested subagents and imported tool settings. Read-only workers deny shell and writes; writers use sandboxed shell commands for edits and tests in the assigned worktree, with direct unsandboxed file tools denied and explicit shell-only guidance prepended in a private prompt copy. Per-run shell onboarding is suppressed; a private conversation export must end with a final agent message without tool calls, preventing banner-only output, progress messages, and denied headless tools from counting as completed answers. Only final response text is retained; the export is removed on every outcome. Devin project settings and startup hooks remain a live-verification concern. Account restrictions fail without fallback.
+
 ## 1.4.1 syncs to Cursor pstack 0.15.1
 
 Open Pstack 1.4.1 tracks Cursor pstack 0.15.1 at `f8abeddd1862dc73704e3d719dd73df0d51b8c71`. Poteto-mode now requires each claim to include its evidence or a measured, inferred, or guess label in the same sentence. Agents also run any check they can run themselves instead of handing that check to the user. No playbook, model, runtime, or dependency changed.

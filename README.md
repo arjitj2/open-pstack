@@ -120,6 +120,12 @@ That is the main workflow. The other skills are there when poteto-mode needs the
 
 Plugin skills include `pstack:` in their name. In Claude Code, invoke a native skill such as `/pstack:architect`. In Codex, ask for the skill, such as `Use pstack:architect for this design.` See the [technical reference](docs/reference.md) for the full list.
 
+## Optional Devin workers
+
+Codex or Claude Code can delegate selected roles to SWE-2 or SWE-1.6 through an authenticated [Devin CLI](https://docs.devin.ai/cli). Ask `setup-pstack` to use `devin:swe-2@high` (medium/high/max) or `devin:swe-1.6@default` for named roles. Devin remains an external worker; the default four-model panel stays unchanged.
+
+This adapter captures print output and pins the CLI model UID. It does not report provider-verified model identity, tokens, or cost. Read-only workers cannot execute shell commands. See the [Devin dispatch contract](plugins/pstack/skills/poteto-mode/references/provider-dispatch.md#optional-devin-models) for permissions and live verification requirements.
+
 ## Models and token use
 
 Some pstack workflows use one model. Skills such as `architect`, `arena`, and `interrogate` can run several models in parallel. Each model run uses the subscription and token allowance of its own command-line tool.

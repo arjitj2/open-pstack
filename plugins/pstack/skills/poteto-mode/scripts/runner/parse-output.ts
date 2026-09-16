@@ -164,6 +164,29 @@ export function parseProviderOutput(
   requestedModel: string
 ): ParsedOutput {
   switch (provider) {
+    case "devin": {
+      if (/^warning: rejected a tool call that requires confirmation\./im.test(stderr)) {
+        throw new Error("devin could not approve a tool in non-interactive mode");
+      }
+      let exported: JsonObject | null;
+      try {
+        exported = object(JSON.parse(stdout));
+      } catch {
+        throw new Error("devin export is not valid JSON");
+      }
+      if (exported?.schema_version !== "ATIF-v1.7" || !Array.isArray(exported.steps)) {
+        throw new Error("devin export has an unsupported schema");
+      }
+      const last = object(exported.steps.at(-1));
+      const calls = last?.tool_calls;
+      if (last?.source !== "agent" ||
+          (calls !== undefined && (!Array.isArray(calls) || calls.length !== 0)) ||
+          typeof last.message !== "string" || last.message.trim().length === 0) {
+        throw new Error("devin export did not end with a final agent response");
+      }
+      const text = last.message.trim();
+      return { text, reportedModel: null, sessionId: null, usage: null, costUsd: null };
+    }
     case "claude":
       return parseClaude(stdout, requestedModel);
     case "codex":
