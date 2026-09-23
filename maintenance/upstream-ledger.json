@@ -1,10 +1,53 @@
 {
+  "entries": [
+    {
+      "commit": "f5bdd6826fd0a0d9cbc4347134c3a74a200b9d9d",
+      "date": "2026-09-10",
+      "status": "pending",
+      "subject": "fix(pstack): operator-neutral pronouns + in-chat status tick (#362)"
+    },
+    {
+      "commit": "889ec4b68fa5aab0e867dad71ec3fdf386ae48f3",
+      "date": "2026-09-11",
+      "status": "pending",
+      "subject": "fix(pstack): bug-fix/perf/hillclimb defaults to grok 4.6 (#365)"
+    },
+    {
+      "commit": "5bf2b1544db739998121a306340631963c2ff3de",
+      "date": "2026-09-12",
+      "status": "pending",
+      "subject": "feat(pstack): setup-pstack budget ask (max/xhigh/high/medium) (#366)"
+    },
+    {
+      "commit": "70b2dc8b4b85c8d5648624ca40d692c421fff32f",
+      "date": "2026-09-22",
+      "status": "pending",
+      "subject": "feat(pstack): port skill updates and default to Opus 5.5 and Grok 4.7 (#414)"
+    },
+    {
+      "commit": "b42effe0aa50f59c693d7e2924714e015e00bf7c",
+      "date": "2026-09-23",
+      "status": "pending",
+      "subject": "fix(pstack): scrub old model names from public upgrade help (#416)"
+    },
+    {
+      "commit": "b0b9c7a0baf8b6aa1d00bf77d4101e577d4ba411",
+      "date": "2026-09-23",
+      "status": "pending",
+      "subject": "docs(pstack): cut 19 more instructions Opus 5.5 does not need (#419)"
+    },
+    {
+      "commit": "12d587dfb20741cafc376c42c696c5f6e2a64487",
+      "date": "2026-09-23",
+      "status": "pending",
+      "subject": "fix(pstack): resolve rule conflicts and read the model rule the same way (#422)"
+    }
+  ],
+  "reviewed_through": "12d587dfb20741cafc376c42c696c5f6e2a64487",
   "schema": 1,
   "source": {
-    "repository": "cursor/plugins",
+    "path": "pstack/",
     "ref": "main",
-    "path": "pstack/"
-  },
-  "reviewed_through": "f8abeddd1862dc73704e3d719dd73df0d51b8c71",
-  "entries": []
+    "repository": "cursor/plugins"
+  }
 }

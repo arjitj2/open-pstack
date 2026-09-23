@@ -1,0 +1,709 @@
+commit 70b2dc8b4b85c8d5648624ca40d692c421fff32f
+Author:     lauren <poteto@users.noreply.github.com>
+AuthorDate: 2026-09-22T19:21:59-07:00
+Commit:     GitHub <noreply@github.com>
+CommitDate: 2026-09-22T19:21:59-07:00
+
+    feat(pstack): port skill updates and default to Opus 5.5 and Grok 4.7 (#414)
+    
+    Ports internal skill updates: Opus 5.5 / Grok 4.7 defaults, autopilot verification rounds, upgrade help for old model pins, and merge-prep CI wait.
+
+diff --git a/pstack/.cursor-plugin/plugin.json b/pstack/.cursor-plugin/plugin.json
+index 1940232..974daec 100644
+--- a/pstack/.cursor-plugin/plugin.json
++++ b/pstack/.cursor-plugin/plugin.json
+@@ -1,7 +1,7 @@
+ {
+ 	"name": "pstack",
+ 	"displayName": "pstack",
+-	"version": "0.15.2",
++	"version": "0.15.3",
+ 	"description": "if you want to go fast, go deep first. pstack helps you write less, but higher quality code. rigorous agent workflows you can parallelize with confidence.",
+ 	"author": {
+ 		"name": "Lauren Tan"
+diff --git a/pstack/README.md b/pstack/README.md
+index bc11234..2731017 100644
+--- a/pstack/README.md
++++ b/pstack/README.md
+@@ -27,7 +27,7 @@ two steps:
+ 
+ new here? the [pstack guide](./docs/guide/README.md) walks you through a first real task, from setup and prompting through verification and overnight runs.
+ 
+-that's it. the other skills are situational; the mode skill uses them for you as needed. out of the box the mode splits work by model strength: code delegates (feature, refactoring, bug fix, perf, hillclimb) go to grok, while the hardest changes, prose, and judgment go to fable 5.1. the default panel is fable 5.1 / sol / grok / opus 5. [`/setup-pstack`](./skills/setup-pstack/SKILL.md) changes any of it.
++that's it. the other skills are situational; the mode skill uses them for you as needed. out of the box the mode splits work by model strength: code delegates (feature, refactoring, bug fix, perf, hillclimb) go to grok, while the hardest changes, prose, and judgment go to opus 5.5. the default panel is opus 5.5 / sol / grok. [`/setup-pstack`](./skills/setup-pstack/SKILL.md) changes any of it.
+ 
+ ## usage
+ 
+@@ -68,7 +68,7 @@ morning.
+ | [shipping](./skills/poteto-mode/playbooks/shipping.md) | independently verify a green stack, then land the contiguous verified run bottom-up through github by default or origin when available. |
+ | [autonomous run](./skills/poteto-mode/playbooks/autonomous-run.md) | drive a long task to completion without stopping. |
+ | [orchestrate](./skills/poteto-mode/playbooks/orchestrate.md) | a standing project handed to one coordinator chat: multi-day, many stacked prs, fleets of subagents. |
+-| [autopilot-full](./skills/poteto-mode/playbooks/autopilot-full.md) | run independent prs to merged with one owner per pr and root verification of each merge-ready head. |
++| [autopilot-full](./skills/poteto-mode/playbooks/autopilot-full.md) | run independent prs to merged with one owner per pr and a root swarm verdict on each round, from the code-ready head on. |
+ | [autopilot-stack](./skills/poteto-mode/playbooks/autopilot-stack.md) | build and verify one linear base-branch stack for the operator to review and land. |
+ | [session pickup](./skills/poteto-mode/playbooks/session-pickup.md) | resume or take over a prior agent's in-flight work. |
+ | [pause safely](./skills/poteto-mode/playbooks/pause-safely.md) | suspend in-flight work cleanly so it can be resumed later. |
+@@ -248,6 +248,8 @@ type [`/automate-me`](./skills/automate-me/SKILL.md). it mines your recent trans
+ 
+ models are configurable too. type [`/setup-pstack`](./skills/setup-pstack/SKILL.md). it detects the models you have access to and writes a small always-applied rule mapping each role (code, judgment, the review panels) to a model. every skill reads it and falls back to sensible defaults when the rule is absent, so you override only what you want.
+ 
++a rule written before 0.15.3 pins fable 5.1, opus 5, and grok 4.6. delete those role lines, or delete the file, then run `/setup-pstack` again. a rerun keeps any role whose model differs from the default.
++
+ ## automations
+ 
+ pstack also ships a dormant [benny automation pack](./automations/benny/). benny triages slack issue reports, then reproduces and fixes confirmed bugs with real ui evidence. its files are not registered as slash skills.
+diff --git a/pstack/docs/guide/01-setup.md b/pstack/docs/guide/01-setup.md
+index 4d99dd2..0eacc52 100644
+--- a/pstack/docs/guide/01-setup.md
++++ b/pstack/docs/guide/01-setup.md
+@@ -22,7 +22,7 @@ Run:
+ 
+ [`/setup-pstack`](../../skills/setup-pstack/SKILL.md) detects the models you have access to, asks for a reasoning budget, shows you each role (code delegates, judgment, the review panels), and asks what you want. Answer the questions. It writes `~/.cursor/rules/pstack-models.mdc`, a small rule every pstack skill reads.
+ 
+-You only override what you care about. A role with no line in the rule keeps the skill's default. To restore a default later, delete that role's line, or just run `/setup-pstack` again.
++You only override what you care about. A role with no line in the rule keeps the skill's default. To restore a default, delete that role's line. A rerun of `/setup-pstack` keeps any role whose model differs from the default. A rule written before 0.15.3 pins Fable 5.1, Opus 5, and Grok 4.6, so delete those role lines, or delete the file, then run `/setup-pstack` again.
+ 
+ You might be wondering what happens if you use Auto. Set a role to `inherit-parent` or `auto` and pstack omits the subagent `model` field, so the subagent inherits your parent chat model. Both values mean the same thing, and neither is a model slug. For a panel role the value is a list, and one subagent runs per entry, so the list length sets the panel size. Setup also configures `swarm workers`, the default model for every `/swarm` worker unless a race names a model for each arm.
+ 
+diff --git a/pstack/docs/guide/07-overnight.md b/pstack/docs/guide/07-overnight.md
+index 43c4652..9ff66b7 100644
+--- a/pstack/docs/guide/07-overnight.md
++++ b/pstack/docs/guide/07-overnight.md
+@@ -58,7 +58,7 @@ Before the skill hands back its summary, it spawns a reviewer on a different mod
+ 
+ The contract above drives one task to one finish condition. Some nights hold more, a queue of independent changes or a whole program. Three playbooks scale the same trust up.
+ 
+-[Autopilot-full](../../skills/poteto-mode/playbooks/autopilot-full.md) runs a queue of independent PRs to merged. Each PR gets one owner agent that carries it from build through merge, and no owner merges on its own verdict. A swarm of fresh verifiers checks every merge-ready head, and only a clean verdict authorizes the merge:
++[Autopilot-full](../../skills/poteto-mode/playbooks/autopilot-full.md) runs a queue of independent PRs to merged. Each PR gets one owner agent that carries it from build through merge, and no owner merges on its own verdict. A swarm of fresh verifiers starts a round at the owner's code-ready head and again at every later push that changes the patch. Only a clean verdict on the patch that merges authorizes the merge:
+ 
+ ```text
+ /poteto-mode full autopilot on this queue. each item is independent. i want them merged by morning.
+diff --git a/pstack/skills/architect/SKILL.md b/pstack/skills/architect/SKILL.md
+index 923ffc5..a062cb7 100644
+--- a/pstack/skills/architect/SKILL.md
++++ b/pstack/skills/architect/SKILL.md
+@@ -30,7 +30,7 @@ Skip Phase A only when the work is genuinely greenfield with no surrounding syst
+ 
+ Run the **arena** skill with the design-sketch task and the Phase A grounding artifacts. Pass `references/runner-prompt.md` as each runner's prompt. Each candidate produces a design package shaped per `references/rationale-template.md`.
+ 
+-Use your configured architect runners (defaults `claude-fable-5-1-thinking-max`, `gpt-5.6-sol-max`, `grok-4.6-fast-xhigh`, `claude-opus-5-thinking-xhigh`).
++Use your configured architect runners (defaults `claude-opus-5-5-max`, `gpt-5.6-sol-max`, `grok-4.7-xhigh-fast`).
+ 
+ Design it twice. Require at least two structurally distinct candidates before synthesis, even when the first looks sufficient. This is the **exhaust-the-design-space** principle skill made concrete. Whole-shape alternatives, not point fixes inside one shape.
+ 
+diff --git a/pstack/skills/arena/SKILL.md b/pstack/skills/arena/SKILL.md
+index d1aec50..2139ad1 100644
+--- a/pstack/skills/arena/SKILL.md
++++ b/pstack/skills/arena/SKILL.md
+@@ -25,7 +25,7 @@ The N candidates will receive the same prompt, so the prompt is the contract.
+ 
+ 1. State the artifact each candidate is producing.
+ 2. Derive the rubric. State what success looks like for *this* task, then turn it into 3-6 concrete gradeable criteria. The rubric is the picker's tool in Phase D. Candidates only see the task.
+-3. Pick the runners. Use `arena runners` from `~/.cursor/rules/pstack-models.mdc` when present. Otherwise default to one each on `claude-fable-5-1-thinking-max`, `gpt-5.6-sol-max`, `grok-4.6-fast-xhigh`, `claude-opus-5-thinking-xhigh`. Spawn more when the arena covers multiple design directions. Same model N times when the work is generation-bound rather than judgment-sensitive.
++3. Pick the runners. Use `arena runners` from `~/.cursor/rules/pstack-models.mdc` when present. Otherwise default to one each on `claude-opus-5-5-max`, `gpt-5.6-sol-max`, `grok-4.7-xhigh-fast`. Spawn more when the arena covers multiple design directions. Same model N times when the work is generation-bound rather than judgment-sensitive.
+ 4. Assign output paths. Each candidate writes to its own location (a git worktree where possible, otherwise `/tmp/arena-<slug>/candidate-<n>/`), per the **separate-before-serializing-shared-state** principle skill.
+ 
+ ## Phase B: Fan out
+@@ -38,7 +38,7 @@ If a candidate fails to produce output, proceed with N-1 and note the dropout in
+ 
+ ## Phase C: Cross-judge
+ 
+-After all Phase B candidates complete, choose one model from the `arena cross-judge pool` in `~/.cursor/rules/pstack-models.mdc` when present. Otherwise use `claude-fable-5-1-thinking-max`, `gpt-5.6-sol-max`, `grok-4.6-fast-xhigh`, `claude-opus-5-thinking-xhigh`. Prefer a different model family from the parent's. Spawn one readonly judge subagent on that model. It sees the rubric and the candidates by path label, scores each criterion, and recommends a base with rationale. It runs in parallel with the parent's reading in Phase D, not with the candidates themselves. Don't spawn the judge while candidates are still writing.
++After all Phase B candidates complete, choose one model from the `arena cross-judge pool` in `~/.cursor/rules/pstack-models.mdc` when present. Otherwise use `claude-opus-5-5-max`, `gpt-5.6-sol-max`, `grok-4.7-xhigh-fast`. Prefer a different model family from the parent's. Spawn one readonly judge subagent on that model. It sees the rubric and the candidates by path label, scores each criterion, and recommends a base with rationale. It runs in parallel with the parent's reading in Phase D, not with the candidates themselves. Don't spawn the judge while candidates are still writing.
+ 
+ ## Phase D: Pick a base
+ 
+diff --git a/pstack/skills/blast-radius/SKILL.md b/pstack/skills/blast-radius/SKILL.md
+index 298d030..1713b28 100644
+--- a/pstack/skills/blast-radius/SKILL.md
++++ b/pstack/skills/blast-radius/SKILL.md
+@@ -26,7 +26,7 @@ For each fact the change's safety depends on, get it as far down this list as is
+ 4. You ran it. A script or test that calls the real code and fails loud if you're wrong.
+ 5. You reproduced it in the running app.
+ 
+-Any safety fact you can't get to step 4, say so. Don't write it up as settled. Step 4 is usually one small script that imports the same library the app ships and calls the exact function you're worried about.
++Step 4 is usually one small script that imports the same library the app ships and calls the exact function you're worried about.
+ 
+ ## Steps
+ 
+@@ -34,14 +34,14 @@ Any safety fact you can't get to step 4, say so. Don't write it up as settled. S
+ 2. Find the one fact it's safe because of. Most changes that look risky are safe because of a single fact, like "this call only drops already-dead cache entries and does nothing else". Find that fact. If it holds, most risky cases are cleared at once. Spend your time here, not on a long list of maybes.
+ 3. Look where grep stops. Read the source of the library you call, and check its pinned version and any local patch. Work out when things run: microtasks, unmount and teardown, Solid versus React. Follow what a symbol search misses: the JSON an API returns, a DB column, a wire format, another language reading the same bytes, a feature flag, code three hops downstream.
+ 4. Be honest about each risk. Give it a real chance of happening and a real cost if it does. Keep the risks you confirmed. List the ones you checked and cleared separately. Same rules as `why`. Cite a real `file:line`, a search that finds nothing is still an answer, and never make up a caller or an API.
+-5. Prove the one fact. Write a script or test that runs the real code, run it, and paste what happened. If you can't prove it cheaply, mark it unproven. Don't overstate.
++5. Prove the one fact. Write a script or test that runs the real code, run it, and paste what happened.
+ 6. For a big or wide change, run it as an `arena`. Ask several models the same question and merge the answers. Different models catch different real bugs.
+ 
+ ## What to hand back
+ 
+ - **What it does.** What changed, including the part that isn't obvious.
+ - **The one fact it's safe because of.** State it, say which step you got it to, and show the proof. If you couldn't prove it, write unproven.
+-- **Risks.** Only the real ones. Each names how it breaks, the `file:line`, how likely and how bad, and how to check. Paste the proof for the ones that matter.
++- **Risks.** Each names how it breaks, the `file:line`, how likely and how bad, and how to check. Paste the proof for the ones that matter.
+ - **Cleared.** What you checked and why it's fine.
+ - **Before you merge.** The cheapest test or repro that catches the real bug, including the script you wrote.
+ 
+diff --git a/pstack/skills/figure-it-out/SKILL.md b/pstack/skills/figure-it-out/SKILL.md
+index aa6967a..3397333 100644
+--- a/pstack/skills/figure-it-out/SKILL.md
++++ b/pstack/skills/figure-it-out/SKILL.md
+@@ -6,7 +6,7 @@ disable-model-invocation: true
+ 
+ # Figure it out
+ 
+-When the task matches no playbook, design one. The deliverable before any code is the workflow itself: a sequence of phases that scales rigor to the task, runs the scientific method, and leaves a decision trail a human can audit after stepping away. Bias toward more rigor. The cost of building the wrong thing dwarfs the cost of being careful.
++When the task matches no playbook, design one. The deliverable before any code is the workflow itself: a sequence of phases that scales rigor to the task, runs the scientific method, and leaves a decision trail a human can audit after stepping away.
+ 
+ ## Start
+ 
+@@ -44,7 +44,7 @@ Apply the **sequence-verifiable-units** principle skill, verifying each unit bef
+ 
+ ## Phase D: Keep the audit trail
+ 
+-Log the run via the **show-me-your-work** skill, one canonical TSV with a row per decision and per unit, evidence as links. figure-it-out's work is usually ambitious enough to commit the trail so the reviewer can read it in the PR. Commit it when confidence has to be shown. Prefer evidence produced by committed scripts. The trail plus the diff is what lets the human come back and trust the work.
++Log the run via the **show-me-your-work** skill. figure-it-out's work is usually ambitious enough to commit the trail so the reviewer can read it in the PR. The trail plus the diff is what lets the human come back and trust the work.
+ 
+ ## Phase E: Verify and hand back
+ 
+diff --git a/pstack/skills/how/SKILL.md b/pstack/skills/how/SKILL.md
+index 7d4627c..a3a835f 100644
+--- a/pstack/skills/how/SKILL.md
++++ b/pstack/skills/how/SKILL.md
+@@ -22,7 +22,7 @@ When in doubt, take the simple path.
+ Decompose the question into 2 to 4 exploration angles, each a distinct slice of the subsystem. Spawn all explorers in a single message:
+ 
+ - `subagent_type`: `generalPurpose`
+-- `model`: your configured how-explorer model (default `grok-4.6-fast-xhigh`)
++- `model`: your configured how-explorer model (default `grok-4.7-xhigh-fast`)
+ - `readonly`: `true`
+ 
+ Each explorer gets the prompt in `references/explorer-prompt.md` with its angle filled in. Then go to Step 3.
+@@ -32,7 +32,7 @@ Each explorer gets the prompt in `references/explorer-prompt.md` with its angle
+ Spawn one Task subagent that explores and explains in one pass:
+ 
+ - `subagent_type`: `generalPurpose`
+-- `model`: your configured how-explainer model (default `claude-fable-5-1-thinking-max`)
++- `model`: your configured how-explainer model (default `claude-opus-5-5-max`)
+ - `readonly`: `true`
+ 
+ Build its prompt from `references/explainer-prompt.md` without the explorer-findings section. Go to Step 4.
+@@ -42,7 +42,7 @@ Build its prompt from `references/explainer-prompt.md` without the explorer-find
+ Once all explorers have returned, spawn one Task subagent to synthesize their findings into one explanation:
+ 
+ - `subagent_type`: `generalPurpose`
+-- `model`: your configured how-explainer model (default `claude-fable-5-1-thinking-max`)
++- `model`: your configured how-explainer model (default `claude-opus-5-5-max`)
+ - `readonly`: `true`
+ 
+ Build its prompt from `references/explainer-prompt.md` with every explorer's findings filled in.
+diff --git a/pstack/skills/how/references/explorer-prompt.md b/pstack/skills/how/references/explorer-prompt.md
+index 8b898d9..9b4b059 100644
+--- a/pstack/skills/how/references/explorer-prompt.md
++++ b/pstack/skills/how/references/explorer-prompt.md
+@@ -4,7 +4,7 @@ Build each explorer subagent's prompt from this template. Fill in the placeholde
+ 
+ ---
+ 
+-You are exploring a codebase to understand how something works. Gather facts: trace code paths, read implementations, map components. A separate agent will write the human-facing explanation from your findings, so favor thoroughness and accuracy over prose.
++You are exploring a codebase to understand how something works. Gather facts. Trace code paths, read implementations, map components. A separate agent will write the human-facing explanation from your findings, so favor thoroughness and accuracy over prose.
+ 
+ Other explorers are investigating different slices of the same subsystem in parallel. Don't try to cover everything. Focus on your assigned angle and go deep.
+ 
+diff --git a/pstack/skills/interrogate/SKILL.md b/pstack/skills/interrogate/SKILL.md
+index b59dff7..0fd70fd 100644
+--- a/pstack/skills/interrogate/SKILL.md
++++ b/pstack/skills/interrogate/SKILL.md
+@@ -33,14 +33,13 @@ Write one clear paragraph. If you're unsure about the intent, ask the user befor
+ 
+ ## Step 3, Spawn Reviewers
+ 
+-Launch all reviewers in a single message using the Task tool. Use the `interrogate reviewers` list from `~/.cursor/rules/pstack-models.mdc` when present, one reviewer per entry, extending or shrinking the Reviewer A/B/C/D labels below to the configured entry count. Otherwise use the table defaults.
++Launch all reviewers in a single message using the Task tool. Use the `interrogate reviewers` list from `~/.cursor/rules/pstack-models.mdc` when present, one reviewer per entry, extending or shrinking the Reviewer A/B/C labels below to the configured entry count. Otherwise use the table defaults.
+ 
+ | Subagent | Default model |
+ |----------|---------------|
+-| Reviewer A | `claude-fable-5-1-thinking-max` |
++| Reviewer A | `claude-opus-5-5-max` |
+ | Reviewer B | `gpt-5.6-sol-max` |
+-| Reviewer C | `grok-4.6-fast-xhigh` |
+-| Reviewer D | `claude-opus-5-thinking-xhigh` |
++| Reviewer C | `grok-4.7-xhigh-fast` |
+ 
+ For each reviewer:
+ - `subagent_type`: `generalPurpose`
+diff --git a/pstack/skills/poteto-mode/SKILL.md b/pstack/skills/poteto-mode/SKILL.md
+index 7559dea..5cec6fb 100644
+--- a/pstack/skills/poteto-mode/SKILL.md
++++ b/pstack/skills/poteto-mode/SKILL.md
+@@ -17,7 +17,7 @@ The Principles section below grounds every trigger. In your reply, name each pri
+ Remaining triggers:
+ 
+ - Nontrivial change, architecture decision, or "are we sure?" → the **how** skill.
+-- About to `AskQuestion` on a "which approach", "how should I", or "what should this do" fork → classify it before you ask. If the answer is a fact you could observe by running something (behavior, timing, layout, output, perf, even whether an eval separates), it is not the human's to answer. Sketch it via the Prototype playbook (`playbooks/prototype.md`) and let the result decide. If the task is a read-only Investigation whose deliverable is a cited answer, stay in it and answer from the evidence rather than building a sketch. Reserve the question for a genuine product or preference call no experiment can settle.
++- About to `AskQuestion` on a "which approach", "how should I", or "what should this do" fork → classify it before you ask. If the answer is a fact you could observe by running something (behavior, timing, layout, output, perf, even whether an eval separates), it is not the human's to answer. Sketch it via the Prototype playbook (`playbooks/prototype.md`) and let the result decide. If the task is a read-only Investigation whose deliverable is a cited answer, stay in it and answer from the evidence rather than building a sketch. Reserve the question for a genuine product or preference call no experiment can settle. Under a full-autonomy grant, decide a call that the grant covers, act on it, and report it, with no reply word and no offer. Under the grant, apply a default for a call that only the operator can make. Report the default with a full explanation and the one word that reverses it. Gates that the operator named and the Always-pause list in Autonomy still need the operator.
+ - Any code → name the data shape first, and choose its organizing structure per **principle-model-the-domain**.
+ - Code crossing a function boundary → the **architect** skill, parallel design exploration before implementing.
+ - Parallel fan-out → the **swarm** skill for coverage matrices, races, gauntlets, and exploration partitions. Use **arena** for design or code bakeoffs with base selection and grafting.
+@@ -90,7 +90,7 @@ Read the leaf skill in full for any principle you apply. Each entry names when i
+ 
+ **Use `subagent_type: "poteto-agent"` for any subagent you spawn inside a playbook step** (code-writing delegates, ad-hoc helpers). `/poteto-mode` and `poteto-agent` route through the same wrapper. Routed workflow skills (`how`, `why`, `interrogate`, `reflect`, `swarm`) set their own `subagent_type` for diverse-model review. Respect what the skill prescribes, don't override to `poteto-agent`.
+ 
+-**Defaults for every `Task` call.** `run_in_background: true`, agent mode (readonly strips MCP), file pointers not inlined context, explicit model per role (configurable via `/setup-pstack`. Defaults `grok-4.6-fast-xhigh` for code, `claude-fable-5-1-thinking-max` for prose and judgment). Code delegates tier by difficulty. The hardest changes (cross-cutting design, gnarly concurrency, subtle algorithms) go to your strongest judgment model (`claude-fable-5-1-thinking-max`), whether the task needs judgment on vague intent or is a precisely specified sequence of steps to execute to the letter. Trivial mechanical edits go to your fast code model. Per-role lines in the `/setup-pstack` rule override these defaults and the model choices in the routed skills (`how`, `why`, `arena`, `swarm`, `architect`, `interrogate`, `reflect`). A role with no line keeps its default, and a role line of `inherit-parent` or `auto` runs that role on the parent chat model (omit Task `model`).
++**Defaults for every `Task` call.** `run_in_background: true`, agent mode (readonly strips MCP), file pointers not inlined context, explicit model per role (configurable via `/setup-pstack`. Defaults `grok-4.7-xhigh-fast` for code, `claude-opus-5-5-max` for prose and judgment). Code delegates tier by difficulty. The hardest changes (cross-cutting design, gnarly concurrency, subtle algorithms) go to your strongest judgment model (`claude-opus-5-5-max`), whether the task needs judgment on vague intent or is a precisely specified sequence of steps to execute to the letter. Trivial mechanical edits go to your fast code model. Per-role lines in the `/setup-pstack` rule override these defaults and the model choices in the routed skills (`how`, `why`, `arena`, `swarm`, `architect`, `interrogate`, `reflect`). A role with no line keeps its default, and a role line of `inherit-parent` or `auto` runs that role on the parent chat model (omit Task `model`).
+ 
+ You own every subagent's work. Review the diff and write your own summary, don't pass through what it said. Interrupt-chained resumes silently drop directives, so fire a fresh subagent with consolidated scope rather than trusting a "done" summary. A second opinion is the same prompt against a different model. Agreement is high-signal.
+ 
+@@ -134,7 +134,7 @@ A large or cross-cutting effort (a migration across many call sites, an ambitiou
+ - **Shipping.** The half after Babysit. Independently verifying a green stack, then landing the contiguous verified run bottom-up through `gh` by default or Origin when its CLI is available. `playbooks/shipping.md`.
+ - **Autonomous run.** A long task to drive to completion without stopping ("run until done", "/loop until X"). `playbooks/autonomous-run.md`.
+ - **Orchestrate.** A standing project handed to one coordinator chat: multi-day, many stacked PRs, dozens to hundreds of subagents, minimal human turns ("run this whole project", "own this migration until it lands"). Distinct from Autonomous run, which drives one task to a predicate. Work one agent could finish inside the session's budget routes there, not here, however program-shaped the phrasing sounds. `playbooks/orchestrate.md`.
+-- **Autopilot-full.** A queue of independent PRs run to merged with full autonomy. One owner per PR carries build through merge, and the root swarm-verifies each merge-ready head before its owner merges ("autopilot this queue", "full autopilot", one-owner-per-PR programs). `playbooks/autopilot-full.md`.
++- **Autopilot-full.** A queue of independent PRs run to merged with full autonomy. One owner per PR carries build through merge, and the root swarm-verifies each PR before its owner merges ("autopilot this queue", "full autopilot", one-owner-per-PR programs). `playbooks/autopilot-full.md`.
+ - **Autopilot-stack.** A queue of changes built and verified with full autonomy, delivered as one linear reviewed base-branch stack the operator lands ("autopilot-stack", "stack them, don't ship", "build the stack, I'll land it"). `playbooks/autopilot-stack.md`.
+ - **Session pickup.** Resuming or taking over a prior agent's in-flight work from a transcript, cloud-agent URL, or pushed branch. `playbooks/session-pickup.md`.
+ - **Pause safely.** Suspending in-flight work cleanly so it can be resumed, on an explicit pause, going offline, a Cursor restart, or imminent context compaction. The complement to Session pickup. Full steps: `playbooks/pause-safely.md`.
+diff --git a/pstack/skills/poteto-mode/playbooks/autopilot-full.md b/pstack/skills/poteto-mode/playbooks/autopilot-full.md
+index 7853250..5456b79 100644
+--- a/pstack/skills/poteto-mode/playbooks/autopilot-full.md
++++ b/pstack/skills/poteto-mode/playbooks/autopilot-full.md
+@@ -3,11 +3,11 @@
+ **You own the verdicts, never the PRs. One owner runs each PR from build to merge, and nothing merges without your clean swarm verdict.** For "autopilot this queue", "full autopilot", and one-owner-per-PR programs. Orchestrate runs a standing program whose coordinator lands verified work itself and whose workers never merge. Here each PR's owner carries the whole lifecycle through the merge, and the root keeps only verification, countersigns, and audits.
+ 
+ 1. **Mark the operator's items and honor state-then-wait.** Items the operator names stay with the operator. The operator reviews and clicks, and no owner merges one. When the operator asks for the protocol or the plan to be stated, deliver the statement and stop. Execution starts only on the operator's explicit go. On that go, arm a `/goal` with the full program objective. The goal continues across turns until the queue is done.
+-2. **Spawn one owner per PR with the full lifecycle and an early trail.** Resolve the forge once for the program. GitHub CLI (`gh`) is the default. If `command -v origin` succeeds and Origin can resolve the repository, use `origin pr ...` for PR create, edit, view, watch, and merge operations. Otherwise stay on `gh` and record the fallback. Never require Graphite (`gt`). One Cursor cloud agent per PR owns build, the first push, a ready PR, self-proof on the real artifact (the **prove-it-works** principle skill), skeptical Bugbot triage per `../references/bugbot-triage.md`, a slop-strip (the `deslop` skill from the `cursor-team-kit` plugin (`/deslop`)), `/no-comments` (the **no-comments** skill), a rebase onto current trunk, the babysit loop to green (`playbooks/babysit.md`), and the merge itself. Within about 15 minutes, every owner starts a `decisions.tsv` trail per the **show-me-your-work** skill, pushes its first branch snapshot, and opens the PR ready, never draft. Open the PR before self-proof so the URL, decisions, and checks form a durable trail. Keep `decisions.tsv` uncommitted and return it with the reports. The rebase always precedes babysit and never waits for drift or conflicts. The merge is the one step an owner may not take alone. Step 4 gates it.
++2. **Spawn one owner per PR with the full lifecycle and an early trail.** Resolve the forge once for the program. GitHub CLI (`gh`) is the default. If `command -v origin` succeeds and Origin can resolve the repository, use `origin pr ...` for PR create, edit, view, watch, and merge operations. Otherwise stay on `gh` and record the fallback. Never require Graphite (`gt`). One Cursor cloud agent per PR owns build, the first push, a ready PR, self-proof on the real artifact (the **prove-it-works** principle skill), skeptical Bugbot triage per `../references/bugbot-triage.md`, a slop-strip (the `deslop` skill from the `cursor-team-kit` plugin (`/deslop`)), `/no-comments` (the **no-comments** skill), a rebase onto current trunk, the babysit loop to green (`playbooks/babysit.md`), and the merge itself. Within about 15 minutes, every owner starts a `decisions.tsv` trail per the **show-me-your-work** skill, pushes its first branch snapshot, and opens the PR ready, never draft. Open the PR before self-proof so the URL, decisions, and checks form a durable trail. Keep `decisions.tsv` uncommitted and return it with the reports. As soon as a subagent starts, the owner adds its ID, expected runtime (at least the longest past run of that kind), and state to a `children.tsv` kept the same way. The owner does the first rebase before the code-ready report and babysit, whether or not trunk has drifted. In fix rounds, the owner keeps that merge base. The owner rebases again only at merge prep (step 5), on a `git merge-tree` conflict with trunk, or on a CI failure that comes from a change on trunk. When the shipped code is final, after the slop-strip and `/no-comments`, it reports the code-ready head SHA. It also reports the SHA of each later push that changes the patch. Self-proof, CI, and babysit then run in parallel with the swarm. The owner reports merge-ready with the head SHA when self-proof, CI, and babysit finish. Before a push that starts a round, run the pre-review checks that the repo's AGENTS.md files and rules name for the touched paths. Run them on the committed head. A hook pass is not proof. The merge is the one step an owner may not take alone. Step 4 gates it.
+ 3. **Run owners in true parallel and never stack.** Many owners at once when PRs are self-contained: one writer per branch, disjoint files, cross-PR drift absorbed by rebase. Only genuinely overlapping work serializes. Self-contained PRs branch straight off main, and sequenced work is merge-then-branch. One exception: an owner that must split a genuinely dependent change may hold a short private base-branch stack.
+-4. **Swarm-verify every merge-ready head before its merge.** At the owner's merge-ready head SHA, fan out parallel independent verifiers per the **swarm** skill and aggregate to one verdict. The lanes: re-run the gates at that SHA. Prove the load-bearing behavior live on the real surface the change touches (`control-cli` or `control-ui` from `cursor-team-kit` as the change demands). Audit the receipts and the diff, distrusting the PR body. **Regression lane against trunk.** Run the same load-bearing scenario on current trunk. If trunk does not have the feature, record that fact and gate the behavior the diff adds plus the end state the user waits for instead of pretending trunk can produce it. The live lane is the floor, and a verdict without it is not clean. No merge without the root's clean verdict. Findings go back to the owner for fix-forward, and the new head gets a fresh swarm and a fresh verdict.
+-5. **On a clean verdict the owner merges and takes the next item.** The owner merges only from a head freshly rebased onto trunk. The merge-ready report is made at a trunk-current head, and the swarm verdict pins that SHA. If trunk moves again before the merge, the patch-id rule in `playbooks/shipping.md` governs re-verification. A new head voids the verdict unless the patch-id is unchanged. The owner squash-merges its own PR through the resolved forge and picks up its next self-contained item from the queue. The operator's full-autonomy grant plus the root's clean verdict is the merge authorization that babysitting alone never has. Operator-named items stop at merge-ready and wait for the operator's click.
+-6. **Run the root layer.** A genuinely new raise of a pinned gate or budget value (a limit CI only lets tighten) needs your fresh countersign, granted only after verifier proof. Absorbing values that already landed on main is drift, not a raise. Run an audit tick over all owners roughly every 30 minutes. A local root arms each tick as a real terminal `/loop`. The loop uses a monitored-shell 30-minute sleep and emits an output-notification sentinel. A cloud root uses the existing cloud-sleeper wake chain instead. Never leave the cadence to memory or lossy completion notifications. At each tick, re-read this playbook from trunk with `git show origin/main:pstack/skills/poteto-mode/playbooks/autopilot-full.md`, then re-read the armed `/goal`. Audit the operation against both. Fix drift during that tick. Probe each owner with a generic liveness or status check, and collect the decision trails. Count only side effects as progress: commits, pushes, PR or check deltas, and store reports. Treat a lane that passes its expected runtime without a side effect as stuck. Stand it down and dispatch a replacement at once. Do not wait for a polite return. When merges batch, run a retro pass and a post-merge bot-comment sweep.
++4. **Swarm-verify every round before its merge.** A round starts at the owner's code-ready head SHA and at each later push that changes the PR's patch. At that SHA, fan out parallel independent verifiers per the **swarm** skill and aggregate to one verdict. The merge needs a clean verdict from the round whose patch matches the merge-ready head. Audit the receipts in the merge-ready report before the verdict. The lanes: re-run the gates at that SHA. Prove the load-bearing behavior live on the real surface the change touches (with the matching control skill, such as `control-cli` or `control-ui` from `cursor-team-kit`, or a named driver where none exists). Audit the diff, distrusting the PR body. Run the audit as two or more review lanes with the full brief. Give each lane one main focus, such as consumer parity with trunk, lifetimes and races, or data and config safety. **Regression lane against trunk.** Run the same load-bearing scenario on current trunk. If trunk does not have the feature, record that fact and gate the behavior the diff adds plus the end state the user waits for instead of pretending trunk can produce it. The live lane is the floor, and a verdict without it is not clean. No merge without the root's clean verdict. When the lanes return, send every proven finding against the PR to the owner in one fix-forward. A defect that a lane filed as a note is a finding. For each behavior finding, ask for a red test that covers every site with the same defect. Where no test can show the defect, ask for a repro receipt instead. Add that defect to the next round's review brief. The new head gets a fresh swarm and a fresh verdict, except for lane results that stay valid under the patch-id rule in `playbooks/shipping.md`.
++5. **On a clean verdict the owner merges and takes the next item.** The owner merges only from a head freshly rebased onto trunk. Merge prep never comes before a round's lanes start, and it ends with a rebase onto current trunk right before the merge. After the merge-prep rebase, the owner reports the new head SHA. CI must pass on that head before the merge, and the patch-id rule decides whether the round's verdict still holds. If trunk moves again before the merge, the patch-id rule in `playbooks/shipping.md` governs re-verification. A new head voids the verdict unless the patch-id is unchanged. The owner squash-merges its own PR through the resolved forge and picks up its next self-contained item from the queue. The operator's full-autonomy grant plus the root's clean verdict is the merge authorization that babysitting alone never has. Operator-named items stop at merge-ready and wait for the operator's click.
++6. **Run the root layer.** A genuinely new raise of a pinned gate or budget value (a limit CI only lets tighten) needs your fresh countersign, granted only after verifier proof. If the operator's grant or standing orders cover approvals, that countersign is the approval. The owner records it in the form that the tool's approval contract allows, with a pointer to the root's countersign. A lane checks the record against that countersign. The root never gives or bypasses an approval that the forge enforces. Absorbing values that already landed on main is drift, not a raise. Run an audit tick over all owners roughly every 30 minutes. A local root arms each tick as a real terminal `/loop`. The loop uses a monitored-shell 30-minute sleep and emits an output-notification sentinel. A cloud root uses the existing cloud-sleeper wake chain instead. Never leave the cadence to memory or lossy completion notifications. At each tick, re-read this playbook from trunk with `git show origin/main:pstack/skills/poteto-mode/playbooks/autopilot-full.md`, then re-read the armed `/goal`. Audit the operation against both. Fix drift during that tick. Probe each owner with a generic liveness or status check, and collect the decision trails. Count only side effects as progress: commits, pushes, PR or check deltas, and store reports. Treat a lane that errors, or that passes its expected runtime without a side effect, as stuck. Stand it down and dispatch a replacement at once. Do not wait for a polite return. Each tick also runs the lane stuck test over the program's agent list, where the platform has one, and over every owner's `children.tsv`. Whether or not a stop works, the root has the owner record each stuck subagent as stuck and, if its work is still needed, replace it. Each replacement that stalls gets the same steps. The root takes both steps when the owner cannot. A stall never proves or drops the work. When merges batch, run a retro pass and a post-merge bot-comment sweep. End the tick only when no delegated work is left, even after the last merge.
+ 7. **Stand down instantly on the operator's stop.** The operator's hold or stand-down reaches every owner as a zero-writes order immediately. Owners hold their briefs until the operator releases them.
+ 
+ **Reply:** the queue with each PR's owner, state, and head SHA. Each verdict and the swarm that produced it. What merged and what each owner took next. Countersigns granted and why. Open operator gates. Where the collected decision trails live.
+diff --git a/pstack/skills/poteto-mode/playbooks/autopilot-stack.md b/pstack/skills/poteto-mode/playbooks/autopilot-stack.md
+index f5b6e1d..810a70f 100644
+--- a/pstack/skills/poteto-mode/playbooks/autopilot-stack.md
++++ b/pstack/skills/poteto-mode/playbooks/autopilot-stack.md
+@@ -2,13 +2,13 @@
+ 
+ **You own the stack, never the landing. Build and verify the queue with full autonomy, then hand the operator one linear base-branch stack to review and land.** The sibling of **Autopilot-full**.
+ 
+-1. **Run the owner loop unchanged.** Resolve the forge once for the program. GitHub CLI (`gh`) is the default. If `command -v origin` succeeds and Origin can resolve the repository, use `origin pr ...` for PR create, edit, view, watch, and merge operations. Otherwise stay on `gh` and record the fallback. Never require Graphite (`gt`). One Cursor cloud agent per PR owns its change end to end: build, first push, a ready PR opened before self-proof, self-proof (gates, CI, receipts), skeptical Bugbot triage per `../references/bugbot-triage.md`, a slop-strip (the `deslop` skill from the `cursor-team-kit` plugin (`/deslop`)), `/no-comments` (the **no-comments** skill), and babysit to green per `playbooks/babysit.md`. Owners parallelize when the work is self-contained. Within about 15 minutes, every owner starts a `decisions.tsv` trail per the **show-me-your-work** skill, pushes its first branch snapshot, and opens the PR ready, never draft. Keep the trail uncommitted and return it in the report.
+-2. **Audit on the wake chain.** The root runs an audit tick roughly every 30 minutes. A local root arms each tick as a real terminal `/loop`. The loop uses a monitored-shell 30-minute sleep and emits an output-notification sentinel. A cloud root uses the existing cloud-sleeper wake chain instead. Never leave the cadence to memory or lossy completion notifications. At each tick, re-read this playbook from trunk with `git show origin/main:pstack/skills/poteto-mode/playbooks/autopilot-stack.md`, then re-read the armed `/goal`. Audit the operation against both. Fix drift during that tick. Probe each owner with a generic liveness or status check. Count only side effects as progress: commits, pushes, PR or check deltas, and store reports. Treat a lane that passes its expected runtime without a side effect as stuck. Stand it down and dispatch a replacement at once. Do not wait for a polite return.
++1. **Run the owner loop unchanged.** Resolve the forge once for the program. GitHub CLI (`gh`) is the default. If `command -v origin` succeeds and Origin can resolve the repository, use `origin pr ...` for PR create, edit, view, watch, and merge operations. Otherwise stay on `gh` and record the fallback. Never require Graphite (`gt`). One Cursor cloud agent per PR owns its change end to end: build, first push, a ready PR opened before self-proof, self-proof (gates, CI, receipts), skeptical Bugbot triage per `../references/bugbot-triage.md`, a slop-strip (the `deslop` skill from the `cursor-team-kit` plugin (`/deslop`)), `/no-comments` (the **no-comments** skill), and babysit to green per `playbooks/babysit.md`. Owners parallelize when the work is self-contained. Within about 15 minutes, every owner starts a `decisions.tsv` trail per the **show-me-your-work** skill, pushes its first branch snapshot, and opens the PR ready, never draft. Keep the trail uncommitted and return it in the report. Owners also keep the `children.tsv` of Autopilot-full step 2.
++2. **Audit on the wake chain.** The root runs an audit tick roughly every 30 minutes. A local root arms each tick as a real terminal `/loop`. The loop uses a monitored-shell 30-minute sleep and emits an output-notification sentinel. A cloud root uses the existing cloud-sleeper wake chain instead. Never leave the cadence to memory or lossy completion notifications. At each tick, re-read this playbook from trunk with `git show origin/main:pstack/skills/poteto-mode/playbooks/autopilot-stack.md`, then re-read the armed `/goal`. Audit the operation against both. Fix drift during that tick. Probe each owner with a generic liveness or status check. Count only side effects as progress: commits, pushes, PR or check deltas, and store reports. Treat a lane that passes its expected runtime without a side effect as stuck. Stand it down and dispatch a replacement at once. Do not wait for a polite return. Probe all subagents and end the tick per Autopilot-full step 6.
+ 3. **Hold the operator gates.** State-then-wait, so a request to state the plan is not a go. On the operator's explicit go, arm a `/goal` with the full program objective. The goal continues across turns until the chain is done. On the operator's stop, every owner takes an immediate zero-writes hold.
+-4. **Verify at STACK-READY.** The owner reports STACK-READY with the exact head SHA. The root swarm-verifies that SHA, fan-out per the **swarm** skill: parallel independent verifiers re-running the gates at that SHA, a live runtime floor over the load-bearing behavior, and a receipts-and-diff audit that distrusts the PR body. The swarm aggregates to one verdict. Findings go back to the owner, and nothing enters the stack unverified.
++4. **Verify each round.** The owner reports its code-ready head SHA once the shipped code is final, and STACK-READY with the exact head SHA when its loop is green. The root verifies each round per Autopilot-full step 4, with STACK-READY in place of merge-ready. Nothing enters the stack unverified.
+ 5. **Append on a clean verdict, never ship.** No owner merges, arms auto-merge, or closes. A clean verdict appends the PR to the one linear base-branch stack, in verified order or an order the operator specified.
+ 6. **Single writer on topology, parallel writers on builds.** Owners push only their own branches and report the tip, current base, and intended parent. The root is the only topology writer. To append a PR, fetch the intended parent, rebase the child branch onto that exact parent tip, push with `--force-with-lease` only after an `ls-remote` check, and set the PR base to the parent branch. Create it with `origin pr create --status open --base <parent-branch>` or `gh pr create --base <parent-branch>` according to the resolved forge. Retarget an existing PR with `origin pr edit <pr> --base <parent-branch>` or `gh pr edit <pr> --base <parent-branch>`. Only the root PR targets trunk. Never submit or register the chain through `gt`.
+-7. **Absorb drift at the root, then re-verify what moved.** The root fetches current trunk and rebases the chain from bottom to top. When a rebase surfaces conflicts in an owner's files, that owner fixes its own slice and the root pushes the result. A rebase rewrites every SHA above it and voids verdicts at the old SHAs. Compare the stable `git patch-id` for each PR's base-to-head diff at its verdict SHA against its new base-to-head diff. An unchanged patch-id preserves the code verdict. Any changed patch goes back through step 4 before delivery. Re-run mergeability and CI after every rewritten push even when the patch-id is unchanged. The countersign rule is unchanged from Autopilot-full. A genuinely new pin raises a stop for the root's fresh countersign. Absorbing drift of landed values is not a raise.
++7. **Absorb drift at the root, then re-verify what moved.** The root fetches current trunk and rebases the chain from bottom to top. When a rebase surfaces conflicts in an owner's files, that owner fixes its own slice and the root pushes the result. A rebase rewrites every SHA above it and voids verdicts at the old SHAs. Apply the patch-id rule in `playbooks/shipping.md` at each verdict SHA. Anything that is no longer valid goes back through this playbook's step 4 before delivery. Re-run mergeability and CI after every rewritten push even when the patch-id is unchanged. The countersign rule is unchanged from Autopilot-full. A genuinely new pin raises a stop for the root's fresh countersign. Absorbing drift of landed values is not a raise.
+ 8. **Deliver the chain.** The deliverable is one linear chain of verified PRs, reviewable bottom-up in the resolved forge, every link carrying its verifier verdict in the PR body or a comment. The operator reviews and lands it, with their own clicks or by arming merge-when-ready.
+ 
+ **Choosing between the autopilots.** Autopilot-full when the PRs are independent and landing authority is granted. Autopilot-stack when the operator wants review before landing, the work is sequenced or coupled, or merge authority is withheld.
+diff --git a/pstack/skills/poteto-mode/playbooks/bug-fix.md b/pstack/skills/poteto-mode/playbooks/bug-fix.md
+index c582897..7deba2c 100644
+--- a/pstack/skills/poteto-mode/playbooks/bug-fix.md
++++ b/pstack/skills/poteto-mode/playbooks/bug-fix.md
+@@ -4,9 +4,9 @@
+ 
+ Be scientific. Every shipped line traces to runtime evidence. Belt-and-suspenders that "might help" is a hypothesis, not a fix. It does not ship. When evidence refutes a hypothesis, revert what it motivated. The smallest change the evidence justifies ships, nothing more.
+ 
+-1. Reproduce it yourself on the matching surface via the control skill (Non-negotiables). Don't hand the repro to the user. A debug or instrumentation protocol that says to ask the user does not override this. You drive the instrumented runtime. Ask the user only with a stated, specific reason the control surface cannot reach the target, and only after driving it as far as it goes. Won't reproduce directly, force it: synthesize the trigger, tighten conditions, or instrument until it fires.
++1. Reproduce it yourself on the matching surface via the control skill (Non-negotiables), even when a debug or instrumentation protocol says to ask the user to reproduce. Ask the user only with a stated, specific reason the control surface cannot reach the target, and only after driving it as far as it goes. If it won't reproduce directly, synthesize the trigger, tighten conditions, or instrument until it fires.
+ 2. Binary-search the cause. Form the candidate hypotheses, then rule them out until one survives. Seed them with `how` over the affected subsystem and the **why** skill for regression history. Each pass, take the split that cuts the most remaining problem space, get runtime evidence, eliminate. When program state is unclear, add instrumentation or logging and read it as the code runs. Don't guess. Drive a long or stubborn hunt with Cursor's `/loop` command. Confirm the surviving *mechanism* with runtime evidence before the step-3 architect/interrogate fan-out.
+-3. Plan the fix. If it crosses a function boundary, `architect` first. Delegate implementation to a subagent using your configured bug-fix model (default `grok-4.6-fast-xhigh`) with a specific scope. Review the diff.
++3. Plan the fix. If it crosses a function boundary, `architect` first. Delegate implementation to a subagent using your configured bug-fix model (default `grok-4.7-xhigh-fast`) with a specific scope. Review the diff.
+ 4. Verify on the same surface. The original repro now passes. "Inconclusive" or wrong-surface is not a pass. Flag it. Unit tests show branch behavior, not bug absence.
+ 5. Stage the commits so the failing repro lands before the fix in git history. See the **tdd** skill for the failing-test-first cadence when the bug has a cheap local test path. Skip it when the test would be expensive, integration-heavy, or unclear.
+    This is the canonical **sequence-verifiable-units** principle skill, the failing test first and the fix on top.
+diff --git a/pstack/skills/poteto-mode/playbooks/feature.md b/pstack/skills/poteto-mode/playbooks/feature.md
+index 6cab218..42ca2b5 100644
+--- a/pstack/skills/poteto-mode/playbooks/feature.md
++++ b/pstack/skills/poteto-mode/playbooks/feature.md
+@@ -3,13 +3,13 @@
+ **You own the design. Plan, review, verify.** Delegate implementation. Stay in the lead.
+ 
+ 1. `how` over the affected subsystem.
+-2. `architect` for parallel design exploration. Skipping stays as `architect skipped: <reason>`. Do not fold the design decision silently into implementation.
++2. `architect` for parallel design exploration.
+ 3. Write the throughput checkpoint as four todo items. A dimension that genuinely does not apply (single file, no fan-out) keeps its item with `n/a: <reason>` rather than being dropped:
+    - **Blocking first steps.** Gates run before fan-out.
+    - **Independent workstreams.** Disjoint files, services, or layers parallelize. Shared writes serialize.
+    - **Shared mutable state.** Default to splitting the target (the **separate-before-serializing-shared-state** principle skill). Serialize only for real invariants.
+    - **Smallest safe decomposition.** If one worker is best, name why.
+-4. Delegate code-writing to a subagent using your configured feature model (default `grok-4.6-fast-xhigh`) with a specific scope (file paths, named data shape and its organizing structure per **principle-model-the-domain**, a state machine over scattered booleans, a table/registry over branching, a typed model over repeated shape assumptions, chosen before the delegate writes logic, and success criteria). Review its diff yourself. When the implementation admits multiple valid shapes (error handling, abstraction layer, test structure), delegate via the **arena** skill instead so the runners surface the alternatives and the cross-judge guards the pick. Mandatory: no skip-with-reason escape, and Laziness Protocol does not override it (the gain is review separation, not lines saved). You can spawn a subagent even though you are one. "The app is small" and "a subagent cannot spawn one" are both wrong. A subagent forbidden to spawn satisfies this by owning the diff directly with the same review separation. No "standing by" reply that waits on a nested agent. Comments per **Comments**. Surgical edits, re-ground against the source for upstream-derived files. Port shared-primitive improvements to all consumers and verify each. Commit liberally.
++4. Delegate code-writing to a subagent using your configured feature model (default `grok-4.7-xhigh-fast`) with a specific scope (file paths, named data shape and its organizing structure per **principle-model-the-domain**, a state machine over scattered booleans, a table/registry over branching, a typed model over repeated shape assumptions, chosen before the delegate writes logic, and success criteria). Review its diff yourself. When the implementation admits multiple valid shapes (error handling, abstraction layer, test structure), delegate via the **arena** skill instead so the runners surface the alternatives and the cross-judge guards the pick. Mandatory: no skip-with-reason escape, and Laziness Protocol does not override it (the gain is review separation, not lines saved). You can spawn a subagent even though you are one. "The app is small" and "a subagent cannot spawn one" are both wrong. A subagent forbidden to spawn satisfies this by owning the diff directly with the same review separation. No "standing by" reply that waits on a nested agent. Comments per **Comments**. Surgical edits, re-ground against the source for upstream-derived files. Port shared-primitive improvements to all consumers and verify each. Commit liberally.
+ 5. Verify on the matching surface. "Inconclusive" or wrong-surface is not a pass. Flag it.
+ 6. Rebase into small, ordered commits. Stack follow-ups.
+    Use the **sequence-verifiable-units** principle skill, building, verifying, and committing each small unit before the next.
+diff --git a/pstack/skills/poteto-mode/playbooks/hillclimb.md b/pstack/skills/poteto-mode/playbooks/hillclimb.md
+index edb6edc..582555e 100644
+--- a/pstack/skills/poteto-mode/playbooks/hillclimb.md
++++ b/pstack/skills/poteto-mode/playbooks/hillclimb.md
+@@ -9,7 +9,7 @@ Core discipline: one change, one measurement, keep or revert. Never stack untest
+ 3. Open the decision log via the **show-me-your-work** skill. A `decision.tsv`, one row per attempt: id, hypothesis, change, before, after, delta, tests, verdict (kept or reverted), note. Read it before each attempt. Keep it out of the tree (gitignored).
+ 4. Ground each hypothesis in the architecture model from step 1, so it names a specific mechanism ("defer X off the boot path because it blocks first paint"), not "try memoizing something".
+ 5. Loop, one hypothesis per iteration:
+-   - Hand the change to a subagent using your configured hillclimb model (default `grok-4.6-fast-xhigh`) with a tight scope. Supervise and review the diff rather than typing it (the **guard-the-context-window** principle skill). When several independent hypotheses are live, fan them to parallel subagents, each in its own worktree (the **separate-before-serializing-shared-state** principle skill).
++   - Hand the change to a subagent using your configured hillclimb model (default `grok-4.7-xhigh-fast`) with a tight scope. Supervise and review the diff rather than typing it (the **guard-the-context-window** principle skill). When several independent hypotheses are live, fan them to parallel subagents, each in its own worktree (the **separate-before-serializing-shared-state** principle skill).
+    - Measure before and after with the frozen harness, and run the regression gate.
+    - Accept only when the metric moves past noise and the gate stays green. Otherwise revert the change in full. A tweak that "might help" is not kept.
+    - One commit per accepted fix, staging only the files you changed (`git add <files>`, never `-A`). Log the row either way, kept or reverted.
+diff --git a/pstack/skills/poteto-mode/playbooks/multi-phase-plan.md b/pstack/skills/poteto-mode/playbooks/multi-phase-plan.md
+index 1fd40dd..ac92ba5 100644
+--- a/pstack/skills/poteto-mode/playbooks/multi-phase-plan.md
++++ b/pstack/skills/poteto-mode/playbooks/multi-phase-plan.md
+@@ -10,7 +10,7 @@
+ 6. Run `node pstack/skills/poteto-mode/scripts/check-plan.mjs <plan.md>` and fix every line it prints (the **encode-lessons-in-structure** principle skill).
+ 7. Hand back. Post the plan path and the script's output, then stop. Execution starts on the operator's explicit go, under the execution playbook the plan names.
+ 
+-**Verification.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked (the **prove-it-works** principle skill). That sentence is the verification rule. Every verification block opens with it. The live block is mandatory. Ten lanes on `grok-4.6-fast-xhigh` at the PR head drive the real surface through its control skill, per the **swarm** skill. Each lane is one box with a concrete scenario, the screenshot it saves, and its pass predicate. One lane is the **Regression lane against trunk.** It runs the same load-bearing scenario on trunk and head. If trunk does not have the feature, the lane records that fact and gates the behavior the diff adds plus the end state the user waits for instead of inventing a trunk result. The perf gate is dual-sided. Trunk and head must both produce the named metric. If trunk lacks the feature, also isolate the work the diff adds and set an absolute budget for that work plus the end-to-end state the user waits for. Do not claim a ratio between unlike scenarios. The perf block names the metric, the interleaved probe, the trunk baseline measured first, and the rule with the number that fails. A PR that changes an interaction is review-gated. The operator reviews it in chat with screenshots and a video before merge. A PR that changes no interaction writes `**Review gate.** None. <PR id> is not review-gated.` and no boxes under it.
++**Verification.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked (the **prove-it-works** principle skill). That sentence is the verification rule. Every verification block opens with it. The live block is mandatory. Ten lanes on `grok-4.7-xhigh-fast` at the PR head drive the real surface through its control skill, per the **swarm** skill. Each lane is one box with a concrete scenario, the screenshot it saves, and its pass predicate. One lane is the **Regression lane against trunk.** It runs the same load-bearing scenario on trunk and head. If trunk does not have the feature, the lane records that fact and gates the behavior the diff adds plus the end state the user waits for instead of inventing a trunk result. The perf gate is dual-sided. Trunk and head must both produce the named metric. If trunk lacks the feature, also isolate the work the diff adds and set an absolute budget for that work plus the end-to-end state the user waits for. Do not claim a ratio between unlike scenarios. The perf block names the metric, the interleaved probe, the trunk baseline measured first, and the rule with the number that fails. A PR that changes an interaction is review-gated. The operator reviews it in chat with screenshots and a video before merge. A PR that changes no interaction writes `**Review gate.** None. <PR id> is not review-gated.` and no boxes under it.
+ 
+ **Control skill.** Pick it by surface. Browser, Electron, and web UIs use `control-ui` from `cursor-team-kit`. CLIs and TUIs use `control-cli` from `cursor-team-kit`. Native mobile uses whatever simulator-driving skill the repo has. A PR that touches two surfaces gets lanes on both. A surface with no control skill is a risk in Appendix C, and its live block still names how each lane drives it.
+ 
+@@ -40,7 +40,7 @@ Tests alone are not sufficient verification. A PR is verified only when its unit
+   - [ ] `git show origin/main:pstack/skills/poteto-mode/playbooks/opening-a-pr.md`
+   - [ ] `git show origin/main:pstack/skills/<each other leaf skill the program uses>`
+ - [ ] Arm the 30-minute audit tick. In a local session, a real terminal `/loop`. In a cloud root, a cloud-sleeper wake chain. Never leave the cadence to memory.
+-- [ ] Use this tick prompt, verbatim. "Re-read the execution playbook from trunk and the armed /goal. Audit the operation against both and fix drift in this tick. Probe every active lane and judge progress by side effects only. Stand down a stuck lane and dispatch its replacement now. Then post a status message to the operator in chat, whether or not anything changed, with the queue table of PR, owner, state, and head SHA, the verdicts since the last tick, what merged, open operator gates, and blockers."
++- [ ] Use this tick prompt, verbatim. "Re-read the execution playbook from trunk and the armed /goal. Audit the operation against both and fix drift in this tick. Probe every active lane and judge progress by side effects only. Stand down a stuck lane and dispatch its replacement now. Then post a short status message to the operator in chat only when the audit found a tracked change that no earlier status message reported, such as a PR opened, a code-ready head, a round launched or closed, a verdict, a merge, a stuck agent and the action taken, a blocker added or cleared, or a decision only the operator can make. Name every such change and nothing else. Do not repeat a table, the merged list, or an unchanged blocker. If the audit found none, end the turn with no reply text. Either way, log this tick's row in your decision trail. The row names the items reported, or none."
+ - [ ] On the operator's hold or stand-down, send every owner a zero-writes order at once.
+ 
+ ### Spawn owners
+@@ -59,12 +59,12 @@ Tests alone are not sufficient verification. A PR is verified only when its unit
+ - [ ] Run the repo's lint and typecheck once before the PR-facing push. Push with hooks on.
+ - [ ] Run `/deslop` before each commit and `/no-comments` before review.
+ - [ ] Triage every Bugbot and security-reviewer comment per `../references/bugbot-triage.md`.
+-- [ ] Rebase onto current trunk before babysit and again before the merge-ready report.
++- [ ] Rebase onto current trunk before the code-ready report and babysit. Keep that merge base in fix rounds. Rebase again only at merge prep, on a `git merge-tree` conflict with trunk, or on a CI failure that comes from a change on trunk.
+ 
+ ### Verdict and merge, for every PR
+ 
+-- [ ] At the merge-ready head SHA, run the swarm per `pstack/skills/swarm/SKILL.md`. One gates lane. The ten live lanes from the PR's **Verify, live** block. The perf lane from its **Verify, perf** block. One audit lane that reads the diff and the receipts and distrusts the PR body.
+-- [ ] Clean only when every lane is `PASS`. Findings go back to the owner. A new head gets a fresh swarm and a fresh verdict.
++- [ ] At the code-ready head SHA and at each later push that changes the patch, run the swarm per `pstack/skills/swarm/SKILL.md`. One gates lane. The ten live lanes from the PR's **Verify, live** block. The perf lane from its **Verify, perf** block. Two or more audit lanes, each with its own focus, that read the diff and the receipts and distrust the PR body. The root audits the receipts in the merge-ready report before the verdict.
++- [ ] Clean only when every lane is `PASS`. Findings go back to the owner, including a defect that a lane filed as a note. A new head gets a fresh swarm and a fresh verdict, except for results that stay valid under the patch-id rule in `playbooks/shipping.md`.
+ - [ ] <The merge or append rule from the execution playbook, with the patch-id rule from `playbooks/shipping.md`.>
+ 
+ ### Boot recipe, for every live lane
+@@ -98,7 +98,7 @@ Each live lane runs on its own cloud VM at the PR head. Drive through `control-u
+ 
+ - [ ] <Test file and the case it gains.> Run `<command>`.
+ 
+-**Verify, live.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked. Ten lanes on `grok-4.6-fast-xhigh` at the PR head, per the boot recipe.
++**Verify, live.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked. Ten lanes on `grok-4.7-xhigh-fast` at the PR head, per the boot recipe.
+ 
+ - [ ] Lane 1. Regression lane against trunk. Run <the same load-bearing scenario> at trunk and head. If trunk lacks the feature, record that and gate <the behavior the diff adds plus the end state the user waits for>. Save `<slug>.png`. Pass when <predicate>.
+ - [ ] Lane 2. <Scenario.> Save `<slug>.png`. Pass when <predicate>.
+diff --git a/pstack/skills/poteto-mode/playbooks/pause-safely.md b/pstack/skills/poteto-mode/playbooks/pause-safely.md
+index ad61122..9d1c5f8 100644
+--- a/pstack/skills/poteto-mode/playbooks/pause-safely.md
++++ b/pstack/skills/poteto-mode/playbooks/pause-safely.md
+@@ -2,7 +2,7 @@
+ 
+ **You own a clean stop. Leave a checkpoint a cold-start agent can resume from.** This is explicit only. On "keep going", "going to bed, keep going", or "don't stop", do not pause.
+ 
+-1. Stop at a safe boundary. Finish the current atomic step or back out of it. Never stop mid-edit in a known-broken state. Start nothing new, and cancel any nested subagents.
++1. Stop at a safe boundary. Finish the current atomic step or back out of it. Start nothing new, and cancel any nested subagents.
+ 2. Take no irreversible action to pause. No PR and no push unless you already had one out.
+ 3. Make the work durable. Commit uncommitted edits as one clear `wip:` commit on the current branch so nothing is lost. If the tree is broken, say so in the commit body in one line.
+ 4. Write the resume note off-context. Capture intent, what you were doing, progress and what's verified, current state, next steps, key files, and gotchas. For the compaction trigger write it to a file like `/tmp/<slug>-resume.md`. If a show-me-your-work trail exists, point at it instead of duplicating it.
+diff --git a/pstack/skills/poteto-mode/playbooks/perf-issue.md b/pstack/skills/poteto-mode/playbooks/perf-issue.md
+index e153c34..688d483 100644
+--- a/pstack/skills/poteto-mode/playbooks/perf-issue.md
++++ b/pstack/skills/poteto-mode/playbooks/perf-issue.md
+@@ -13,7 +13,7 @@
+    - **Redundancy.** The wait hangs on one slow instance or attempt. Duplicate the work (replicas, hedged requests, speculative execution) and take the fastest result. The trace has to show the wait dominates and the system has headroom.
+    - **Lazy evaluation.** Cost lands on results that are never used or not needed yet (eager init on the boot path, rendering offscreen items). Defer the work until first use.
+    - **Scheduling.** The work must happen, but not during the interactive moment. Move it to where nobody is waiting: idle callbacks, a background warmup after boot, precompute before the user arrives, cleanup after the frame commits. The win is perceived latency, so measure the interactive path, not total work done.
+-3. Plan the fix from the trace. If it crosses a function boundary, `architect` first. Delegate implementation to a subagent using your configured perf-issue model (default `grok-4.6-fast-xhigh`). Review the diff. Capture a post-fix trace.
++3. Plan the fix from the trace. If it crosses a function boundary, `architect` first. Delegate implementation to a subagent using your configured perf-issue model (default `grok-4.7-xhigh-fast`). Review the diff. Capture a post-fix trace.
+    Apply the **sequence-verifiable-units** principle skill, verifying each attempt before trying the next.
+ 4. Parse and compare the artifacts (JSON to sqlite, diff). "Inconclusive" or wrong-surface is not a pass. Flag it.
+ 5. Cite the measurement in the PR.
+diff --git a/pstack/skills/poteto-mode/playbooks/refactoring.md b/pstack/skills/poteto-mode/playbooks/refactoring.md
+index dfc5d48..ee66cdf 100644
+--- a/pstack/skills/poteto-mode/playbooks/refactoring.md
++++ b/pstack/skills/poteto-mode/playbooks/refactoring.md
+@@ -8,7 +8,7 @@ If the cleanup reveals a missing feature or a real bug, split it out and ship th
+ 2. Name the structure the code is missing per **principle-model-the-domain**. Boring code stays when the shape is already clear and local. The reshape must delete branches or invalid states, not add indirection.
+ 3. Name the target shape. State what the module layout, types, and call graph should be if built today (**principle-foundational-thinking**, **principle-redesign-from-first-principles**). If the target crosses a function boundary, run the **architect** skill for parallel design exploration of the shape before the move.
+ 4. Subtract before you add. Delete dead code, collapse one-caller wrappers, drop redundant validators, and remove orphan references before introducing the new shape (**principle-subtract-before-you-add**). The smallest change that reaches the target shape ships (**principle-laziness-protocol**). A speculative cleanup that "might help" gets reverted.
+-5. Move in small behavior-preserving steps, each keeping the pin green. For API reshapes, migrate every caller and delete the old API in the same wave (**principle-migrate-callers-then-delete-legacy-apis**). No compatibility shims, no parallel old-and-new paths. Spot-check every rename against the actual files. Renames silently miss usages in strings, prose, and back-references. Delegate the mechanical edits to a subagent using your configured refactoring model (default `grok-4.6-fast-xhigh`) with a specific scope (file paths, the names being moved, the behavior to hold). Review the diff yourself.
++5. Move in small behavior-preserving steps, each keeping the pin green. For API reshapes, migrate every caller and delete the old API in the same wave (**principle-migrate-callers-then-delete-legacy-apis**). No compatibility shims, no parallel old-and-new paths. Spot-check every rename against the actual files. Renames silently miss usages in strings, prose, and back-references. Delegate the mechanical edits to a subagent using your configured refactoring model (default `grok-4.7-xhigh-fast`) with a specific scope (file paths, the names being moved, the behavior to hold). Review the diff yourself.
+ 6. Prove behavior is unchanged on the real artifact, not "it compiles" (**principle-prove-it-works**). For larger reshapes, run an equivalence check: a script that diffs old-vs-new outputs, a recorded baseline replayed against the new code, or a smoke run on the matching surface via the relevant control skill. Own the verification yourself. Do not trust a delegate's "looks good" summary.
+ 7. Confirm the change is worth keeping. The success measure is reduced reader load (**principle-minimize-reader-load**). If the diff does not lower reader load somewhere, revert it.
+ 8. Rebase into small ordered commits. A subtraction commit, then the reshape, then any follow-on cleanup. Shape them with the **sequence-verifiable-units** principle skill, so each behavior-preserving slice stays green before the next. Run **Opening a PR**.
+diff --git a/pstack/skills/poteto-mode/playbooks/shipping.md b/pstack/skills/poteto-mode/playbooks/shipping.md
+index 4c83fa3..0f1d41f 100644
+--- a/pstack/skills/poteto-mode/playbooks/shipping.md
++++ b/pstack/skills/poteto-mode/playbooks/shipping.md
+@@ -4,9 +4,9 @@
+ 
+ This is the half after `playbooks/babysit.md`.
+ 
+-1. **Resolve the forge, then verify every PR independently.** GitHub CLI (`gh`) is the default. If `command -v origin` succeeds and Origin can resolve the repository, use `origin pr ...` for PR view, watch, edit, and merge operations. Otherwise stay on `gh` and record the fallback. Never require Graphite (`gt`). One subagent per PR, not batched, each a Cursor cloud agent, each exercising the real surface (`control-ui` or `control-cli` from `cursor-team-kit` as the change demands) against parent versus head. Each returns `PASS`, `PASS+NOTES` or `FAIL` and posts that verdict on its own PR. Safe means a verdict from an agent that did not write the code. CI green is not a verdict, and an approving bot review is not a verdict.
++1. **Resolve the forge, then verify every PR independently.** GitHub CLI (`gh`) is the default. If `command -v origin` succeeds and Origin can resolve the repository, use `origin pr ...` for PR view, watch, edit, and merge operations. Otherwise stay on `gh` and record the fallback. Never require Graphite (`gt`). One subagent per PR, not batched, each a Cursor cloud agent, each exercising the real surface with the matching control skill (such as `control-ui` or `control-cli` from `cursor-team-kit`) against parent versus head. Each returns `PASS`, `PASS+NOTES` or `FAIL` and posts that verdict on its own PR. Safe means a verdict from an agent that did not write the code. CI green is not a verdict, and an approving bot review is not a verdict.
+ 2. **Land only the contiguous verified run rooted at the bottom.** Walk up from the lowest unmerged PR and stop at the first one without a passing verdict, where both `PASS` and `PASS+NOTES` pass. A verified PR sitting above an unverified one is not landable. Report the ceiling as a PR number and say what breaks the chain.
+-3. **Re-check that each verdict still describes the patch.** Record the verdict head SHA, base SHA, and stable `git patch-id` of that PR's base-to-head diff. A rebase or base retarget rewrites SHAs and can silently invalidate a verdict without touching a check. Before landing a PR, compare the recorded patch-id with its current base-to-head patch-id. Re-verify when the patch changed. When it did not, keep the code verdict but re-run mergeability and CI at the current head. Never use matching commit messages or a green check from an older SHA as a substitute.
++3. **Re-check that each verdict still describes the patch.** Record the verdict head SHA, base SHA, and stable `git patch-id` of that PR's base-to-head diff. A rebase or base retarget rewrites SHAs and can silently invalidate a verdict without touching a check. Before landing a PR, compare the recorded patch-id with its current base-to-head patch-id. When the two patches differ only in tests, docs, or lint config, build what each lane ran. Build it twice at the verdict SHA and once at the current head. A difference is noise if the two builds at the verdict SHA also show it, or if it is an embedded commit SHA. Judge each difference, not each file, and report each kind of noise with its files. If only noise differs, that lane's result stays valid, and checks and a review of the change run fresh. Do not reuse a lane result from a dev server or from anything else with no build output. Rerun that lane. Re-verify anything else when the patch changed. When it did not, keep the code verdict but re-run mergeability and CI at the current head. Never use matching commit messages or a green check from an older SHA as a substitute.
+ 4. **Prepare only the bottom PR.** Fetch current trunk. Rebase the lowest verified branch onto the exact trunk tip when needed, push it, and retarget only that PR to trunk with `origin pr edit <pr> --base <trunk>` or `gh pr edit <pr> --base <trunk>`. Re-run step 3 after the push. Do not retarget, arm, or merge descendants yet.
+ 5. **Land one PR at a time.** If the bottom PR is mergeable now, squash it with `origin pr merge <pr> --squash` or `gh pr merge <pr> --squash`. If requirements are still running and the user asked for merge-when-ready, arm only that PR with `origin pr merge <pr> --squash --auto` or `gh pr merge <pr> --squash --auto`. Origin's `--auto` is Origin merge-when-ready. GitHub's `--auto` is GitHub auto-merge. Wait for that PR to merge before preparing the next one.
+ 6. **Do not read GitHub `autoMergeRequest` as stack readiness.** At most it says GitHub auto-merge was requested for one GitHub PR. It does not prove Origin merge-when-ready is armed, that a descendant is queued, that a patch verdict is current, or that the contiguous stack is safe. Confirm the active forge's state for the current bottom PR, and say that the state is unknown if the active forge cannot report it.
+diff --git a/pstack/skills/poteto-mode/scripts/check-plan.mjs b/pstack/skills/poteto-mode/scripts/check-plan.mjs
+index 21d350a..cdb2727 100755
+--- a/pstack/skills/poteto-mode/scripts/check-plan.mjs
++++ b/pstack/skills/poteto-mode/scripts/check-plan.mjs
+@@ -4,7 +4,7 @@ import process from "node:process";
+ 
+ const RULE =
+ 	"Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.";
+-const LANES = "Ten lanes on `grok-4.6-fast-xhigh` at the PR head";
++const LANES = "Ten lanes on `grok-4.7-xhigh-fast` at the PR head";
+ const SUB_BLOCKS = [
+ 	"Depends on.",
+ 	"Files.",
+diff --git a/pstack/skills/principle-prove-it-works/SKILL.md b/pstack/skills/principle-prove-it-works/SKILL.md
+index 4563023..b596462 100644
+--- a/pstack/skills/principle-prove-it-works/SKILL.md
++++ b/pstack/skills/principle-prove-it-works/SKILL.md
+@@ -10,8 +10,6 @@ Verify every task output by checking the real thing directly. Do not infer from
+ 
+ **Why:** Unverified work has unknown correctness. Indirect verification (file mtimes, output freshness, agent self-reports, cached screenshots) feels cheaper than direct observation. Acting on a wrong inference costs far more than checking the source.
+ 
+-**Pattern:** After completing any task, ask: "how do I prove this actually works?"
+-
+ Check the real thing, not a proxy:
+ - Check process liveness directly, not indirectly through derived state
+ - Read the actual value, not a cached or derived representation
+diff --git a/pstack/skills/principle-sequence-verifiable-units/SKILL.md b/pstack/skills/principle-sequence-verifiable-units/SKILL.md
+index dd008c3..9863712 100644
+--- a/pstack/skills/principle-sequence-verifiable-units/SKILL.md
++++ b/pstack/skills/principle-sequence-verifiable-units/SKILL.md
+@@ -14,9 +14,4 @@ Order work as a sequence of small units, each ending in a state you can check, a
+ 
+ **Delivery.** Stack commits and PRs in the order that proves the work. The canonical shape is the failing test first, then the fix on top. Other story orders are a subtraction before the reshape, a baseline capture before the treatment, the scaffold before the feature. Each commit lands on its own and the sequence reads as an argument.
+ 
+-**Pattern:**
+-- Pick the smallest unit that ends in a check: an edit plus its test, or a commit that stands alone.
+-- Verify before advancing. Red to green per unit, never deferred to a final batch.
+-- Order the units so the sequence builds confidence on its own, for you while executing and for a reviewer reading the stack.
+-
+ The sequencing complement to the **prove-it-works** principle skill, which keeps each check real, and the **build-the-lever** principle skill, which makes the per-unit check cheap.
+diff --git a/pstack/skills/reflect/SKILL.md b/pstack/skills/reflect/SKILL.md
+index d004951..827b5e9 100644
+--- a/pstack/skills/reflect/SKILL.md
++++ b/pstack/skills/reflect/SKILL.md
+@@ -32,15 +32,15 @@ One message, three `Task` calls, `subagent_type: generalPurpose`, explicit `mode
+ 
+ | Lens | `model` | Prompt template |
+ |---|---|---|
+-| Judgment | your configured reflect-judgment model (default `claude-fable-5-1-thinking-max`) | `references/judgment-reviewer.md` |
++| Judgment | your configured reflect-judgment model (default `claude-opus-5-5-max`) | `references/judgment-reviewer.md` |
+ | Tooling | your configured reflect-tooling model (default `gpt-5.6-sol-max`) | `references/tooling-reviewer.md` |
+-| Divergent | your configured reflect-judgment model (default `claude-fable-5-1-thinking-max`) | `references/divergent-reviewer.md` |
++| Divergent | your configured reflect-judgment model (default `claude-opus-5-5-max`) | `references/divergent-reviewer.md` |
+ 
+ Pass each template verbatim, substituting the transcript path or digest where marked. Reviewers return findings in the `Task` response body.
+ 
+ ### 3. Synthesize
+ 
+-One `Task` call, `subagent_type: generalPurpose`, using your configured reflect-judgment model (default `claude-fable-5-1-thinking-max`), agent mode (`readonly: false`). The synthesizer's quality check includes spot-verifying citations, which can require MCP access. Readonly strips MCPs. Use `references/synthesizer.md` verbatim, with each reviewer's full output inlined where marked. The synthesizer returns a structured Accepted / Rejected / Backlog list.
++One `Task` call, `subagent_type: generalPurpose`, using your configured reflect-judgment model (default `claude-opus-5-5-max`), agent mode (`readonly: false`). The synthesizer's quality check includes spot-verifying citations, which can require MCP access. Readonly strips MCPs. Use `references/synthesizer.md` verbatim, with each reviewer's full output inlined where marked. The synthesizer returns a structured Accepted / Rejected / Backlog list.
+ 
+ ### 4. Structural enforcement check
+ 
+diff --git a/pstack/skills/setup-pstack/SKILL.md b/pstack/skills/setup-pstack/SKILL.md
+index ac91245..0246157 100644
+--- a/pstack/skills/setup-pstack/SKILL.md
++++ b/pstack/skills/setup-pstack/SKILL.md
+@@ -26,7 +26,7 @@ The default role-to-model mapping is the rule shape shown in step 5 below. If `~
+ - `medium — high reasoning`
+ - `small — medium reasoning`
+ 
+-**(b) Apply it.** Build the working table from the skill defaults, and on a re-run keep any role you changed by family, list, or alias (`inherit-parent`, `auto`). `unlimited` leaves every effort as in that table. `large`, `medium`, and `small` set the effort token of every real slug, panel entries included, to `xhigh`, `high`, or `medium`. The effort token is the last token, or the one before a trailing `fast`, on the ladder `max` > `xhigh` > `high` > `medium` > `low`. If the result is not a detected slug, use the same family's detected slug with the highest effort at or below the target, else mark the role as needing a choice. `inherit-parent` and `auto` do not change. So `small` turns `claude-fable-5-1-thinking-max` into `claude-fable-5-1-thinking-medium`, and `grok-4.6-fast-xhigh` into `cursor-grok-4.6-medium-fast` when only that form is detected.
++**(b) Apply it.** Build the working table from the skill defaults, and on a re-run keep any role you changed by family, list, or alias (`inherit-parent`, `auto`). `unlimited` leaves every effort as in that table. `large`, `medium`, and `small` set the effort token of every real slug, panel entries included, to `xhigh`, `high`, or `medium`. The effort token is the last token, or the one before a trailing `fast`, on the ladder `max` > `xhigh` > `high` > `medium` > `low`. If the result is not a detected slug, use the same family's detected slug with the highest effort at or below the target, else mark the role as needing a choice. `inherit-parent` and `auto` do not change. So `small` turns `claude-opus-5-5-max` into `claude-opus-5-5-medium`, and `grok-4.7-xhigh-fast` into `grok-4.7-medium-fast`.
+ 
+ **(c) Show the roles and confirm.** Show every role with its model, marking any real slug not in the detected set as needing a choice. Ask whether to accept as-is or change specific roles, offering the detected models plus `inherit-parent` and `auto` (both mean: this role runs on the parent chat model, which is how Auto users stay on Auto) as the options. Prefer AskQuestion over free text. For panel roles (arena runners, architect runners, interrogate reviewers) the value is a list, and one subagent runs per entry, alias entries included, so the list length sets the count. `arena cross-judge pool` is also a list, but Arena selects one value from it whose model family differs from the parent's when possible. `swarm workers` is the default model for every worker unless a race or comparison assigns another model per arm.
+ 
+@@ -46,23 +46,23 @@ alwaysApply: true
+ # pstack model configuration. One line per role. Delete a line to fall back to the skill default.
+ # `inherit-parent` or `auto` as a value: the role runs on the parent chat model (omit Task `model`). Alias entries in a panel list still count toward its fan-out.
+ # budget: unlimited (max)
+-feature, refactoring: grok-4.6-fast-xhigh
+-bug-fix: grok-4.6-fast-xhigh
+-perf-issue: grok-4.6-fast-xhigh
+-hillclimb: grok-4.6-fast-xhigh
+-judgment and prose: claude-fable-5-1-thinking-max
+-hardest tasks: claude-fable-5-1-thinking-max
+-how explorer: grok-4.6-fast-xhigh
+-how explainer: claude-fable-5-1-thinking-max
+-why investigators: grok-4.6-fast-xhigh
+-why synthesizer: claude-fable-5-1-thinking-max
++feature, refactoring: grok-4.7-xhigh-fast
++bug-fix: grok-4.7-xhigh-fast
++perf-issue: grok-4.7-xhigh-fast
++hillclimb: grok-4.7-xhigh-fast
++judgment and prose: claude-opus-5-5-max
++hardest tasks: claude-opus-5-5-max
++how explorer: grok-4.7-xhigh-fast
++how explainer: claude-opus-5-5-max
++why investigators: grok-4.7-xhigh-fast
++why synthesizer: claude-opus-5-5-max
+ reflect tooling: gpt-5.6-sol-max
+-reflect judgment, divergent, synthesizer: claude-fable-5-1-thinking-max
+-arena runners: claude-fable-5-1-thinking-max, gpt-5.6-sol-max, grok-4.6-fast-xhigh, claude-opus-5-thinking-xhigh
+-arena cross-judge pool: claude-fable-5-1-thinking-max, gpt-5.6-sol-max, grok-4.6-fast-xhigh, claude-opus-5-thinking-xhigh
+-swarm workers: grok-4.6-fast-xhigh
+-architect runners: claude-fable-5-1-thinking-max, gpt-5.6-sol-max, grok-4.6-fast-xhigh, claude-opus-5-thinking-xhigh
+-interrogate reviewers: claude-fable-5-1-thinking-max, gpt-5.6-sol-max, grok-4.6-fast-xhigh, claude-opus-5-thinking-xhigh
++reflect judgment, divergent, synthesizer: claude-opus-5-5-max
++arena runners: claude-opus-5-5-max, gpt-5.6-sol-max, grok-4.7-xhigh-fast
++arena cross-judge pool: claude-opus-5-5-max, gpt-5.6-sol-max, grok-4.7-xhigh-fast
++swarm workers: grok-4.7-xhigh-fast
++architect runners: claude-opus-5-5-max, gpt-5.6-sol-max, grok-4.7-xhigh-fast
++interrogate reviewers: claude-opus-5-5-max, gpt-5.6-sol-max, grok-4.7-xhigh-fast
+ ```
+ 
+ ### 6. Confirm
+diff --git a/pstack/skills/show-me-your-work/SKILL.md b/pstack/skills/show-me-your-work/SKILL.md
+index 6e98dd2..e2d8b3b 100644
+--- a/pstack/skills/show-me-your-work/SKILL.md
++++ b/pstack/skills/show-me-your-work/SKILL.md
+@@ -21,7 +21,7 @@ Copy `references/decision-log-template.tsv` (the header row) to start a clean lo
+ - **evidence.** A link or path that proves it: commit SHA, PR number, `file:line`, or an artifact, trace, or screenshot path. Never a paragraph.
+ - **result.** The outcome or predicate state: `tests green`, `reverted`, `pixel-diff 0`, `INCONCLUSIVE`, `open`.
+ 
+-An example, plain-spoken so a reviewer reads it at a glance. This is illustration only. Don't copy these rows into a real log.
++An example, plain-spoken so a reviewer reads it at a glance.
+ 
+ ```
+ ts	phase	decision	why	evidence	result
+@@ -47,7 +47,6 @@ Commit it only when the work is ambitious enough that a reviewer needs the trail
+ 
+ ## Rules
+ 
+-- One row is one decision or checkpoint.
+ - Append-only. A wrong call gets a new row that supersedes it. Never edit or delete history.
+ - Prefer evidence produced by committed scripts over hand-made one-offs (the **encode-lessons-in-structure** principle skill).
+ 
+diff --git a/pstack/skills/show-me-your-work/scripts/log.sh b/pstack/skills/show-me-your-work/scripts/log.sh
+index 523e2a7..052e53b 100755
+--- a/pstack/skills/show-me-your-work/scripts/log.sh
++++ b/pstack/skills/show-me-your-work/scripts/log.sh
+@@ -16,8 +16,10 @@ if [ -n "$logdir" ] && [ "$logdir" != "." ] && [ ! -d "$logdir" ]; then
+ 	mkdir -p "$logdir"
+ fi
+ 
+-if [ ! -f "$logfile" ]; then
+-	printf 'ts\tphase\tdecision\twhy\tevidence\tresult\n' > "$logfile"
++# Use `>>` here, never `>`. A network mount can fail this test for a log
++# that exists. Then the cost is one stray header line, not the rows.
++if [ ! -s "$logfile" ]; then
++	printf 'ts\tphase\tdecision\twhy\tevidence\tresult\n' >> "$logfile"
+ fi
+ 
+ ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+diff --git a/pstack/skills/swarm/SKILL.md b/pstack/skills/swarm/SKILL.md
+index 5b465d3..bd308e8 100644
+--- a/pstack/skills/swarm/SKILL.md
++++ b/pstack/skills/swarm/SKILL.md
+@@ -22,8 +22,8 @@ Open a todolist with one entry per phase before launching anything.
+ 1. State the done predicate and the artifact or report the swarm must return.
+ 2. Choose the shape. Partition into slices, race N workers on identical briefs, or mix both. For a race or mixed shape, declare `first pass`, `rank all`, or `best-of` before spawning.
+ 3. Set N from the user or derive it from the shape. N is total workers, not the cloud concurrency limit.
+-4. Pick the worker model from `swarm workers` in `~/.cursor/rules/pstack-models.mdc` when present. Otherwise use `grok-4.6-fast-xhigh`. For a model race, name each arm's model up front.
+-5. Give each worker its own writable output when it writes.
++4. Pick the worker model from `swarm workers` in `~/.cursor/rules/pstack-models.mdc` when present. Otherwise use `grok-4.7-xhigh-fast`. For a model race, name each arm's model up front.
++5. Give each worker its own writable output when it writes. When workers verify or measure commits, each brief names the exact SHAs. A measurement brief also names the method (sample count, what one sample is, order). The worker records both in its result.
+ 
+ ## Phase B: Fan out
+ 
+@@ -31,13 +31,13 @@ Spawn all N workers in one message with `subagent_type: generalPurpose`, `enviro
+ 
+ When a worker must start from a non-default pushed branch, pass `cloud_base_branch`.
+ 
+-Every brief stands alone. Include the goal, scope, exact slice or race arm, how to verify, and what to report. Reports use `PASS`, `ISSUES`, or `BLOCKED` with evidence.
++Every brief stands alone. Include the goal, scope, exact slice or race arm, how to verify, and what to report. Reports use `PASS`, `ISSUES`, or `BLOCKED` with evidence. A worker that can prove a defect reports `ISSUES` and lists every issue it can prove, not only the first.
+ 
+ If a worker drops out, proceed with N-1 and note it.
+ 
+ ## Phase C: Aggregate
+ 
+-Read the terminal results. For coverage, every required slice needs a result. For a race, apply the selection rule declared up front. Use first pass, rank all, or best-of. Do not paste raw worker dumps.
++Read the terminal results. Drop a result that does not record the SHAs and method its brief names, and rerun that worker once. After a second miss, record a gap. A gap does not count as a pass. For coverage, every required slice needs a result. For a race, apply the selection rule declared up front. Use first pass, rank all, or best-of. Do not paste raw worker dumps.
+ 
+ Keep a compact result table, one-line evidenced issues, and explicit gaps or dropouts.
+ 
+diff --git a/pstack/skills/tdd/SKILL.md b/pstack/skills/tdd/SKILL.md
+index 887a98b..6f4933f 100644
+--- a/pstack/skills/tdd/SKILL.md
++++ b/pstack/skills/tdd/SKILL.md
+@@ -18,7 +18,6 @@ Do not force a test when it would be impractical. If the available test would re
+ 4. **Run the new test before fixing.** Confirm it fails for the intended reason. If it passes or fails for an unrelated reason, correct the test or reproduction before editing the implementation.
+ 5. **Fix the bug.** Make the smallest production change that satisfies the intended behavior while preserving nearby contracts.
+ 6. **Rerun the regression test.** Confirm the test now passes.
+-7. **Run nearby validation.** Run relevant adjacent tests, type checks, lint, or scenario checks when the change has broader risk.
+ 
+ ## If a Failing Test Is Impractical
+ 
+diff --git a/pstack/skills/technical-writing/SKILL.md b/pstack/skills/technical-writing/SKILL.md
+index 70a477e..1cd44cf 100644
+--- a/pstack/skills/technical-writing/SKILL.md
++++ b/pstack/skills/technical-writing/SKILL.md
+@@ -112,16 +112,3 @@ Before:
+ After:
+ 
+ > `budget.mjs` reads the committed budget from `budget.json` and counts the files that import protos. If the count exceeds the budget, CI fails. Run `budget.mjs --write` only to lower the budget.
+-
+-## Review checklist
+-
+-Apply to any prose this skill covers. Item 1 applies only to document sets:
+-
+-1. Is each file one Diátaxis mode, with links where modes meet?
+-2. Is every instruction written as a command, with its condition in front?
+-3. Does any sentence carry two instructions or two thoughts? Split it.
+-4. Can any word be cut without losing meaning? Cut it.
+-5. Is "only" next to the word it changes? Does every "it" point at one thing? Does every clause keep its verb?
+-6. Does each thing have exactly one name across the docs?
+-7. Would a developer say these words out loud? Replace invented metaphors and fancy synonyms with the plain word or the real symbol name.
+-8. Are all symbols, paths, and counts real at this commit, with the commands that regenerate the counts?
+diff --git a/pstack/skills/unslop/SKILL.md b/pstack/skills/unslop/SKILL.md
+index a3a7dc7..229a090 100644
+--- a/pstack/skills/unslop/SKILL.md
++++ b/pstack/skills/unslop/SKILL.md
+@@ -12,7 +12,6 @@ Edit text to remove AI patterns.
+ 
+ 1. Scan for the patterns below.
+ 2. Rewrite. Preserve meaning, match intended tone.
+-3. Self-audit: "What makes this obviously AI generated?" Fix remaining tells.
+ 
+ ## Patterns to detect and fix
+ 
+diff --git a/pstack/skills/why/SKILL.md b/pstack/skills/why/SKILL.md
+index 53045dd..79b5260 100644
+--- a/pstack/skills/why/SKILL.md
++++ b/pstack/skills/why/SKILL.md
+@@ -79,7 +79,7 @@ Launch all matching investigators in a single message so they run concurrently.
+ 
+ Subagent config (each):
+ - `subagent_type`: `generalPurpose`
+-- `model`: your configured why-investigators model (default `grok-4.6-fast-xhigh`)
++- `model`: your configured why-investigators model (default `grok-4.7-xhigh-fast`)
+ - `readonly`: `false` (agent mode). **Do not use readonly/Ask mode.** It strips MCP access, which disables MCP-backed investigators entirely. Investigators still shouldn't write anything.
+ 
+ Each investigator gets:
+@@ -123,7 +123,7 @@ If your scope assessment suggests a single-commit trivial target where the PR de
+ Spawn one synthesizer subagent:
+ 
+ - `subagent_type`: `generalPurpose`
+-- `model`: your configured why-synthesizer model (default `claude-fable-5-1-thinking-max`)
++- `model`: your configured why-synthesizer model (default `claude-opus-5-5-max`)
+ - `readonly`: `false` (agent mode). The synthesizer's quality check spot-verifies citations, which can require MCP access. Readonly/Ask mode strips MCPs and defeats that.
+ 
+ The synthesizer gets:

@@ -1,0 +1,36 @@
+commit b42effe0aa50f59c693d7e2924714e015e00bf7c
+Author:     lauren <poteto@users.noreply.github.com>
+AuthorDate: 2026-09-23T00:40:34-07:00
+Commit:     GitHub <noreply@github.com>
+CommitDate: 2026-09-23T00:40:34-07:00
+
+    fix(pstack): scrub old model names from public upgrade help (#416)
+    
+    Replace the pre-0.15.3 model list in the pstack upgrade help with "the old default models".
+
+diff --git a/pstack/README.md b/pstack/README.md
+index 2731017..b7cdef8 100644
+--- a/pstack/README.md
++++ b/pstack/README.md
+@@ -248,7 +248,7 @@ type [`/automate-me`](./skills/automate-me/SKILL.md). it mines your recent trans
+ 
+ models are configurable too. type [`/setup-pstack`](./skills/setup-pstack/SKILL.md). it detects the models you have access to and writes a small always-applied rule mapping each role (code, judgment, the review panels) to a model. every skill reads it and falls back to sensible defaults when the rule is absent, so you override only what you want.
+ 
+-a rule written before 0.15.3 pins fable 5.1, opus 5, and grok 4.6. delete those role lines, or delete the file, then run `/setup-pstack` again. a rerun keeps any role whose model differs from the default.
++a rule written before 0.15.3 pins the old default models. delete those role lines, or delete the file, then run `/setup-pstack` again. a rerun keeps any role whose model differs from the default.
+ 
+ ## automations
+ 
+diff --git a/pstack/docs/guide/01-setup.md b/pstack/docs/guide/01-setup.md
+index 0eacc52..1e602f6 100644
+--- a/pstack/docs/guide/01-setup.md
++++ b/pstack/docs/guide/01-setup.md
+@@ -22,7 +22,7 @@ Run:
+ 
+ [`/setup-pstack`](../../skills/setup-pstack/SKILL.md) detects the models you have access to, asks for a reasoning budget, shows you each role (code delegates, judgment, the review panels), and asks what you want. Answer the questions. It writes `~/.cursor/rules/pstack-models.mdc`, a small rule every pstack skill reads.
+ 
+-You only override what you care about. A role with no line in the rule keeps the skill's default. To restore a default, delete that role's line. A rerun of `/setup-pstack` keeps any role whose model differs from the default. A rule written before 0.15.3 pins Fable 5.1, Opus 5, and Grok 4.6, so delete those role lines, or delete the file, then run `/setup-pstack` again.
++You only override what you care about. A role with no line in the rule keeps the skill's default. To restore a default, delete that role's line. A rerun of `/setup-pstack` keeps any role whose model differs from the default. A rule written before 0.15.3 pins the old default models, so delete those role lines, or delete the file, then run `/setup-pstack` again.
+ 
+ You might be wondering what happens if you use Auto. Set a role to `inherit-parent` or `auto` and pstack omits the subagent `model` field, so the subagent inherits your parent chat model. Both values mean the same thing, and neither is a model slug. For a panel role the value is a list, and one subagent runs per entry, so the list length sets the panel size. Setup also configures `swarm workers`, the default model for every `/swarm` worker unless a race names a model for each arm.
+ 
