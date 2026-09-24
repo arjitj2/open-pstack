@@ -530,6 +530,36 @@ describe("nextAttempt decision", () => {
     ).toMatchObject({ kind: "stop", reason: "chain-exhausted" });
   });
 
+  it("stops unauthorized on a blocked route even when its provider is already exhausted", () => {
+    const blocked: LanePolicy["attempts"][number] = {
+      descriptor: "devin:swe-2@high",
+      attempt: { kind: "descriptor", provider: "devin", model: "swe-2", effort: "high" },
+      exhaustionGroup: "devin",
+      funding: "unknown",
+      apiSpend: "deny",
+      route: "external",
+      authorization: { state: "blocked", reason: "funding unknown" },
+    };
+    const blockedLane: LanePolicy = {
+      id: "swarm workers#1",
+      attempts: [blocked, lane.attempts[1]],
+    };
+    expect(nextAttempt(blockedLane, [], new Set(["devin"]), "read-only"))
+      .toMatchObject({ kind: "stop", reason: "unauthorized" });
+    const chained: LanePolicy = {
+      id: "swarm workers#1",
+      attempts: [lane.attempts[0], blocked, lane.attempts[2]],
+    };
+    expect(
+      nextAttempt(
+        chained,
+        [{ attemptIndex: 0, status: "usage-exhausted", processStarted: false }],
+        new Set(["grok", "devin"]),
+        "read-only"
+      )
+    ).toMatchObject({ kind: "stop", reason: "unauthorized" });
+  });
+
   it("advances only on prior usage-exhaustion, never past missing permission", () => {
     const sheet = `# access: {"provider":"grok","funding":"unknown","capacity":"unknown","apiSpend":"deny","provenance":"provider"}\n# access: {"provider":"codex","funding":"included","capacity":"high","apiSpend":"deny","provenance":"user"}\nswarm workers: grok:grok-4.7@xhigh -> inherit-parent\n`;
     const policy = resolveRole(parseSheet(sheet), "swarm workers", "codex");

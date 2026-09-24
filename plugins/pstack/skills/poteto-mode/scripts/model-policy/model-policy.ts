@@ -622,10 +622,10 @@ export function nextAttempt(
   }
   for (let index = (last?.attemptIndex ?? -1) + 1; index < lane.attempts.length; index += 1) {
     const attempt = lane.attempts[index];
-    if (exhaustedGroups.has(attempt.exhaustionGroup)) continue;
     if (attempt.authorization.state === "blocked") {
       return { kind: "stop", reason: "unauthorized" };
     }
+    if (exhaustedGroups.has(attempt.exhaustionGroup)) continue;
     return { kind: "launch", attemptIndex: index, attempt };
   }
   return { kind: "stop", reason: "chain-exhausted" };

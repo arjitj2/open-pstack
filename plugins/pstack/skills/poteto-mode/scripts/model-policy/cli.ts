@@ -313,7 +313,11 @@ function commandNext(argv: readonly string[], io: Io): number {
       }
     }
     for (let skipped = (previous?.attemptIndex ?? -1) + 1; skipped < event.attemptIndex; skipped += 1) {
-      if (!decision.exhaustedGroups.has(lanePolicy.attempts[skipped].exhaustionGroup)) {
+      const skippedAttempt = lanePolicy.attempts[skipped];
+      if (skippedAttempt.authorization.state === "blocked") {
+        throw new UsageError("event history skips an unauthorized attempt");
+      }
+      if (!decision.exhaustedGroups.has(skippedAttempt.exhaustionGroup)) {
         throw new UsageError("event history skips an attempt whose provider is not exhausted");
       }
     }

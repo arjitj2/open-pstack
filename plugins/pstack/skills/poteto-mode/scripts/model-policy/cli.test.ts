@@ -195,6 +195,31 @@ describe("model-policy next command", () => {
     }
   });
 
+  it("rejects history that skips a blocked route even when its provider is exhausted", async () => {
+    const blocked = sheetPath(SHEET.replace(
+      '"provider":"grok","funding":"included"',
+      '"provider":"grok","funding":"unknown"'
+    ));
+    for (const exhaustedGroups of [[], ["grok"]]) {
+      const capture = io();
+      const code = await main(
+        args(
+          statePath({
+            events: [{ attemptIndex: 1, status: "usage-exhausted", processStarted: false }],
+            exhaustedGroups,
+          }),
+          blocked
+        ),
+        capture.capture
+      );
+      expect(code, JSON.stringify(exhaustedGroups)).toBe(64);
+      expect(capture.stdout, JSON.stringify(exhaustedGroups)).toEqual([]);
+      expect(capture.stderr.join(""), JSON.stringify(exhaustedGroups)).toContain(
+        "event history skips"
+      );
+    }
+  });
+
   it("stops a started writer for inspection", async () => {
     const capture = io();
     await main(
