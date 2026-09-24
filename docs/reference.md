@@ -2,7 +2,7 @@
 
 This page contains the full skill, dependency, runtime, and porting reference. For the plain-English introduction and quick start, see the [main README](../README.md).
 
-[Poteto](https://x.com/poteto)'s [pstack](https://github.com/cursor/plugins/tree/main/pstack), adapted to run in Claude Code and Codex without Cursor. One shared skill tree serves both harnesses; Grok, Devin, and Cursor remain available as external model-provider lanes. Release `v1.4.1-arjit.2` incorporates Cursor pstack v0.15.1 at `f8abeddd1862dc73704e3d719dd73df0d51b8c71`. See [UPSTREAM.md](../UPSTREAM.md) for the exact sync contract.
+[Poteto](https://x.com/poteto)'s [pstack](https://github.com/cursor/plugins/tree/main/pstack), adapted to run in Claude Code and Codex without Cursor. One shared skill tree serves both harnesses; Grok, Devin, and Cursor remain available as external model-provider lanes. Release `v1.4.1-arjit.4` incorporates Cursor pstack v0.15.5 at `12d587dfb20741cafc376c42c696c5f6e2a64487`. See [UPSTREAM.md](../UPSTREAM.md) for the exact sync contract.
 
 Original by Lauren Tan. Arjit Jaiswal maintains this distribution, building on [Eric Litman's Open Pstack](https://github.com/ericlitman/open-pstack) and Michael Denyer's [pstack-claude](https://github.com/michael-denyer/pstack-claude) port and retains its history and MIT attribution. It imports seven MIT-licensed skills from [cursor-team-kit](https://github.com/cursor/plugins/tree/main/cursor-team-kit): `deslop`, `thermo-nuclear-code-quality-review`, `make-pr-easy-to-review`, `fix-ci`, `fix-merge-conflicts`, `get-pr-comments`, `what-did-i-get-done`.
 
@@ -17,7 +17,7 @@ This is not a verbatim copy. Skill bodies have been edited so every Cursor-speci
 This repo ships as a Claude Code marketplace containing one plugin (`pstack`).
 
 ```text
-/plugin marketplace add arjitj2/open-pstack#v1.4.1-arjit.2
+/plugin marketplace add arjitj2/open-pstack#v1.4.1-arjit.4
 /plugin install pstack@open-pstack
 /reload-plugins
 ```
@@ -29,7 +29,7 @@ The plugin auto-fires through a `SessionStart` hook on startup, `/clear`, and po
 The same plugin carries a `.codex-plugin/plugin.json` manifest and a root `.agents/plugins/marketplace.json`. Install it through the Codex marketplace:
 
 ```shell
-codex plugin marketplace add arjitj2/open-pstack --ref v1.4.1-arjit.2
+codex plugin marketplace add arjitj2/open-pstack --ref v1.4.1-arjit.4
 codex plugin add pstack@open-pstack
 ```
 
@@ -61,7 +61,7 @@ The marketplace install is the normal user path. Direct links are only for testi
 │   ├── .codex-plugin/plugin.json     # Codex manifest (skills: ./skills/)
 │   ├── skills/                       # 54 skills shared by Claude Code and Codex
 │   │   ├── poteto-mode/references/{codex-tools,provider-dispatch}.md  # tool + provider routing
-│   │   └── poteto-mode/scripts/      # bun/bash/node tooling: watch-pr, orch, runner, check-plan.mjs, worktree-audit.sh
+│   │   └── poteto-mode/scripts/      # bun/bash/node tooling: watch-pr, orch, runner, model-policy, check-plan.mjs, worktree-audit.sh
 │   ├── hooks/                        # SessionStart auto-fire: injects the poteto-mode mandate (Claude Code only)
 │   └── agents/                       # Claude subagents, including native Fable, Opus, and Sonnet lanes at each selectable effort
 ├── tests/skill-collision-repro.sh    # native-skill package invariants and Claude invocation checks
@@ -86,9 +86,9 @@ The Codex build shares one `skills/` tree with the Claude Code build. Nothing is
 - **Tool and built-in mapping.** Claude tool names and built-in skills resolve through [`codex-tools.md`](../plugins/pstack/skills/poteto-mode/references/codex-tools.md). Model execution resolves separately through [`provider-dispatch.md`](../plugins/pstack/skills/poteto-mode/references/provider-dispatch.md), so Codex can keep Sol native while invoking Claude and Grok externally.
 - **Subagents.** The `Agent` tool maps to Codex `spawn_agent` / `wait_agent`, enabled by `multi_agent = true`. Parallel fan-out is multiple `spawn_agent` calls in one turn. If the native Codex lane is unavailable, record that lane as a dropout; external Claude and Grok lanes still run, and no provider is silently substituted. There is no `poteto-agent` subagent type on Codex; route ad-hoc subagents by dispatching a `spawn_agent` told to read `poteto-mode` first.
 - **Auto-fire.** The `hooks/` SessionStart injection is Claude Code-only; Codex has no plugin hook runtime. Enter `pstack:poteto-mode` by name, or add a standing instruction to `~/.codex/AGENTS.md` if you want the same always-on routing.
-- **Models.** `/setup-pstack` writes provider-qualified descriptors and asks for a reasoning budget. It asks per-family effort questions only for explicit overrides, new assignments, or conflicting efforts. The first-run panel proposes GPT-5.6 Sol max, Grok 4.7 xhigh, and Opus max. Setup preserves existing assignments and permits explicit role replacements or panel-lane removals before probing. Only assigned families are required; an unused provider cannot block setup. Selected failures require repair or explicit reassignment before saving. Fable, Opus, and Sonnet use Claude's rolling aliases. Runtime dispatch normalizes older versioned descriptors in memory, so an installed sheet stops pinning immediately. A setup rerun persists that migration while keeping each role's family and effort. In Codex, Sol, Astra, Luna, and Terra use native `spawn_agent`; Claude and Grok use the deterministic external runner. In Claude Code, Fable, Opus, and Sonnet use native agents; Codex families and Grok use the runner. Children never detect the parent or reroute themselves. The `bug-fix`, `perf-issue`, and `hillclimb` roles stay on GPT-5.6 Sol max instead of upstream's Grok (and earlier Fable) defaults because Sol costs less for these frequent delegated code roles.
+- **Models.** `/setup-pstack` writes provider-qualified descriptors and asks for a reasoning budget. It asks per-family effort questions only for explicit overrides, new assignments, or conflicting efforts. The first-run panel proposes GPT-5.6 Sol max, Grok 4.7 xhigh, and Opus max. Setup preserves existing assignments and permits explicit role replacements or panel-lane removals before probing. Only assigned families are required; an unused provider cannot block setup. Every selected provider needs included funding or explicitly approved metered funding, while capacity may remain unknown. Selected failures require repair or explicit reassignment before saving. Fable, Opus, and Sonnet use Claude's rolling aliases. Runtime dispatch normalizes older versioned descriptors in memory, so an installed sheet stops pinning immediately. A setup rerun persists that migration while keeping each role's family and effort. In Codex, Sol, Astra, Luna, and Terra use native `spawn_agent`; Claude and Grok use the deterministic external runner. In Claude Code, Fable, Opus, and Sonnet use native agents; Codex families and Grok use the runner. Children never detect the parent or reroute themselves. A run freezes the sheet and asks the shared policy helper before every attempt. A saved `primary -> fallback` chain advances only on the exact supported Codex/Grok terminal exhaustion evidence or an explicit native-host capacity failure per `provider-dispatch.md`; unsupported provider quota formats and every other failure stay dropouts. The `bug-fix`, `perf-issue`, and `hillclimb` roles stay on GPT-5.6 Sol max instead of upstream's Grok (and earlier Fable) defaults because Sol costs less for these frequent delegated code roles.
 
-Earlier installed Claude Code and Codex validation covered skill discovery under `pstack`, the former four-family panel through the native/external route table, long-running handles without a default timeout, and cross-judging only after every candidate was terminal. That evidence does not validate the current candidate; see its [adoption report](cursor-adoption-20260924.md) for the remaining gates. The `principle-*` leaves remain available for `poteto-mode` to read by path. Claude honors their `user-invocable: false` metadata; Codex 0.149.0 does not ([historical ericlitman/open-pstack#8](https://github.com/ericlitman/open-pstack/issues/8)).
+Earlier installed Claude Code and Codex validation covered skill discovery under `pstack`, the former four-family panel through the native/external route table, long-running handles without a default timeout, and cross-judging only after every candidate was terminal. Current release evidence is recorded in [compatibility and release evidence](compatibility.md), including the [Cursor adoption report](cursor-adoption-20260924.md) and subscription-routing validation. The `principle-*` leaves remain available for `poteto-mode` to read by path. Claude honors their `user-invocable: false` metadata; Codex 0.149.0 does not ([historical ericlitman/open-pstack#8](https://github.com/ericlitman/open-pstack/issues/8)).
 
 ## Dependencies
 
@@ -107,7 +107,7 @@ Not declared as deps, but referenced in skill bodies:
 
 - **`run`, `verify`, `loop`** — Claude Code CLI built-ins (ship with the binary, always available).
 - **`gh` (GitHub CLI).** This is the default forge for every stack playbook and a system-level requirement of the standalone `babysit` skill. Install it with [`brew install gh`](https://cli.github.com) and authenticate with `gh auth login`. If Origin's `origin` CLI is installed and can resolve the repository, the stack playbooks use it instead. Only the Orchestrate playbook and its `scripts/orch` frontier tooling still require `gt`.
-- **`bun`** — runs the vendored `skills/poteto-mode/scripts/` tooling (`watch-pr`, `orch`, `runner`). Install via [`brew install oven-sh/bun/bun`](https://bun.sh). `bootstrap.ts` installs dependencies for `watch-pr` and `orch`; the runner uses only Bun and Node built-ins, so it launches directly without an install/re-exec layer.
+- **`bun`** — runs the vendored `skills/poteto-mode/scripts/` tooling (`watch-pr`, `orch`, `runner`, `model-policy`). Install via [`brew install oven-sh/bun/bun`](https://bun.sh). `bootstrap.ts` installs dependencies for `watch-pr` and `orch`; the runner and model-policy helper use only Bun and Node built-ins, so they launch directly without an install/re-exec layer.
 - **`node`** — runs `skills/poteto-mode/scripts/check-plan.mjs`. The checker uses only Node built-ins and does not need Bun.
 - **Claude Code, Codex, Grok Build, Devin, and Cursor CLIs** — the external runner invokes the assigned provider through `claude`, `codex`, `grok`, `devin`, or `cursor-agent`. Install and authenticate only the providers present in your model sheet. Same-provider work stays native; the runner refuses it.
 - **`jq` and `rg` (ripgrep)** — only for `scripts/worktree-audit.sh` (the Worktree cleanup playbook). Without them the audit still runs but blanks its PR and LAST_CHAT columns, so it warns on stderr rather than returning a table that looks complete.
@@ -197,7 +197,7 @@ The port is editorial, not mechanical. Anywhere upstream pstack assumed Cursor-s
 
 ### Cross-vendor dispatch
 
-The earlier port collapsed panels to Claude-only models. The bundled runner restores upstream's cross-provider judgment signal without adding a daemon or model-router service. Claude Code shells out to Codex and Grok; Codex shells out to Claude and Grok. The top-level parent chooses every route and each external process receives a complete task directly, so there is no supervising model invocation and no child-side harness detection.
+The earlier port collapsed panels to Claude-only models. The bundled runner restores upstream's cross-provider judgment signal without adding a daemon or model-router service. Claude Code shells out to Codex and Grok; Codex shells out to Claude and Grok. The top-level parent chooses every route and each external process receives a complete task directly, so there is no supervising model invocation and no child-side harness detection. The model sheet may also save ordered `primary -> fallback` attempts per seat (three maximum, never two models on the same provider's current CLI account). The parent freezes its sheet once, passes exact lane history and exhausted-provider groups to the shared `model-policy next` command before every attempt, and launches only the returned decision. Unauthorized routes stop. A seat advances only on supported Codex/Grok terminal exhaustion evidence or an explicit native-host capacity failure; unsupported quota formats and every other failure stay dropouts.
 
 ### What's deliberately kept
 

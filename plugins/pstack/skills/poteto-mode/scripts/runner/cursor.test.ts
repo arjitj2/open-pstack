@@ -70,6 +70,7 @@ function options(overrides: Partial<RunnerOptions> = {}): RunnerOptions {
     parent: "codex", provider: "cursor", model: "composer-2.5", effort: "default",
     mode: "read-only", promptPath: join(scratch, "prompt.md"), cwd: scratch,
     outputPath: join(scratch, "result.txt"), receiptPath: join(scratch, "receipt.json"), timeoutMs: null,
+    apiSpend: null,
     ...overrides,
   };
 }
@@ -187,7 +188,7 @@ describe("Cursor external lanes", () => {
       expect(existsSync(cursorConfigDirectory(opts))).toBe(false);
     });
   }
-  for (const raw of ["not JSON", "null", JSON.stringify({type:"result",subtype:"error",is_error:true,result:"failed"}), JSON.stringify({type:"result",subtype:"success",is_error:false,result:"  "})]) {
+  for (const raw of ["not JSON", "null", JSON.stringify({type:"result",subtype:"success",is_error:false,result:"  "})]) {
     it(`rejects malformed or unsuccessful result ${raw}`, async () => {
       fixture({raw});
       const opts = options();
@@ -196,6 +197,13 @@ describe("Cursor external lanes", () => {
       expect(existsSync(cursorConfigDirectory(opts))).toBe(false);
     });
   }
+  it("receipts a structured error result as a provider failure, not malformed output", async () => {
+    fixture({raw: JSON.stringify({type:"result",subtype:"error",is_error:true,result:"failed"})});
+    const opts = options();
+    expect((await runLane(opts)).receipt.status).toBe("child-failed");
+    expect(existsSync(opts.outputPath)).toBe(false);
+    expect(existsSync(cursorConfigDirectory(opts))).toBe(false);
+  });
   it("rejects a contradictory model report", async () => {
     fixture({result:{type:"result",subtype:"success",is_error:false,result:"OK",model:"composer-2.5-other"}});
     expect((await runLane(options())).receipt.status).toBe("malformed-output");

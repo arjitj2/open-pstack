@@ -31,7 +31,7 @@ For each candidate, read the first JSONL line and check that `message.content[0]
 
 Start all three lanes in one fan-out phase through provider dispatch. Reviewers need MCP access for context lookups (tickets, chat threads, observability traces referenced in the transcript), so keep them native to the parent; a mechanically read-only mode strips MCPs. The prompt forbids file writes; the parent applies edits.
 
-Each lane names a role line in the current harness's pstack model sheet and a default descriptor: use the line's value, or the default when the sheet or the line is missing. `auto` and `inherit-parent` run on the parent model natively. A descriptor that fails its route is a dropout, not a substitution.
+Each lane names a role line in the current harness's pstack model sheet and a default descriptor: use the line's value, or the default when the sheet or the line is missing. `auto` and `inherit-parent` run on the parent model natively. A descriptor that fails its route is a dropout, not a substitution. Reviewers require the parent's live MCP surface, so supported routes stay on `inherit-parent` or `auto`; an external lane is not an equivalent fallback.
 
 | Lens | Role line | Default descriptor | Prompt template |
 |---|---|---|---|

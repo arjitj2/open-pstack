@@ -19,6 +19,7 @@ export interface RunnerOptions {
   readonly outputPath: string;
   readonly receiptPath: string;
   readonly timeoutMs: number | null;
+  readonly apiSpend: ApiSpendMode | null;
 }
 
 export type ReceiptStatus =
@@ -27,9 +28,17 @@ export type ReceiptStatus =
   | "unavailable-cli"
   | "unauthenticated"
   | "unavailable-model"
+  | "usage-exhausted"
+  | "billing-policy-blocked"
   | "timed-out"
   | "child-failed"
   | "malformed-output";
+
+export type FailurePhase = "preflight" | "invocation" | "postprocess";
+
+export const API_SPEND_MODES = ["deny", "approved"] as const;
+export type ApiSpendMode = (typeof API_SPEND_MODES)[number];
+export type ReceiptApiSpend = ApiSpendMode | "legacy";
 
 export interface NormalizedUsage {
   readonly inputTokens?: number;
@@ -81,6 +90,9 @@ export interface RunnerReceipt {
     readonly message: string;
     readonly evidence: string;
   } | null;
+  readonly failurePhase: FailurePhase | null;
+  readonly processStarted: boolean;
+  readonly apiSpend: ReceiptApiSpend;
 }
 
 export class UsageError extends Error {}

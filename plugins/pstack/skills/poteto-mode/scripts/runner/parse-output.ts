@@ -7,6 +7,7 @@ import {
   concreteModelMatchesRollingAlias,
   isRollingClaudeAlias,
 } from "./model-aliases.ts";
+import { ProviderTerminalError } from "./provider-failure.ts";
 
 type JsonObject = Record<string, unknown>;
 
@@ -71,9 +72,11 @@ function parseClaude(stdout: string, requestedModel: string): ParsedOutput {
   const value = object(raw);
   if (value === null) throw new Error("claude emitted a non-object result");
 
+  if (value.is_error === true) {
+    throw new ProviderTerminalError("claude", "claude reported an error result", value);
+  }
   const text = nullableString(value.result);
   if (text === null) throw new Error("claude result did not contain final text");
-  if (value.is_error === true) throw new Error("claude reported an error result");
 
   return {
     text,
@@ -100,7 +103,7 @@ function parseGrok(stdout: string, requestedModel: string): ParsedOutput {
 
   if (result === null) throw new Error("grok result did not contain a terminal event");
   if (result.is_error === true || result.subtype !== "success") {
-    throw new Error("grok reported an error result");
+    throw new ProviderTerminalError("grok", "grok reported an error result", result);
   }
   const text = nullableString(result.result);
   if (text === null) throw new Error("grok result did not contain final text");
@@ -118,6 +121,10 @@ function parseCodex(stdout: string): ParsedOutput {
   let text: string | null = null;
   let usage: NormalizedUsage | null = null;
   let sessionId: string | null = null;
+  // The last terminal event decides the outcome: a turn.completed after an
+  // earlier turn.failed or stream `error` event means the turn recovered, and
+  // nonterminal events never terminalize the result.
+  let terminal: JsonObject | null = null;
 
   for (const line of stdout.split("\n")) {
     if (line.trim().length === 0) continue;
@@ -140,13 +147,21 @@ function parseCodex(stdout: string): ParsedOutput {
     }
     if (event.type === "turn.completed") {
       usage = normalizedUsage(event.usage) ?? usage;
+      terminal = null;
     }
-    if (event.type === "turn.failed") {
-      const error = object(event.error);
-      throw new Error(nullableString(error?.message) ?? "codex reported a failed turn");
+    if (event.type === "turn.failed" || event.type === "error") {
+      terminal = event;
     }
   }
 
+  if (terminal !== null) {
+    const detail = terminal.type === "turn.failed" ? object(terminal.error) : terminal;
+    throw new ProviderTerminalError(
+      "codex",
+      nullableString(detail?.message) ?? "codex reported a failed turn",
+      terminal
+    );
+  }
   if (text === null) throw new Error("codex result did not contain a final agent message");
   return {
     text,
@@ -165,8 +180,11 @@ function parseCursor(stdout: string): ParsedOutput {
     throw new Error("cursor did not emit valid JSON");
   }
   const value = object(raw);
-  if (value?.type !== "result" || value.subtype !== "success" || value.is_error !== false) {
-    throw new Error("cursor did not report a successful result");
+  if (value === null || value.type !== "result") {
+    throw new Error("cursor did not emit a terminal result envelope");
+  }
+  if (value.subtype !== "success" || value.is_error !== false) {
+    throw new ProviderTerminalError("cursor", "cursor did not report a successful result", value);
   }
   const text = nullableString(value.result);
   if (text === null || text.trim().length === 0) throw new Error("cursor result did not contain final text");

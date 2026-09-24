@@ -26,7 +26,7 @@ The N candidates will receive the same prompt, so the prompt is the contract.
 
 1. State the artifact each candidate is producing.
 2. Derive the rubric. State what success looks like for *this* task, then turn it into 3-6 concrete gradeable criteria. The rubric is the picker's tool in Phase D. Candidates only see the task.
-3. Pick the runners. Use `arena runners` from the current harness's pstack model sheet when present. Otherwise default to one each on `codex:gpt-5.6-sol@max`, `grok:grok-4.7@xhigh`, `claude:opus@max`. An `auto` or `inherit-parent` entry in this line or the cross-judge line uses the parent model through its native lane. A configured descriptor that fails its route is a dropout, not a substitution; record it and continue with the remaining seats. Spawn more when the arena covers multiple design directions. Same descriptor N times when the work is generation-bound rather than judgment-sensitive.
+3. Pick the runners. Use `arena runners` from the current harness's pstack model sheet when present. Otherwise default to one each on `codex:gpt-5.6-sol@max`, `grok:grok-4.7@xhigh`, `claude:opus@max`. An `auto` or `inherit-parent` entry in this line or the cross-judge line uses the parent model through its native lane. Each seat follows provider-dispatch's saved-chain policy before every attempt. A proven `usage-exhausted` result makes a read-only seat eligible for its next saved attempt; a writer advances only when the helper proves the workload never started, and otherwise stops for inspection. Every other route failure is a dropout, not a substitution; record it and continue with the remaining seats. Spawn more when the arena covers multiple design directions. Same descriptor N times when the work is generation-bound rather than judgment-sensitive.
 4. Assign output paths. Each candidate writes to its own location (a git worktree where possible, otherwise `/tmp/arena-<slug>/candidate-<n>/`), per the **separate-before-serializing-shared-state** principle skill.
 
 ## Phase B: Fan out
@@ -35,11 +35,11 @@ Start all N lanes in one fan-out phase through the provider-dispatch contract. N
 
 Each rationale names the alternatives the candidate considered and what it rejected.
 
-An external lane counts only when it satisfies [Completion and dropouts](../poteto-mode/references/provider-dispatch.md#completion-and-dropouts), including the assignment and model-argument checks for Codex, Devin, or Cursor `pinned-argv` evidence; a native lane counts when its tool transcript returns the assigned model's result. If a candidate fails, proceed with N-1 and note the exact dropout in the synthesis record. Never replace it with another provider silently.
+An external lane counts only when it satisfies [Completion and dropouts](../poteto-mode/references/provider-dispatch.md#completion-and-dropouts), including the assignment and model-argument checks for Codex, Devin, or Cursor `pinned-argv` evidence; a native lane counts when its tool transcript returns the assigned model's result. If the helper stops a candidate or its chain is exhausted, proceed with N-1 and note the exact dropout in the synthesis record. If it returns `inspect`, preserve the writer and inspect it before proceeding. A fallback that ran reports its actual descriptor; never describe it as the primary, and never replace a dropout with another provider silently.
 
 ## Phase C: Cross-judge
 
-After all Phase B candidates complete, choose the judge descriptor from the `arena cross-judge pool` line in the current harness's pstack model sheet. If the sheet or that line is missing, choose from `codex:gpt-5.6-sol@max`, `grok:grok-4.7@xhigh`, `claude:opus@max`. Prefer a provider different from the parent and the likely base candidate. Dispatch one read-only judge through the provider contract. It sees the rubric and completed candidates by path label, scores each criterion, and recommends a base with rationale. It runs in parallel with the parent's reading in Phase D, not with the candidates themselves. Don't dispatch the judge while candidates are still writing.
+After every Phase B candidate chain is terminal, choose the judge descriptor from the `arena cross-judge pool` line in the current harness's pstack model sheet. If the sheet or that line is missing, choose from `codex:gpt-5.6-sol@max`, `grok:grok-4.7@xhigh`, `claude:opus@max`. Prefer a provider different from the parent and the likely base candidate. Dispatch one read-only judge through the provider contract. It sees the rubric and completed candidates by path label, scores each criterion, and recommends a base with rationale. It runs in parallel with the parent's reading in Phase D, not with the candidates themselves. Don't dispatch the judge while candidates are still writing.
 
 ## Phase D: Pick a base
 
@@ -69,4 +69,4 @@ If verification surfaces a problem the arena did not catch, either Phase A was w
 
 ## Outputs
 
-One synthesized artifact. One short synthesis note alongside, naming the base, the grafts (with source candidate), the rejections, the dropouts if any, and the verification result.
+One synthesized artifact. One short synthesis note alongside, naming the base, the grafts (with source candidate), the rejections, the dropouts and any fallback attempts with their actual descriptors, and the verification result.

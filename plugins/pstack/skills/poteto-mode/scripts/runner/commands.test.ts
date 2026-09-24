@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { invocationCommand } from "./commands.ts";
+import { invocationCommand, preflightCommand } from "./commands.ts";
 import type { RunnerOptions } from "./types.ts";
 
 function options(overrides: Partial<RunnerOptions> = {}): RunnerOptions {
@@ -14,6 +14,7 @@ function options(overrides: Partial<RunnerOptions> = {}): RunnerOptions {
     outputPath: "/tmp/output.md",
     receiptPath: "/tmp/receipt.json",
     timeoutMs: null,
+    apiSpend: null,
     ...overrides,
   };
 }
@@ -215,4 +216,14 @@ describe("invocationCommand", () => {
       expect(spec.args.slice(effortIndex, effortIndex + 2)).toEqual(effortFlag);
     }
   });
+});
+
+it("disables file settings for Claude auth checks and invocations when API spending is denied", () => {
+  const input = options({ provider: "claude", model: "opus", apiSpend: "deny" });
+  for (const spec of [preflightCommand("claude", "deny"), invocationCommand(input)]) {
+    expect(spec.args[spec.args.indexOf("--setting-sources") + 1]).toBe("");
+  }
+  expect(preflightCommand("claude", "deny").args).toEqual(["--setting-sources", "", "auth", "status", "--json"]);
+  const approved = invocationCommand({ ...input, apiSpend: "approved" });
+  expect(approved.args[approved.args.indexOf("--setting-sources") + 1]).toBe("project");
 });

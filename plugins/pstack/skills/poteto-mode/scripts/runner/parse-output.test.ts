@@ -137,3 +137,60 @@ describe("parseProviderOutput", () => {
     ).toThrow("final agent message");
   });
 });
+
+describe("structured provider terminal errors", () => {
+  it("throws a typed terminal error carrying Claude's error envelope", async () => {
+    const { ProviderTerminalError } = await import("./provider-failure.ts");
+    expect(() =>
+      parseProviderOutput(
+        "claude",
+        JSON.stringify({
+          result: "",
+          is_error: true,
+          errors: [
+            JSON.stringify({
+              type: "error",
+              error: { type: "insufficient_quota", message: "quota exhausted" },
+            }),
+          ],
+        }),
+        "",
+        "opus"
+      )
+    ).toThrow(ProviderTerminalError);
+  });
+
+  it("throws a typed terminal error carrying Codex's failed-turn envelope", async () => {
+    const { ProviderTerminalError } = await import("./provider-failure.ts");
+    try {
+      parseProviderOutput(
+        "codex",
+        [
+          JSON.stringify({ type: "thread.started", thread_id: "t1" }),
+          JSON.stringify({
+            type: "turn.failed",
+            error: { code: "usage_limit_reached", message: "usage limit reached" },
+          }),
+        ].join("\n"),
+        "",
+        "gpt-5.6-sol"
+      );
+      throw new Error("expected a throw");
+    } catch (error) {
+      expect(error).toBeInstanceOf(ProviderTerminalError);
+      const envelope = (error as InstanceType<typeof ProviderTerminalError>).envelope as {
+        error?: { code?: string };
+      };
+      expect(envelope.error?.code).toBe("usage_limit_reached");
+    }
+  });
+
+  it("keeps malformed output untyped", () => {
+    expect(() => parseProviderOutput("claude", "not json", "", "opus")).not.toThrow(
+      "usage-exhausted"
+    );
+    expect(() =>
+      parseProviderOutput("cursor", "null", "", "composer-2.5")
+    ).toThrow("terminal result envelope");
+  });
+});

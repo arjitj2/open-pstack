@@ -6,7 +6,7 @@ Choose this distribution when you want Codex or Claude Code to coordinate work a
 
 ## What differs
 
-This comparison describes the released `v1.4.1-arjit.2` package and Eric's Open Pstack `1.4.1`, not promises about either project's future releases.
+This comparison describes the released `v1.4.1-arjit.4` package and Eric's Open Pstack `1.4.1`, not promises about either project's future releases.
 
 | Capability | This distribution | Open Pstack 1.4.1 |
 | --- | --- | --- |
@@ -15,7 +15,7 @@ This comparison describes the released `v1.4.1-arjit.2` package and Eric's Open 
 | Cursor CLI external workers | Optional | Not included |
 | Setup checks only assigned providers | Supported | Requires the baseline provider panel |
 | Optional Sonnet, Astra, Luna, and Terra assignments | Included | Not included |
-| Recorded Cursor content baseline | 0.15.1 | 0.15.1 |
+| Recorded Cursor content baseline | 0.15.5 | 0.15.1 |
 
 Both distributions share much of the same engineering workflow. Additional provider support is not a claim that every model produces better code. Provider authentication, subscription limits, and available models remain the provider's responsibility.
 
