@@ -32,9 +32,10 @@ ANTHROPIC_AUTH_TOKEN, ANTHROPIC_AWS_API_KEY, or Claude's Bedrock/Vertex/Foundry
 and base-URL routing variables) could take the lane off a subscription-only
 route, and it additionally requires the provider's own auth-status surface to
 confirm subscription-compatible authentication where one exists: Claude must
-report claude.ai first-party auth and Codex must report ChatGPT auth. Grok,
-Devin, and Cursor expose no usable auth-method distinction today, so the
-environment guard is the only local check for them. --api-spend approved
+report claude.ai first-party auth and Codex must report ChatGPT auth. Grok
+is blocked under deny because per-model BYOK can override session auth.
+Devin and Cursor use bounded environment/endpoint guards, ordinary account
+checks, and isolated runner configuration. --api-spend approved
 explicitly authorizes the paid route and records it in the receipt. Omitting
 the flag preserves the legacy behavior for configurations written before
 billing policy existed. The guard covers known ambient credential and routing
