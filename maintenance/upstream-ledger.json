@@ -1,0 +1,10 @@
+{
+  "schema": 1,
+  "source": {
+    "repository": "cursor/plugins",
+    "ref": "main",
+    "path": "pstack/"
+  },
+  "reviewed_through": "f8abeddd1862dc73704e3d719dd73df0d51b8c71",
+  "entries": []
+}

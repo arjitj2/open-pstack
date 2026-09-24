@@ -1,6 +1,6 @@
 # Upstream synchronization
 
-This distribution tracks `ericlitman/open-pstack` and carries the fork changes described in [fork maintenance](docs/fork-maintenance.md). The Cursor sync point below is inherited from that upstream.
+Arjit Jaiswal maintains this distribution directly against Cursor Pstack. Eric Litman's Open Pstack remains an advisory source of fixes and the historical basis of this port. See the [maintenance policy](docs/fork-maintenance.md).
 
 open-pstack tracks [Cursor's pstack](https://github.com/cursor/plugins/tree/main/pstack) while adapting Cursor-specific primitives for Claude Code and Codex.
 
@@ -14,14 +14,18 @@ open-pstack tracks [Cursor's pstack](https://github.com/cursor/plugins/tree/main
 | Upstream version | `0.15.1` |
 | open-pstack version | `1.4.1-arjit.2` |
 
-The table above is the current Cursor sync point. Open Pstack 1.4.1 imports this 0.15.1 sync. `README-UPSTREAM.md` preserves the upstream pstack README verbatim. `CHANGES.md` and `NOTICE.md` describe the adaptations and provenance.
+The table above records the content incorporated in the stable release, with the exclusions below. Detecting or reviewing newer Cursor commits does not advance this baseline. `README-UPSTREAM.md` preserves the upstream pstack README verbatim. `CHANGES.md` and `NOTICE.md` describe the adaptations and provenance.
 
 ## Upstream-only exclusions
 
 - Commits `799151d` and `6fecddb` add and relocate `make-bot-ui`. It depends on Cursor routines, webhook events, and UI primitives that Claude Code and Codex do not share.
 - Four `disable-model-invocation: true` lines from `73f8be4` are not applied to `how`, `why`, `unslop`, or `typescript-best-practices`. Poteto-mode invokes those skills by name, and the flag blocks that route on Claude Code.
-- The `23a56e2` default-model hunks for `bug-fix`, `perf-issue`, and `hillclimb` are not applied. Those frequent code-writing roles stay on `codex:gpt-5.6-sol@max` for cost.
+- The `23a56e2` default-model hunks for `bug-fix`, `perf-issue`, and `hillclimb` are not applied. The first-run defaults for those roles stay on `codex:gpt-5.6-sol@max` for cost. Existing user assignments take precedence.
 - The Claude manifest does not take the logo field from `efa2a53` because Claude Code has no schema for it. The shared asset is exposed through the Codex manifest instead.
+
+## Pending source changes
+
+The [maintenance issue](https://github.com/arjitj2/open-pstack/issues/1) and direct Cursor proposal PRs show outstanding changes. The committed [decision ledger](maintenance/upstream-ledger.json) distinguishes adopted, adapted, excluded, and pending commits. Each final disposition needs a reason and evidence. Pending rows stay visible after the review cursor advances.
 
 ## Check for changes
 
@@ -39,14 +43,14 @@ git log --oneline f8abeddd1862dc73704e3d719dd73df0d51b8c71..cursor/main -- pstac
 git diff --stat f8abeddd1862dc73704e3d719dd73df0d51b8c71..cursor/main -- pstack
 ```
 
-No output means the tracked pstack tree has not changed. This comparison does not need a polling service or generated mirror branch.
+No output means the tracked pstack tree has not changed. The daily workflow performs this comparison directly against Cursor and proposes metadata for review. It does not import or execute upstream code.
 
 ## Incorporate a change
 
-1. Create or update a GitHub issue in `ericlitman/open-pstack` and branch from current `main`.
+1. Create or update a GitHub issue in `arjitj2/open-pstack` and branch from current `main`.
 2. Read each upstream pstack commit in order. Bring over its intent and content, then apply only the Claude Code and Codex substitutions documented in `CHANGES.md`.
 3. Keep one shared `plugins/pstack/skills/` tree. Put harness translation in the existing `codex-tools.md` and provider routing in `provider-dispatch.md`; do not fork a skill per harness.
-4. Update the commit and version in this file, the affected provenance rows in `NOTICE.md`, and `README-UPSTREAM.md` when upstream changes it.
+4. Update the decision ledger with the disposition, reason, and evidence. Update the incorporated baseline only after every earlier pending change has a final decision and the adopted content is validated. Update the affected provenance rows in `NOTICE.md` and preserve `README-UPSTREAM.md` at the incorporated source revision.
 5. Run CI-equivalent checks locally, then run the installed Claude Code and Codex behavioral lanes required by the changed surface. Unit tests alone are not a release gate.
 6. Merge the reviewed PR before tagging the next open-pstack release.
 

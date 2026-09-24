@@ -1,19 +1,55 @@
 #!/usr/bin/env python3
-"""Maintain this fork's upstream mirror and an idempotent maintenance report."""
+"""Maintain this fork's Cursor pstack review ledger and metadata-only proposals.
+
+`maintenance/upstream-ledger.json` on `main` records every first-parent Cursor
+`pstack/` commit after the incorporated baseline (the `Commit` row of
+`UPSTREAM.md`) as `pending`, `adopted`, `adapted`, or `excluded`. The daily run
+catalogues new source commits through one immutable metadata-only proposal PR
+per (target, base, ledger blob) tuple; it never imports upstream content,
+force-pushes, or edits human work. `ericlitman/open-pstack` is an optional
+advisory source only; its failure never blocks Cursor proposals.
+"""
 import argparse
+from contextlib import contextmanager
 from datetime import datetime, timezone
 import hashlib
 import json
 import os
+from pathlib import Path
 import re
 import subprocess
+import sys
+import tempfile
 
 FORK = "arjitj2/open-pstack"
+OWNER = FORK.split("/")[0]
 UPSTREAM = "ericlitman/open-pstack"
 CURSOR = "cursor/plugins"
+CURSOR_URL = "https://github.com/" + CURSOR + ".git"
+ERIC_URL = "https://github.com/" + UPSTREAM + ".git"
+CURSOR_REF = "refs/remotes/maintenance/cursor"
+ERIC_REF = "refs/remotes/maintenance/eric"
+PSTACK = "pstack/"
+LEDGER_PATH = "maintenance/upstream-ledger.json"
+PROPOSAL_DIR = "maintenance/proposals"
+BRANCH_PREFIX = "automation/"
 START = "<!-- fork-maintenance:start -->"
 END = "<!-- fork-maintenance:end -->"
-PR_MARKER = "<!-- fork-maintenance:sync -->"
+PR_MARKER = "<!-- fork-maintenance:proposal"
+STATUS_CANDIDATE = "cursor-catalog/candidate"
+STATUS_DISPATCH = "cursor-catalog/dispatch"
+BOT_NAME = "open-pstack maintenance"
+BOT_EMAIL = "open-pstack-maintenance@users.noreply.github.com"
+SHA_RE = re.compile(r"[0-9a-f]{40}")
+STATUSES = {"pending", "adopted", "adapted", "excluded"}
+FINAL_STATUSES = {"adopted", "adapted", "excluded"}
+DEFAULT_REPORT = "Maintenance monitoring is active. The next weekly run will publish the full report."
+
+
+class CheckFailed(Exception):
+    def __init__(self, problems):
+        super().__init__("; ".join(problems))
+        self.problems = problems
 
 
 def run(*args):
@@ -31,45 +67,118 @@ def api(path, method="GET", payload=None, paginate=False):
     return [item for page in value for item in page] if paginate else value
 
 
-def git(*args):
-    return run("git", *args)
+def git(*args, env=None, stdin=None, raw=False):
+    full = dict(os.environ)
+    if env:
+        full.update(env)
+    output = subprocess.check_output(["git", *args], input=stdin.encode() if stdin is not None else None, env=full).decode()
+    return output if raw else output.strip()
 
 
-def fetch():
-    git("fetch", "--no-tags", f"https://github.com/{UPSTREAM}.git", "main:refs/remotes/maintenance/upstream")
-    git("fetch", "--no-tags", f"https://github.com/{CURSOR}.git", "main:refs/remotes/maintenance/cursor")
+def git_ok(*args):
+    return subprocess.run(["git", *args], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0
 
 
-def sync():
-    target = git("rev-parse", "refs/remotes/maintenance/upstream")
-    # A normal push rejects divergence, including an upstream history rewrite.
-    git("push", "origin", f"{target}:refs/heads/upstream-main")
-    base = api(f"repos/{FORK}/branches/main")["commit"]["sha"]
-    git("fetch", "origin", "main")
-    if subprocess.run(["git", "merge-base", "--is-ancestor", target, base]).returncode == 0:
-        return
-    prs = api(f"repos/{FORK}/pulls?state=open&base=main&head=arjitj2:upstream-main&per_page=100", paginate=True)
-    if len(prs) > 1:
-        raise RuntimeError("Multiple mirror PRs exist; resolve them before retrying.")
-    pr = prs[0] if prs else None
-    if pr and PR_MARKER not in (pr.get("body") or ""):
-        raise RuntimeError("Existing mirror PR is not automation-owned; refusing to edit it.")
-    body = (f"{PR_MARKER}\nBring open-pstack changes through `{target}` into the maintained fork. "
-            "The mirror preserves upstream history; merge only after reviewing custom-provider compatibility.\n\n"
-            "Validation:\n- [ ] Candidate CI passes.\n- [ ] Relevant installed Claude Code and Codex behavior passes on this exact candidate.\n\n"
-            "This PR is ready for review, but does not authorize automatic merging or installation.\n")
-    marker = f"<!-- candidate-dispatched:{target}:{base} -->"
-    if pr and marker in (pr.get("body") or ""):
-        return
-    if pr is None:
-        try:
-            pr = api(f"repos/{FORK}/pulls", "POST", {"title": "Sync open-pstack upstream", "head": "upstream-main", "base": "main", "body": body, "draft": False})
-        except subprocess.CalledProcessError as exc:
-            raise RuntimeError("Could not create sync PR. Enable 'Allow GitHub Actions to create and approve pull requests' in repository Actions settings, then rerun.") from exc
-    api(f"repos/{FORK}/statuses/{target}", "POST", {"state": "pending", "context": "Upstream sync candidate", "description": f"Awaiting candidate tests against main {base[:12]}"})
-    run("gh", "workflow", "run", "sync-candidate.yml", "--repo", FORK, "--ref", "main", "-f", f"pr={pr['number']}", "-f", f"head={target}", "-f", f"base={base}")
-    # Record dispatch only after success, so a failed dispatch is retried next run.
-    api(f"repos/{FORK}/pulls/{pr['number']}", "PATCH", {"body": body + "\n" + marker})
+def sha40(value):
+    return isinstance(value, str) and bool(SHA_RE.fullmatch(value))
+
+
+def fetch_cursor_and_eric_advisory():
+    git("fetch", "--no-tags", CURSOR_URL, "main:" + CURSOR_REF)
+    try:
+        git("fetch", "--no-tags", ERIC_URL, "main:" + ERIC_REF)
+        return True
+    except subprocess.CalledProcessError:
+        print("warning: optional advisory fetch of " + UPSTREAM + " failed; continuing", file=sys.stderr)
+        return False
+
+
+def read_baseline(ref):
+    document = git("show", ref + ":UPSTREAM.md")
+    match = re.search(r"^\| Commit \| `([0-9a-f]{40})` \|$", document, re.M)
+    if not match:
+        raise RuntimeError("The Cursor sync commit could not be read from " + ref + ":UPSTREAM.md.")
+    return match.group(1)
+
+
+def load_ledger(ref=None, path=None):
+    text = git("show", ref + ":" + LEDGER_PATH) if ref else Path(path or LEDGER_PATH).read_text()
+    return json.loads(text)
+
+
+def dump_ledger(ledger):
+    return json.dumps(ledger, indent=2, sort_keys=True) + "\n"
+
+
+def ledger_structure_errors(ledger):
+    if not isinstance(ledger, dict):
+        return ["ledger root is not an object"]
+    errors = []
+    if ledger.get("schema") != 1:
+        errors.append("ledger schema must be 1")
+    if not sha40(ledger.get("reviewed_through")):
+        errors.append("reviewed_through must be a full commit SHA")
+    entries = ledger.get("entries")
+    if not isinstance(entries, list):
+        return errors + ["entries must be a list"]
+    seen = set()
+    for i, entry in enumerate(entries):
+        where = "entries[%d]" % i
+        if not isinstance(entry, dict):
+            errors.append(where + " is not an object")
+            continue
+        commit = entry.get("commit")
+        if not sha40(commit):
+            errors.append(where + ".commit must be a full commit SHA")
+        elif commit in seen:
+            errors.append(where + " duplicates commit " + commit[:12])
+        else:
+            seen.add(commit)
+        status = entry.get("status")
+        if not isinstance(status, str) or status not in STATUSES:
+            errors.append(where + ".status must be one of " + "/".join(sorted(STATUSES)))
+        elif status in FINAL_STATUSES:
+            if any(not isinstance(entry.get(key), str) or not entry[key].strip()
+                   for key in ("reason", "evidence")):
+                errors.append(where + " is " + status + " but lacks reason/evidence")
+        elif entry.get("reason") or entry.get("evidence"):
+            errors.append(where + " is pending but carries decision fields")
+    return errors
+
+
+def log_pstack(start, end):
+    out = git("log", "--first-parent", "--reverse", "--format=%H%x09%cI%x09%s", start + ".." + end, "--", PSTACK)
+    commits = []
+    for line in out.splitlines():
+        sha, timestamp, subject = line.split("\t", 2)
+        commits.append({"sha": sha, "timestamp": timestamp, "date": timestamp[:10], "subject": subject})
+    return commits
+
+
+def coverage_errors(ledger, baseline):
+    reviewed = ledger["reviewed_through"]
+    if not (git_ok("cat-file", "-e", baseline) and git_ok("cat-file", "-e", reviewed)):
+        return ["source objects needed to validate ledger coverage are missing"]
+    if not git_ok("merge-base", "--is-ancestor", baseline, reviewed):
+        return ["incorporated baseline is not an ancestor of reviewed_through"]
+    expected = {c["sha"] for c in log_pstack(baseline, reviewed)}
+    historical = set(git("log", "--first-parent", "--format=%H", baseline, "--", PSTACK).splitlines())
+    errors = []
+    have = {e["commit"] for e in ledger["entries"] if sha40(e.get("commit"))}
+    for sha in sorted(expected - have):
+        errors.append("no ledger entry for catalogued commit " + sha[:12])
+    for entry in ledger["entries"]:
+        commit = entry.get("commit")
+        if not sha40(commit):
+            continue
+        if not git_ok("cat-file", "-e", commit):
+            errors.append("entry commit " + commit[:12] + " is not a known object")
+        elif commit in historical:
+            if entry["status"] == "pending":
+                errors.append("incorporated baseline crosses pending entry " + commit[:12])
+        elif commit not in expected:
+            errors.append("entry " + commit[:12] + " is outside (baseline..reviewed_through] or did not touch " + PSTACK)
+    return errors
 
 
 def changed_paths(sha, *paths):
@@ -77,33 +186,353 @@ def changed_paths(sha, *paths):
     return git("show", "--format=", "--name-only", "--first-parent", "-m", sha, "--", *paths).splitlines()
 
 
-def maintainer_activity(number):
-    entries = []
-    for endpoint in (f"issues/{number}/comments", f"pulls/{number}/reviews"):
-        entries.extend(api(f"repos/{UPSTREAM}/{endpoint}?per_page=100", paginate=True))
-    candidates = []
-    for entry in entries:
-        user = entry.get("user") or {}
-        body = entry.get("body") or ""
-        if user.get("type") == "Bot" or "[bot]" in user.get("login", ""):
-            continue
-        if entry.get("author_association") not in {"OWNER", "MEMBER", "COLLABORATOR"}:
-            continue
-        if re.search(r"gavel|greptile|open.?swe|generated (?:by|review)|automated review", body, re.I):
-            continue
-        timestamp = entry.get("submitted_at") or entry.get("created_at")
-        if timestamp:
-            candidates.append((timestamp, user.get("login", "maintainer"), entry.get("html_url", "")))
-    if not candidates:
-        return "No non-generated maintainer comment/review identified."
-    timestamp, login, url = max(candidates)
-    return f"Latest apparently non-generated maintainer activity: [{login}, {timestamp[:10]}]({url})."
-
-
 def substantive(paths):
     """Only explicitly known prose/metadata locations are non-substantive."""
     return any(not (p in {"pstack/README.md", "pstack/CHANGELOG.md", "pstack/LICENSE", "pstack/LICENSE.md"}
                    or p.startswith("pstack/docs/")) for p in paths)
+
+
+def proposal_id(target, base):
+    return "cursor-%s-%s" % (target[:12], base[:12])
+
+
+def branch_name(target, base):
+    return BRANCH_PREFIX + proposal_id(target, base)
+
+
+def build_proposal(base, ledger, baseline, new):
+    target = new[-1]["sha"]
+    pid = proposal_id(target, base)
+    pdir = PROPOSAL_DIR + "/" + pid
+    entries = [dict(e) for e in ledger.get("entries", [])]
+    have = {e["commit"] for e in entries}
+    files = {}
+    audit_commits = []
+    for commit in new:
+        if commit["sha"] in have:
+            continue
+        entries.append({"commit": commit["sha"], "status": "pending",
+                        "subject": commit["subject"], "date": commit["date"]})
+    for commit in new:
+        paths = changed_paths(commit["sha"], PSTACK)
+        patch_rel = pdir + "/patches/" + commit["sha"] + ".patch"
+        files[patch_rel] = git("-c", "color.ui=false", "-c", "log.showSignature=false", "show", "--format=fuller", "--date=iso-strict", "--no-ext-diff", "--no-textconv", "--no-renames", "--diff-algorithm=myers", "--unified=3", "--src-prefix=a/", "--dst-prefix=b/", "--first-parent", "-m", commit["sha"], "--", PSTACK, raw=True)
+        audit_commits.append({
+            "commit": commit["sha"],
+            "date": commit["date"],
+            "subject": commit["subject"],
+            "substantive": substantive(paths),
+            "paths": paths,
+            "patch": patch_rel,
+            "diff_url": "https://github.com/" + CURSOR + "/commit/" + commit["sha"],
+        })
+    ledger_after = dict(ledger)
+    ledger_after["reviewed_through"] = target
+    ledger_after["entries"] = entries
+    files[LEDGER_PATH] = dump_ledger(ledger_after)
+    meta = {
+        "pid": pid,
+        "base": base,
+        "target": target,
+        "baseline": baseline,
+        "reviewed_before": ledger["reviewed_through"],
+        "new": audit_commits,
+        "pending": [e for e in entries if e["status"] == "pending"],
+    }
+    files[pdir + "/report.md"] = proposal_report(meta)
+    audit = {
+        "schema": 1,
+        "proposal": pid,
+        "source": {"repository": CURSOR, "ref": "main", "path": PSTACK},
+        "baseline": baseline,
+        "base": base,
+        "target": target,
+        "reviewed_through_before": ledger["reviewed_through"],
+        "reviewed_through_after": target,
+        "new_commits": audit_commits,
+        "pending": [{"commit": e["commit"], "subject": e.get("subject", "")} for e in meta["pending"]],
+        "files": sorted(list(files) + [pdir + "/audit.json"]),
+    }
+    files[pdir + "/audit.json"] = json.dumps(audit, indent=2, sort_keys=True) + "\n"
+    return files, meta
+
+
+def proposal_report(meta):
+    lines = [
+        "# Cursor pstack catalog proposal `" + meta["pid"] + "`",
+        "",
+        "Automation-generated metadata proposal. Merging records the Cursor commits below as",
+        "pending review decisions in `maintenance/upstream-ledger.json`. It does not adopt upstream",
+        "behavior, does not change `plugins/`, and does not authorize installation or release.",
+        "",
+        "| Field | Value |",
+        "| --- | --- |",
+        "| Source | `" + CURSOR + "` `" + PSTACK + "` |",
+        "| Incorporated baseline | `" + meta["baseline"] + "` |",
+        "| Ledger reviewed_through | `" + meta["reviewed_before"] + "` -> `" + meta["target"] + "` |",
+        "| Base | `" + meta["base"] + "` |",
+        "",
+        "## New commits",
+        "",
+        "| Commit | Date | Classification | Subject |",
+        "| --- | --- | --- | --- |",
+    ]
+    for commit in meta["new"]:
+        kind = "substantive" if commit["substantive"] else "prose only"
+        link = "https://github.com/" + CURSOR + "/commit/" + commit["commit"]
+        lines.append("| [`" + commit["commit"][:12] + "`](" + link + ") | " + commit["date"] + " | " + kind + " | " + commit["subject"] + " |")
+    lines += ["", "## Outstanding pending decisions", ""]
+    if meta["pending"]:
+        for entry in meta["pending"]:
+            link = "https://github.com/" + CURSOR + "/commit/" + entry["commit"]
+            lines.append("- [`" + entry["commit"][:12] + "`](" + link + "): " + entry.get("subject", "(no subject)"))
+    else:
+        lines.append("None.")
+    lines += [
+        "",
+        "## Review material",
+        "",
+        "- `audit.json`: deterministic machine-readable record of this proposal.",
+        "- `patches/<sha>.patch`: upstream source diffs stored as non-executable review material.",
+        "",
+        "## Recording a decision",
+        "",
+        "Adopt upstream intent in a normal pull request that changes `plugins/pstack`, then set the",
+        "ledger entry to `adopted` or `adapted` with `reason` and `evidence` (the PR plus installed-host",
+        "validation). Use `excluded` with `reason` and `evidence` for commits deliberately not taken.",
+        "Pending entries remain listed until a decision is recorded, even after reviewed_through",
+        "advances past them.",
+        "",
+    ]
+    return "\n".join(lines)
+
+
+def proposal_body(meta, head):
+    content = "\n".join([
+        "# Cursor pstack catalog proposal",
+        "",
+        "Metadata-only automation proposal `" + meta["pid"] + "`. Merging records new Cursor `pstack/`",
+        "commits as pending in the maintenance ledger; it does not adopt upstream behavior or change `plugins/`.",
+        "",
+        "- Source: `" + CURSOR + "` `" + PSTACK + "` through [`" + meta["target"][:12] + "`](https://github.com/" + CURSOR + "/commit/" + meta["target"] + ")",
+        "- Base: `main` at `" + meta["base"][:12] + "`",
+        "- Head: `" + head + "`",
+        "- New pending commits: " + str(len(meta["new"])),
+        "- Outstanding pending decisions after merge: " + str(len(meta["pending"])),
+        "",
+        "Review material is in `" + PROPOSAL_DIR + "/" + meta["pid"] + "/` (report, machine-readable audit,",
+        "per-commit patches). This body is automation-owned and written once; human edits are preserved.",
+        "Dispatch and validation state are reported as commit statuses on the head commit, never by",
+        "rewriting this body. A closed unmerged proposal is surfaced, not silently duplicated.",
+    ]) + "\n"
+    digest = hashlib.sha256(content.encode()).hexdigest()
+    marker = PR_MARKER + " " + json.dumps(
+        {"target": meta["target"], "base": meta["base"], "head": head, "body_sha256": digest}, sort_keys=True) + " -->"
+    return marker + "\n" + content
+
+
+def proposal_marker(body):
+    match = re.search(r"<!-- fork-maintenance:proposal (\{.*?\}) -->", body or "")
+    if not match:
+        return None
+    try:
+        value = json.loads(match.group(1))
+        return value if isinstance(value, dict) else None
+    except json.JSONDecodeError:
+        return None
+
+
+@contextmanager
+def temporary_proposal_commit(base, files, meta):
+    with tempfile.TemporaryDirectory(prefix="fork-maintenance-proposal-") as tmp:
+        index = os.path.join(tmp, "index")
+        objdir = os.path.join(tmp, "objects")
+        os.mkdir(objdir)
+        common = os.path.abspath(git("rev-parse", "--git-common-dir"))
+        date = git("log", "-1", "--format=%cI", meta["target"])
+        env = {"GIT_INDEX_FILE": index,
+               "GIT_OBJECT_DIRECTORY": objdir,
+               "GIT_ALTERNATE_OBJECT_DIRECTORIES": os.path.join(common, "objects"),
+               "GIT_AUTHOR_NAME": BOT_NAME, "GIT_AUTHOR_EMAIL": BOT_EMAIL, "GIT_AUTHOR_DATE": date,
+               "GIT_COMMITTER_NAME": BOT_NAME, "GIT_COMMITTER_EMAIL": BOT_EMAIL, "GIT_COMMITTER_DATE": date}
+        count = len(meta["new"])
+        message = ("Catalog Cursor pstack commits through " + meta["target"][:12] + "\n\n"
+                   "Advances the maintenance ledger reviewed_through to " + meta["target"] + " and records\n"
+                   + str(count) + " pending entr" + ("y" if count == 1 else "ies") + " for maintainer review. Metadata only.\n\n"
+                   "Proposal-Id: " + meta["pid"] + "\n")
+        git("read-tree", base, env=env)
+        for path in sorted(files):
+            blob = git("hash-object", "-w", "--stdin", env=env, stdin=files[path])
+            git("update-index", "--add", "--cacheinfo", "100644," + blob + "," + path, env=env)
+        tree = git("write-tree", env=env)
+        yield git("commit-tree", tree, "-p", base, env=env, stdin=message), env
+
+
+def remote_branch(name):
+    out = git("ls-remote", "origin", "refs/heads/" + name)
+    return out.split()[0] if out else ""
+
+
+def dispatched(head):
+    statuses = api("repos/" + FORK + "/commits/" + head + "/statuses?per_page=100", paginate=True)
+    return any(s.get("context") == STATUS_DISPATCH and s.get("state") == "success" for s in statuses)
+
+
+def ensure_dispatch(number, head, base, target):
+    if dispatched(head):
+        return False
+    api("repos/" + FORK + "/statuses/" + head, "POST",
+        {"state": "pending", "context": STATUS_CANDIDATE,
+         "description": "Awaiting metadata-only candidate validation against main " + base[:12]})
+    run("gh", "workflow", "run", "sync-candidate.yml", "--repo", FORK, "--ref", "main",
+        "-f", "pr=" + str(number), "-f", "head=" + head, "-f", "base=" + base, "-f", "target=" + target)
+    api("repos/" + FORK + "/statuses/" + head, "POST",
+        {"state": "success", "context": STATUS_DISPATCH,
+         "description": "Candidate validation dispatched from trusted main"})
+    return True
+
+
+def cleanup_superseded(current_number):
+    closed, kept = [], []
+    for pr in api("repos/" + FORK + "/pulls?state=open&per_page=100", paginate=True):
+        if pr["number"] == current_number:
+            continue
+        body = pr.get("body") or ""
+        meta = proposal_marker(body)
+        if meta is None or not all(sha40(meta.get(k)) for k in ("target", "base", "head")):
+            continue
+        head = pr.get("head") or {}
+        if ((head.get("repo") or {}).get("full_name") != FORK
+                or head.get("ref") != branch_name(meta["target"], meta["base"])
+                or head.get("sha") != meta["head"] or (pr.get("base") or {}).get("ref") != "main"):
+            kept.append(pr["number"])
+            continue
+        content = body.split("\n", 1)[1] if "\n" in body else ""
+        if hashlib.sha256(content.encode()).hexdigest() != meta.get("body_sha256"):
+            kept.append(pr["number"])
+            continue
+        api("repos/" + FORK + "/issues/" + str(pr["number"]) + "/comments", "POST",
+            {"body": "Superseded by #" + str(current_number) + "; closing this unedited automation proposal."})
+        api("repos/" + FORK + "/pulls/" + str(pr["number"]), "PATCH", {"state": "closed"})
+        closed.append(pr["number"])
+    return {"closed": closed, "kept": kept}
+
+
+def catalogue_cursor_changes():
+    base = git("rev-parse", "HEAD")
+    ledger = load_ledger(ref=base)
+    baseline = read_baseline(base)
+    problems = ledger_structure_errors(ledger)
+    if not problems:
+        problems = coverage_errors(ledger, baseline)
+    if problems:
+        raise CheckFailed(problems)
+    reviewed = ledger["reviewed_through"]
+    if not git_ok("merge-base", "--is-ancestor", reviewed, CURSOR_REF):
+        raise RuntimeError("Ledger reviewed_through is not an ancestor of the fetched Cursor main.")
+    new = log_pstack(reviewed, CURSOR_REF)
+    result = {"base": base, "new": new, "status": "current"}
+    if not new:
+        print("Cursor pstack tip is already catalogued on main; no proposal needed.")
+        return result
+    target = new[-1]["sha"]
+    branch = branch_name(target, base)
+    result.update(target=target, branch=branch)
+    prs = api("repos/" + FORK + "/pulls?state=all&head=" + OWNER + ":" + branch + "&base=main&per_page=100",
+              paginate=True)
+    open_prs = [p for p in prs if p.get("state") == "open"]
+    closed_prs = [p for p in prs if p.get("state") != "open"]
+    if closed_prs and not open_prs:
+        result.update(status="closed", pr=closed_prs[0])
+        print("Closed unmerged proposal #%s exists for %s; surfacing instead of duplicating."
+              % (closed_prs[0]["number"], branch))
+        return result
+    files, meta = build_proposal(base, ledger, baseline, new)
+    with temporary_proposal_commit(base, files, meta) as (commit, object_env):
+        result["commit"] = commit
+        remote = remote_branch(branch)
+        if remote and remote != commit:
+            result.update(status="refused", remote=remote, expected=commit)
+            print("Refusing to update %s: remote head %s is not the deterministic proposal commit %s."
+                  % (branch, remote[:12], commit[:12]))
+            return result
+        if not remote:
+            git("push", "origin", commit + ":refs/heads/" + branch, env=object_env)
+        if open_prs:
+            pr = open_prs[0]
+            if (pr.get("head") or {}).get("sha") != commit:
+                result.update(status="refused", remote=remote, expected=commit)
+                print("Refusing: proposal #%s head does not match the deterministic commit." % pr["number"])
+                return result
+        else:
+            body = proposal_body(meta, commit)
+            try:
+                pr = api("repos/" + FORK + "/pulls", "POST",
+                         {"title": "Catalog Cursor pstack through " + target[:12],
+                          "head": branch, "base": "main", "body": body, "draft": False})
+            except subprocess.CalledProcessError as exc:
+                raise RuntimeError("Could not create the proposal PR. Enable 'Allow GitHub Actions to create "
+                                   "and approve pull requests' in repository Actions settings, then rerun.") from exc
+        result["pr"] = pr
+        result["dispatched"] = ensure_dispatch(pr["number"], commit, base, target)
+        result["superseded"] = cleanup_superseded(pr["number"])
+        result["status"] = "proposed"
+        print("Proposal #%s for %s (head %s)." % (pr["number"], branch, commit[:12]))
+        return result
+
+
+def outstanding_commits(ledger, new):
+    items = []
+    for entry in ledger["entries"]:
+        if entry["status"] != "pending":
+            continue
+        items.append({"sha": entry["commit"], "subject": entry.get("subject", ""),
+                      "timestamp": git("log", "-1", "--format=%cI", entry["commit"]),
+                      "substantive": substantive(changed_paths(entry["commit"], PSTACK)),
+                      "kind": "pending decision"})
+    for commit in new:
+        items.append({"sha": commit["sha"], "subject": commit["subject"], "timestamp": commit["timestamp"],
+                      "substantive": substantive(changed_paths(commit["sha"], PSTACK)),
+                      "kind": "awaiting cataloguing"})
+    return items
+
+
+def collect_alerts(result, eric_ok):
+    alerts = []
+    now = datetime.now(timezone.utc)
+    for item in result.get("outstanding", []):
+        if not item["substantive"]:
+            continue
+        age = max(0, (now - datetime.fromisoformat(item["timestamp"])).days)
+        for threshold in (21, 7):
+            if age >= threshold:
+                alerts.append(("lag:%s:%d" % (item["sha"], threshold),
+                               "Cursor change [%s](https://github.com/%s/commit/%s) has waited at least %d days: %s."
+                               % (item["sha"][:8], CURSOR, item["sha"], threshold, item["subject"])))
+                break
+    if eric_ok:
+        try:
+            mbase = git("merge-base", "HEAD", ERIC_REF)
+            custom = set(git("diff", "--name-only", mbase, "HEAD", "--", "plugins/pstack/").splitlines())
+            for line in git("log", "--first-parent", "--format=%H%x09%s", "HEAD.." + ERIC_REF, "--", "plugins/pstack/").splitlines():
+                sha, subject = line.split("\t", 1)
+                paths = set(changed_paths(sha))
+                if paths & custom and re.search(r"\b(fix|fixes|fixed|bug|regression|security)\b", subject, re.I):
+                    alerts.append(("fix:" + sha,
+                                   "Likely relevant upstream fix [%s](https://github.com/%s/commit/%s): %s. Title/path heuristic only; review applicability."
+                                   % (sha[:8], UPSTREAM, sha, subject)))
+        except subprocess.CalledProcessError:
+            print("warning: Eric advisory history could not be compared; continuing", file=sys.stderr)
+    if result.get("status") == "closed":
+        pr = result["pr"]
+        alerts.append(("closed-proposal:" + result["branch"],
+                       "Closed unmerged proposal [#%s](%s) exists for `%s`. Review it before re-proposing; automation will not duplicate it."
+                       % (pr["number"], pr.get("html_url", ""), result["branch"])))
+    if result.get("status") == "refused":
+        alerts.append(("drift:" + result["branch"] + ":" + result.get("remote", "")[:12],
+                       "Proposal branch `%s` differs from the deterministic automation commit; preserving human work. Inspect manually."
+                       % result["branch"]))
+    return alerts
 
 
 def event_id(value):
@@ -122,82 +551,273 @@ def managed_body(body, report, state):
     return body.rstrip() + "\n\n" + section + "\n"
 
 
-def health(weekly=False):
-    upstream = "refs/remotes/maintenance/upstream"
-    cursor = "refs/remotes/maintenance/cursor"
-    document = git("show", f"{upstream}:UPSTREAM.md")
-    match = re.search(r"^\| Commit \| `([0-9a-f]{40})` \|$", document, re.M)
-    if not match:
-        raise RuntimeError("Upstream's recorded Cursor sync point could not be read.")
-    baseline = match.group(1)
-    git("merge-base", "--is-ancestor", baseline, cursor)
-    now = datetime.now(timezone.utc)
-    commits = []
-    alerts = []
-    for line in git("log", "--first-parent", "--reverse", "--format=%H%x09%cI%x09%s", f"{baseline}..{cursor}", "--", "pstack/").splitlines():
-        sha, timestamp, subject = line.split("\t", 2)
-        paths = changed_paths(sha, "pstack/")
-        important = substantive(paths)
-        age = max(0, (now - datetime.fromisoformat(timestamp)).days)
-        commits.append((sha, timestamp[:10], subject, important, age))
-        if important and age >= 7:
-            threshold = 21 if age >= 21 else 7
-            alerts.append((f"lag:{sha}:{threshold}", f"Cursor change [{sha[:8]}](https://github.com/{CURSOR}/commit/{sha}) has waited at least {threshold} days: {subject}."))
-    # Relevant-fix alerts concern new open-pstack fixes in the fork's actual changed areas.
-    base = git("merge-base", "HEAD", upstream)
-    custom = set(git("diff", "--name-only", base, "HEAD", "--", "plugins/pstack/").splitlines())
-    for line in git("log", "--first-parent", "--format=%H%x09%s", f"HEAD..{upstream}", "--", "plugins/pstack/").splitlines():
-        sha, subject = line.split("\t", 1)
-        paths = set(changed_paths(sha))
-        if paths & custom and re.search(r"\b(fix|fixes|fixed|bug|regression|security)\b", subject, re.I):
-            alerts.append((f"fix:{sha}", f"Likely relevant upstream fix [{sha[:8]}](https://github.com/{UPSTREAM}/commit/{sha}): {subject}. Title/path heuristic only; review applicability."))
-    issue = api(f"repos/{FORK}/issues/1")
+def current_report(body):
+    old = re.search(re.escape(START) + r"\n(.*?)\n<!-- fork-maintenance-state:", body, re.S)
+    return old.group(1) if old else DEFAULT_REPORT
+
+
+def update_issue(alerts=(), report=None):
+    issue = api("repos/" + FORK + "/issues/1")
     body = issue.get("body") or ""
     state = read_state(body)
     notified = set(state.get("notified", []))
     fresh = [(key, text) for key, text in alerts if event_id(key) not in notified]
     if fresh:
-        # Mark each notification in its comment, allowing retry recovery after a partial run.
-        comments = api(f"repos/{FORK}/issues/1/comments?per_page=100", paginate=True)
+        comments = api("repos/" + FORK + "/issues/1/comments?per_page=100", paginate=True)
         existing = "\n".join(c.get("body") or "" for c in comments)
         for key, text in fresh:
-            marker = f"<!-- maintenance-alert:{event_id(key)} -->"
+            marker = "<!-- maintenance-alert:" + event_id(key) + " -->"
             if marker not in existing:
-                api(f"repos/{FORK}/issues/1/comments", "POST", {"body": f"@arjitj2 {text}\n\n{marker}"})
+                api("repos/" + FORK + "/issues/1/comments", "POST", {"body": "@arjitj2 " + text + "\n\n" + marker})
             notified.add(event_id(key))
     state["notified"] = sorted(notified)
-    old = re.search(re.escape(START) + r"\n(.*?)\n<!-- fork-maintenance-state:", body, re.S)
-    report = old.group(1) if old else "Maintenance monitoring is active. The next weekly run will publish the full report."
-    if weekly:
-        rows = ["### Upstream maintenance", f"Open-pstack tracks Cursor commit [`{baseline[:12]}`](https://github.com/{CURSOR}/commit/{baseline}).", "", f"Outstanding pstack commits: {len(commits)}. Skill instructions count as behavior; classifications are conservative."]
-        ages = [age for _, _, _, important, age in commits if important]
-        oldest = max(ages, default=0)
-        severity = "reassess upstream" if oldest >= 21 else "attention" if oldest >= 7 else "within threshold"
-        rows.append(f"Oldest substantive lag: {oldest} days ({severity})." if ages else "No outstanding substantive lag.")
-        for sha, date, subject, important, age in commits:
-            rows.append(f"- [{sha[:8]}](https://github.com/{CURSOR}/commit/{sha}) ({date}; {age} days; {'substantive' if important else 'prose only'}): {subject}")
-        rows += ["", "### Our upstream contributions"]
-        for number in (70, 73, 74):
-            pr = api(f"repos/{UPSTREAM}/pulls/{number}")
-            status = "merged" if pr.get("merged_at") else pr["state"]
-            rows.append(f"- [#{number}]({pr['html_url']}): {status} — {pr['title']}. {maintainer_activity(number)}")
-        rows += ["", "Seven days of substantive lag merits attention; 21 days merits reassessing the upstream arrangement. Inactivity without new Cursor changes is not a warning. Automated review activity is not evidence of a maintainer response."]
-        report = "\n".join(rows)
-    updated = managed_body(body, report, state)
+    updated = managed_body(body, report if report is not None else current_report(body), state)
     if updated != body:
-        api(f"repos/{FORK}/issues/1", "PATCH", {"body": updated})
+        api("repos/" + FORK + "/issues/1", "PATCH", {"body": updated})
+
+
+def maintainer_activity(number):
+    entries = []
+    for endpoint in ("issues/%d/comments" % number, "pulls/%d/reviews" % number):
+        entries.extend(api("repos/" + UPSTREAM + "/" + endpoint + "?per_page=100", paginate=True))
+    candidates = []
+    for entry in entries:
+        user = entry.get("user") or {}
+        body = entry.get("body") or ""
+        if user.get("type") == "Bot" or "[bot]" in user.get("login", ""):
+            continue
+        if entry.get("author_association") not in {"OWNER", "MEMBER", "COLLABORATOR"}:
+            continue
+        if re.search(r"gavel|greptile|open.?swe|generated (?:by|review)|automated review", body, re.I):
+            continue
+        timestamp = entry.get("submitted_at") or entry.get("created_at")
+        if timestamp:
+            candidates.append((timestamp, user.get("login", "maintainer"), entry.get("html_url", "")))
+    if not candidates:
+        return "No non-generated maintainer comment/review identified."
+    timestamp, login, url = max(candidates)
+    return "Latest apparently non-generated maintainer activity: [%s, %s](%s)." % (login, timestamp[:10], url)
+
+
+def build_report(ledger, baseline, outstanding, new, eric_ok):
+    now = datetime.now(timezone.utc)
+    pending = len(outstanding) - len(new)
+    rows = ["### Upstream maintenance",
+            "Open-pstack incorporates Cursor [`%s`](https://github.com/%s/commit/%s) (the `Commit` row of UPSTREAM.md) and has catalogued review through `%s`."
+            % (baseline[:12], CURSOR, baseline, ledger["reviewed_through"][:12]),
+            "",
+            "Pending review decisions: %d. Source commits awaiting cataloguing on main: %d. Skill instructions count as behavior; classifications are conservative."
+            % (pending, len(new))]
+    aged = []
+    for item in outstanding:
+        item = dict(item)
+        item["age"] = max(0, (now - datetime.fromisoformat(item["timestamp"])).days)
+        aged.append(item)
+    substantive_ages = [i["age"] for i in aged if i["substantive"]]
+    oldest = max(substantive_ages, default=0)
+    severity = "overdue review" if oldest >= 21 else "attention" if oldest >= 7 else "within threshold"
+    rows.append("Oldest substantive lag: %d days (%s)." % (oldest, severity) if substantive_ages
+                else "No outstanding substantive lag.")
+    for item in aged:
+        kind = "substantive" if item["substantive"] else "prose only"
+        rows.append("- [`%s`](https://github.com/%s/commit/%s) (%s; %d days; %s; %s): %s"
+                    % (item["sha"][:8], CURSOR, item["sha"], item["timestamp"][:10], item["age"], kind, item["kind"], item["subject"]))
+    rows += ["", "### Our upstream contributions (advisory)"]
+    if eric_ok:
+        try:
+            for number in (70, 73, 74):
+                pr = api("repos/" + UPSTREAM + "/pulls/" + str(number))
+                status = "merged" if pr.get("merged_at") else pr["state"]
+                rows.append("- [#%d](%s): %s — %s. %s" % (number, pr["html_url"], status, pr["title"], maintainer_activity(number)))
+        except Exception as exc:
+            rows.append("Eric advisory unavailable this run: %s" % exc)
+    else:
+        rows.append("Eric advisory fetch failed this run; contribution status not reported.")
+    rows += ["", "Seven days of substantive lag merits attention; 21 days merits an overdue review. Inactivity without new Cursor changes is not a warning. Automated review activity is not evidence of a maintainer response."]
+    return "\n".join(rows)
+
+
+def daily():
+    eric_ok = fetch_cursor_and_eric_advisory()
+    result = catalogue_cursor_changes()
+    result["outstanding"] = outstanding_commits(load_ledger(ref=result["base"]), result["new"])
+    update_issue(collect_alerts(result, eric_ok))
+
+
+def weekly():
+    eric_ok = fetch_cursor_and_eric_advisory()
+    base = git("rev-parse", "HEAD")
+    ledger = load_ledger(ref=base)
+    baseline = read_baseline(base)
+    problems = ledger_structure_errors(ledger)
+    if not problems:
+        problems = coverage_errors(ledger, baseline)
+    if problems:
+        raise CheckFailed(problems)
+    reviewed = ledger["reviewed_through"]
+    if not git_ok("merge-base", "--is-ancestor", reviewed, CURSOR_REF):
+        raise RuntimeError("Ledger reviewed_through is not an ancestor of the fetched Cursor main.")
+    new = log_pstack(reviewed, CURSOR_REF)
+    result = {"base": base, "new": new, "outstanding": outstanding_commits(ledger, new), "status": "current"}
+    report = build_report(ledger, baseline, result["outstanding"], new, eric_ok)
+    update_issue(collect_alerts(result, eric_ok), report)
+
+
+def preview(base_arg=None, target_arg=None, out_dir=None):
+    base = git("rev-parse", base_arg or "HEAD")
+    ledger = load_ledger(ref=base)
+    baseline = read_baseline(base)
+    problems = ledger_structure_errors(ledger)
+    if not problems:
+        problems = coverage_errors(ledger, baseline)
+    if problems:
+        raise CheckFailed(problems)
+    end = git("rev-parse", target_arg or CURSOR_REF)
+    if not git_ok("merge-base", "--is-ancestor", ledger["reviewed_through"], end):
+        raise RuntimeError("Ledger reviewed_through is not an ancestor of the target history.")
+    new = log_pstack(ledger["reviewed_through"], end)
+    if not new:
+        print("No new Cursor pstack commits to catalogue.")
+        return
+    files, meta = build_proposal(base, ledger, baseline, new)
+    with temporary_proposal_commit(base, files, meta) as (commit, _):
+        pass
+    if out_dir:
+        root = Path(out_dir)
+        for path, content in files.items():
+            dest = root / path
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            dest.write_text(content)
+        print("Wrote proposal tree to %s" % out_dir)
+    else:
+        print(files[PROPOSAL_DIR + "/" + meta["pid"] + "/report.md"])
+        print(files[PROPOSAL_DIR + "/" + meta["pid"] + "/audit.json"])
+    print("commit: %s\nbranch: %s" % (commit, branch_name(meta["target"], meta["base"])))
+
+
+def check_ledger(path):
+    try:
+        ledger = json.loads(Path(path).read_text())
+    except (OSError, json.JSONDecodeError) as exc:
+        raise CheckFailed(["cannot parse %s: %s" % (path, exc)])
+    problems = ledger_structure_errors(ledger)
+    coverage = "skipped (upstream objects not present)"
+    if not problems:
+        baseline = None
+        try:
+            baseline = read_baseline("HEAD")
+        except Exception:
+            pass
+        if baseline and git_ok("cat-file", "-e", baseline) and git_ok("cat-file", "-e", ledger["reviewed_through"]):
+            cov = coverage_errors(ledger, baseline)
+            problems += cov
+            coverage = "checked" if not cov else "failed"
+    if problems:
+        raise CheckFailed(problems)
+    print("ledger ok: %d entries, coverage %s." % (len(ledger["entries"]), coverage))
+
+
+def check_candidate(pr, head, base, target):
+    problems = []
+    if not re.fullmatch(r"[1-9][0-9]*", str(pr or "")):
+        problems.append("pr must be a pull request number")
+    for name, value in (("head", head), ("base", base), ("target", target)):
+        if not sha40(value or ""):
+            problems.append(name + " must be a full commit SHA")
+    if problems:
+        raise CheckFailed(problems)
+    branch = branch_name(target, base)
+    git("fetch", "--no-tags", "origin", "refs/heads/" + branch)
+    git("fetch", "--no-tags", CURSOR_URL, "main:" + CURSOR_REF)
+    if target not in git("rev-list", "--first-parent", CURSOR_REF).splitlines():
+        problems.append("target is not on Cursor main first-parent history")
+    data = api("repos/" + FORK + "/pulls/" + str(pr))
+    if data.get("state") != "open":
+        problems.append("proposal #%s is %s, not open" % (pr, data.get("state")))
+    head_repo = (data.get("head") or {}).get("repo") or {}
+    if head_repo.get("full_name") != FORK:
+        problems.append("proposal head is not in " + FORK)
+    if (data.get("head") or {}).get("ref") != branch:
+        problems.append("proposal head ref is not " + branch)
+    if (data.get("head") or {}).get("sha") != head:
+        problems.append("proposal head does not match the dispatched head")
+    if (data.get("base") or {}).get("ref") != "main" or (data.get("base") or {}).get("sha") != base:
+        problems.append("proposal base does not match the dispatched main commit")
+    if PR_MARKER not in (data.get("body") or ""):
+        problems.append("proposal is not marked as automation-owned")
+    try:
+        parents = git("rev-list", "--parents", "-n", "1", head).split()
+        if parents != [head, base]:
+            problems.append("candidate commit's only parent must be the base")
+    except subprocess.CalledProcessError:
+        problems.append("candidate head object is not available")
+        raise CheckFailed(problems)
+    changed = git("diff", "--name-only", base, head).splitlines()
+    bad = [p for p in changed if not p.startswith("maintenance/")]
+    if bad:
+        problems.append("candidate changes paths outside maintenance/: " + ", ".join(bad))
+    try:
+        if git("rev-parse", base + ":plugins/pstack") != git("rev-parse", head + ":plugins/pstack"):
+            problems.append("candidate changes plugins/pstack")
+    except subprocess.CalledProcessError:
+        problems.append("could not compare plugins/pstack trees")
+    try:
+        problems += ["candidate ledger: " + e for e in ledger_structure_errors(load_ledger(ref=head))]
+        ledger_before = load_ledger(ref=base)
+        baseline = read_baseline(base)
+        ledger_problems = ledger_structure_errors(ledger_before)
+        if not ledger_problems:
+            ledger_problems = coverage_errors(ledger_before, baseline)
+        if ledger_problems:
+            raise CheckFailed(ledger_problems)
+        reviewed = ledger_before["reviewed_through"]
+        if not git_ok("merge-base", "--is-ancestor", reviewed, target):
+            problems.append("ledger reviewed_through is not an ancestor of target")
+        else:
+            new = log_pstack(reviewed, target)
+            if not new or new[-1]["sha"] != target:
+                problems.append("target is not the last first-parent pstack commit after reviewed_through")
+            else:
+                files, meta = build_proposal(base, ledger_before, baseline, new)
+                with temporary_proposal_commit(base, files, meta) as (expected, _):
+                    if expected != head:
+                        problems.append("candidate is not the canonical deterministic proposal commit")
+    except (KeyError, json.JSONDecodeError, subprocess.CalledProcessError) as exc:
+        problems.append("could not rebuild the canonical proposal: %s" % exc)
+    if problems:
+        raise CheckFailed(problems)
+    print("candidate ok: #%s is the canonical metadata-only proposal for %s." % (pr, branch))
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("mode", choices=["daily", "weekly"])
+    parser.add_argument("mode", choices=["daily", "weekly", "preview", "check-ledger", "check-candidate"])
+    parser.add_argument("--base", help="Base commit (preview, check-candidate)")
+    parser.add_argument("--target", help="Cursor commit or ref (preview, check-candidate)")
+    parser.add_argument("--head", help="Candidate head commit (check-candidate)")
+    parser.add_argument("--pr", help="Candidate pull request number (check-candidate)")
+    parser.add_argument("--file", help="Ledger path (check-ledger)")
+    parser.add_argument("--out-dir", help="Write the proposal tree here instead of printing (preview)")
     args = parser.parse_args()
-    if os.environ.get("GITHUB_REPOSITORY") != FORK:
-        raise RuntimeError(f"This automation only runs in {FORK}.")
-    fetch()
-    if args.mode == "daily":
-        sync()
-    health(weekly=args.mode == "weekly")
+    if args.mode in {"daily", "weekly"} and os.environ.get("GITHUB_REPOSITORY") != FORK:
+        raise RuntimeError("This automation only runs in " + FORK + ".")
+    try:
+        if args.mode == "daily":
+            daily()
+        elif args.mode == "weekly":
+            weekly()
+        elif args.mode == "preview":
+            preview(args.base, args.target, args.out_dir)
+        elif args.mode == "check-ledger":
+            check_ledger(args.file or LEDGER_PATH)
+        elif args.mode == "check-candidate":
+            if not (args.pr and args.head and args.base and args.target):
+                raise CheckFailed(["check-candidate requires --pr, --head, --base, and --target"])
+            check_candidate(args.pr, args.head, args.base, args.target)
+    except CheckFailed as exc:
+        for problem in exc.problems:
+            print("check failed: " + problem, file=sys.stderr)
+        sys.exit(1)
 
 
 if __name__ == "__main__":
