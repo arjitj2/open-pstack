@@ -51,7 +51,7 @@ def build_repos(root):
     cgit("config", "user.email", "cursor@example.invalid")
     cgit("config", "commit.gpgsign", "false")
     (cursor / "pstack/skills/one").mkdir(parents=True)
-    (cursor / "pstack/skills/one/SKILL.md").write_text("one v1\n")
+    (cursor / "pstack/skills/one/SKILL.md").write_text("one v1\n\n")
     cgit("add", ".")
     cgit("commit", "-m", "baseline pstack")
     repos.baseline = cgit("rev-parse", "HEAD")
@@ -294,6 +294,24 @@ class MaintenanceGitTests(unittest.TestCase):
             self.assertEqual(after['reviewed_through'], self.repos.c2)
             self.assertEqual([e['status'] for e in after['entries']], ['pending', 'pending'])
             self.assertEqual([e['commit'] for e in after['entries']], [self.repos.c1, self.repos.c2])
+
+    def test_source_patch_preserves_terminal_blank_context_and_parses(self):
+        (self.repos.cursor / 'pstack/skills/one/SKILL.md').write_text('one v2\n\n')
+        repo_git(self.repos.cursor, 'commit', '-am', 'Change first line, keep blank context')
+        self.git('fetch', '--no-tags', str(self.repos.cursor), 'main:' + m.CURSOR_REF)
+        target = self.git('rev-parse', m.CURSOR_REF)
+        files, meta = m.build_proposal(self.repos.base, m.load_ledger(ref=self.repos.base),
+                                       self.repos.baseline, self.new_commits())
+        path = m.PROPOSAL_DIR + '/' + meta['pid'] + '/patches/' + target + '.patch'
+        content = files[path].encode()
+        self.assertTrue(content.endswith(b' \n'))
+        parsed = subprocess.check_output(['git', 'apply', '--numstat', '-'], input=content)
+        self.assertIn(b'pstack/skills/one/SKILL.md', parsed)
+        expected = subprocess.check_output(['git', '-c', 'color.ui=false', '-c', 'log.showSignature=false',
+            'show', '--format=fuller', '--date=iso-strict', '--no-ext-diff', '--no-textconv', '--no-renames',
+            '--diff-algorithm=myers', '--unified=3', '--src-prefix=a/', '--dst-prefix=b/',
+            '--first-parent', '-m', target, '--', m.PSTACK])
+        self.assertEqual(content, expected)
 
     def test_caller_worktree_and_index_are_preserved(self):
         (self.repos.fork / 'README.md').write_text('dirty edit\n')

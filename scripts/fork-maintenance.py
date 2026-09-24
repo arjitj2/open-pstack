@@ -67,11 +67,12 @@ def api(path, method="GET", payload=None, paginate=False):
     return [item for page in value for item in page] if paginate else value
 
 
-def git(*args, env=None, stdin=None):
+def git(*args, env=None, stdin=None, raw=False):
     full = dict(os.environ)
     if env:
         full.update(env)
-    return subprocess.check_output(["git", *args], input=stdin, env=full, text=True).strip()
+    output = subprocess.check_output(["git", *args], input=stdin.encode() if stdin is not None else None, env=full).decode()
+    return output if raw else output.strip()
 
 
 def git_ok(*args):
@@ -215,7 +216,7 @@ def build_proposal(base, ledger, baseline, new):
     for commit in new:
         paths = changed_paths(commit["sha"], PSTACK)
         patch_rel = pdir + "/patches/" + commit["sha"] + ".patch"
-        files[patch_rel] = git("-c", "color.ui=false", "-c", "log.showSignature=false", "show", "--format=fuller", "--date=iso-strict", "--no-ext-diff", "--no-textconv", "--no-renames", "--diff-algorithm=myers", "--unified=3", "--src-prefix=a/", "--dst-prefix=b/", "--first-parent", "-m", commit["sha"], "--", PSTACK) + "\n"
+        files[patch_rel] = git("-c", "color.ui=false", "-c", "log.showSignature=false", "show", "--format=fuller", "--date=iso-strict", "--no-ext-diff", "--no-textconv", "--no-renames", "--diff-algorithm=myers", "--unified=3", "--src-prefix=a/", "--dst-prefix=b/", "--first-parent", "-m", commit["sha"], "--", PSTACK, raw=True)
         audit_commits.append({
             "commit": commit["sha"],
             "date": commit["date"],
