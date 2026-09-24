@@ -1,0 +1,247 @@
+commit b0b9c7a0baf8b6aa1d00bf77d4101e577d4ba411
+Author:     lauren <poteto@users.noreply.github.com>
+AuthorDate: 2026-09-23T10:37:17-07:00
+Commit:     GitHub <noreply@github.com>
+CommitDate: 2026-09-23T10:37:17-07:00
+
+    docs(pstack): cut 19 more instructions Opus 5.5 does not need (#419)
+    
+    Cut 19 more instructions that Opus 5.5 follows without the text, in interrogate, reflect, tdd, four principles, figure-it-out, and the feature, bug-fix, and refactoring playbooks. Bump pstack to 0.15.4.
+
+diff --git a/pstack/.cursor-plugin/plugin.json b/pstack/.cursor-plugin/plugin.json
+index 974daec..9c4fd2c 100644
+--- a/pstack/.cursor-plugin/plugin.json
++++ b/pstack/.cursor-plugin/plugin.json
+@@ -1,7 +1,7 @@
+ {
+ 	"name": "pstack",
+ 	"displayName": "pstack",
+-	"version": "0.15.3",
++	"version": "0.15.4",
+ 	"description": "if you want to go fast, go deep first. pstack helps you write less, but higher quality code. rigorous agent workflows you can parallelize with confidence.",
+ 	"author": {
+ 		"name": "Lauren Tan"
+diff --git a/pstack/skills/figure-it-out/SKILL.md b/pstack/skills/figure-it-out/SKILL.md
+index 3397333..fbf3fb1 100644
+--- a/pstack/skills/figure-it-out/SKILL.md
++++ b/pstack/skills/figure-it-out/SKILL.md
+@@ -39,7 +39,7 @@ Each unit is an experiment. State the hypothesis, make the smallest change, meas
+ Apply the **sequence-verifiable-units** principle skill, verifying each unit before starting the next instead of batching checks at the end.
+ 
+ - Verify by inspecting the artifact, never a self-report. When something passes too easily, suspect the observation method before the system.
+-- Pair delegated work with a judge and audit the delegates' artifacts yourself before trusting them. If a worker games the gate, reset and harden the contract. If the gate itself is wrong, fix the gate in its own change rather than routing around it.
++- Pair delegated work with a judge. If a worker games the gate, reset and harden the contract. If the gate itself is wrong, fix the gate in its own change rather than routing around it.
+ - A verdict is VERIFIED, NOT VERIFIED, or INCONCLUSIVE. Inconclusive is not a pass. Don't hide a negative.
+ 
+ ## Phase D: Keep the audit trail
+diff --git a/pstack/skills/interrogate/references/code-quality-review.md b/pstack/skills/interrogate/references/code-quality-review.md
+index 5023035..1658125 100644
+--- a/pstack/skills/interrogate/references/code-quality-review.md
++++ b/pstack/skills/interrogate/references/code-quality-review.md
+@@ -36,7 +36,7 @@ Each dimension is stated once. Apply the ones that are relevant.
+ 
+ ## Output Expectations
+ 
+-Prioritize structural code-quality regressions and missed simplifications first, then spaghetti and branching complexity, then boundary, type, and file-size concerns, then smaller modularity and legibility issues. Do not flood the review with low-value nits when larger structural issues exist. Prefer a few high-conviction comments over a long list of cosmetic notes.
++Prioritize structural code-quality regressions and missed simplifications first, then spaghetti and branching complexity, then boundary, type, and file-size concerns, then smaller modularity and legibility issues.
+ 
+ ## Approval Bar
+ 
+diff --git a/pstack/skills/interrogate/references/reviewer-prompt.md b/pstack/skills/interrogate/references/reviewer-prompt.md
+index 53ffa74..13a252b 100644
+--- a/pstack/skills/interrogate/references/reviewer-prompt.md
++++ b/pstack/skills/interrogate/references/reviewer-prompt.md
+@@ -35,7 +35,7 @@ For each finding, provide:
+ 1. **Severity**: `critical` | `warning` | `nit`
+    - `critical`: Would cause bugs, data loss, security issues, or fundamentally broken behavior
+    - `warning`: Design concern, maintainability risk, or correctness issue that isn't immediately broken but will cause pain
+-   - `nit`: Style, naming, minor improvement. Only include nits if they're genuinely useful, not to pad your review.
++   - `nit`: Style, naming, minor improvement.
+ 2. **Finding**: What the problem is, in concrete terms. Reference specific lines/functions.
+ 3. **Evidence**: Why you believe this is a problem. Show your reasoning. Don't just assert.
+ 4. **Suggestion** (optional): What you'd do instead, if you have a concrete alternative. Skip this if you don't have a clear fix.
+@@ -50,8 +50,6 @@ For each finding, provide:
+ ## What to Avoid
+ 
+ - Restating what the code does without identifying a problem
+-- Suggesting rewrites for working code because you'd prefer a different style
+-- Raising hypothetical issues ("what if someone passes null here") without evidence that the code path is reachable
+ - Praising the code. You're an adversary, not a cheerleader. If you find nothing wrong, say "no findings" and stop.
+ 
+ ## Output
+diff --git a/pstack/skills/interrogate/references/rubric.md b/pstack/skills/interrogate/references/rubric.md
+index 04bd4ca..2d92f1b 100644
+--- a/pstack/skills/interrogate/references/rubric.md
++++ b/pstack/skills/interrogate/references/rubric.md
+@@ -69,7 +69,7 @@ Simpler is better unless simpler is wrong. Three lines of duplication beat a pre
+ 
+ ## Security
+ 
+-Only flag security issues you can actually trace through the code. "This could be an injection vector" without showing the input path is not useful.
++For each security finding, trace the input path through the code and show it.
+ 
+ - User input flowing to dangerous sinks (SQL, shell, eval, innerHTML) without sanitization
+ - Authentication/authorization gaps in new endpoints
+diff --git a/pstack/skills/poteto-mode/playbooks/bug-fix.md b/pstack/skills/poteto-mode/playbooks/bug-fix.md
+index 7deba2c..eeebc42 100644
+--- a/pstack/skills/poteto-mode/playbooks/bug-fix.md
++++ b/pstack/skills/poteto-mode/playbooks/bug-fix.md
+@@ -6,12 +6,10 @@ Be scientific. Every shipped line traces to runtime evidence. Belt-and-suspender
+ 
+ 1. Reproduce it yourself on the matching surface via the control skill (Non-negotiables), even when a debug or instrumentation protocol says to ask the user to reproduce. Ask the user only with a stated, specific reason the control surface cannot reach the target, and only after driving it as far as it goes. If it won't reproduce directly, synthesize the trigger, tighten conditions, or instrument until it fires.
+ 2. Binary-search the cause. Form the candidate hypotheses, then rule them out until one survives. Seed them with `how` over the affected subsystem and the **why** skill for regression history. Each pass, take the split that cuts the most remaining problem space, get runtime evidence, eliminate. When program state is unclear, add instrumentation or logging and read it as the code runs. Don't guess. Drive a long or stubborn hunt with Cursor's `/loop` command. Confirm the surviving *mechanism* with runtime evidence before the step-3 architect/interrogate fan-out.
+-3. Plan the fix. If it crosses a function boundary, `architect` first. Delegate implementation to a subagent using your configured bug-fix model (default `grok-4.7-xhigh-fast`) with a specific scope. Review the diff.
++3. Plan the fix. If it crosses a function boundary, `architect` first. Delegate implementation to a subagent using your configured bug-fix model (default `grok-4.7-xhigh-fast`) with a specific scope.
+ 4. Verify on the same surface. The original repro now passes. "Inconclusive" or wrong-surface is not a pass. Flag it. Unit tests show branch behavior, not bug absence.
+ 5. Stage the commits so the failing repro lands before the fix in git history. See the **tdd** skill for the failing-test-first cadence when the bug has a cheap local test path. Skip it when the test would be expensive, integration-heavy, or unclear.
+    This is the canonical **sequence-verifiable-units** principle skill, the failing test first and the fix on top.
+ 6. Run **Opening a PR**.
+ 
+-Investigation fans out `how` + `why` as parallel subagents.
+-
+ **Reply:** what was broken, root cause, fix, how you verified. Paste failing-then-passing repro output verbatim.
+diff --git a/pstack/skills/poteto-mode/playbooks/feature.md b/pstack/skills/poteto-mode/playbooks/feature.md
+index 42ca2b5..79a6bbb 100644
+--- a/pstack/skills/poteto-mode/playbooks/feature.md
++++ b/pstack/skills/poteto-mode/playbooks/feature.md
+@@ -9,7 +9,7 @@
+    - **Independent workstreams.** Disjoint files, services, or layers parallelize. Shared writes serialize.
+    - **Shared mutable state.** Default to splitting the target (the **separate-before-serializing-shared-state** principle skill). Serialize only for real invariants.
+    - **Smallest safe decomposition.** If one worker is best, name why.
+-4. Delegate code-writing to a subagent using your configured feature model (default `grok-4.7-xhigh-fast`) with a specific scope (file paths, named data shape and its organizing structure per **principle-model-the-domain**, a state machine over scattered booleans, a table/registry over branching, a typed model over repeated shape assumptions, chosen before the delegate writes logic, and success criteria). Review its diff yourself. When the implementation admits multiple valid shapes (error handling, abstraction layer, test structure), delegate via the **arena** skill instead so the runners surface the alternatives and the cross-judge guards the pick. Mandatory: no skip-with-reason escape, and Laziness Protocol does not override it (the gain is review separation, not lines saved). You can spawn a subagent even though you are one. "The app is small" and "a subagent cannot spawn one" are both wrong. A subagent forbidden to spawn satisfies this by owning the diff directly with the same review separation. No "standing by" reply that waits on a nested agent. Comments per **Comments**. Surgical edits, re-ground against the source for upstream-derived files. Port shared-primitive improvements to all consumers and verify each. Commit liberally.
++4. Delegate code-writing to a subagent using your configured feature model (default `grok-4.7-xhigh-fast`) with a specific scope (file paths, named data shape and its organizing structure per **principle-model-the-domain**, a state machine over scattered booleans, a table/registry over branching, a typed model over repeated shape assumptions, chosen before the delegate writes logic, and success criteria). When the implementation admits multiple valid shapes (error handling, abstraction layer, test structure), delegate via the **arena** skill instead so the runners surface the alternatives and the cross-judge guards the pick. Mandatory: no skip-with-reason escape, and Laziness Protocol does not override it (the gain is review separation, not lines saved). A subagent forbidden to spawn satisfies this by owning the diff directly with the same review separation. No "standing by" reply that waits on a nested agent. Comments per **Comments**. Surgical edits, re-ground against the source for upstream-derived files. Port shared-primitive improvements to all consumers and verify each. Commit liberally.
+ 5. Verify on the matching surface. "Inconclusive" or wrong-surface is not a pass. Flag it.
+ 6. Rebase into small, ordered commits. Stack follow-ups.
+    Use the **sequence-verifiable-units** principle skill, building, verifying, and committing each small unit before the next.
+diff --git a/pstack/skills/poteto-mode/playbooks/refactoring.md b/pstack/skills/poteto-mode/playbooks/refactoring.md
+index ee66cdf..df2a863 100644
+--- a/pstack/skills/poteto-mode/playbooks/refactoring.md
++++ b/pstack/skills/poteto-mode/playbooks/refactoring.md
+@@ -8,8 +8,8 @@ If the cleanup reveals a missing feature or a real bug, split it out and ship th
+ 2. Name the structure the code is missing per **principle-model-the-domain**. Boring code stays when the shape is already clear and local. The reshape must delete branches or invalid states, not add indirection.
+ 3. Name the target shape. State what the module layout, types, and call graph should be if built today (**principle-foundational-thinking**, **principle-redesign-from-first-principles**). If the target crosses a function boundary, run the **architect** skill for parallel design exploration of the shape before the move.
+ 4. Subtract before you add. Delete dead code, collapse one-caller wrappers, drop redundant validators, and remove orphan references before introducing the new shape (**principle-subtract-before-you-add**). The smallest change that reaches the target shape ships (**principle-laziness-protocol**). A speculative cleanup that "might help" gets reverted.
+-5. Move in small behavior-preserving steps, each keeping the pin green. For API reshapes, migrate every caller and delete the old API in the same wave (**principle-migrate-callers-then-delete-legacy-apis**). No compatibility shims, no parallel old-and-new paths. Spot-check every rename against the actual files. Renames silently miss usages in strings, prose, and back-references. Delegate the mechanical edits to a subagent using your configured refactoring model (default `grok-4.7-xhigh-fast`) with a specific scope (file paths, the names being moved, the behavior to hold). Review the diff yourself.
+-6. Prove behavior is unchanged on the real artifact, not "it compiles" (**principle-prove-it-works**). For larger reshapes, run an equivalence check: a script that diffs old-vs-new outputs, a recorded baseline replayed against the new code, or a smoke run on the matching surface via the relevant control skill. Own the verification yourself. Do not trust a delegate's "looks good" summary.
++5. Move in small behavior-preserving steps, each keeping the pin green. For API reshapes, migrate every caller and delete the old API in the same wave (**principle-migrate-callers-then-delete-legacy-apis**). No compatibility shims, no parallel old-and-new paths. Spot-check every rename against the actual files. Renames silently miss usages in strings, prose, and back-references. Delegate the mechanical edits to a subagent using your configured refactoring model (default `grok-4.7-xhigh-fast`) with a specific scope (file paths, the names being moved, the behavior to hold).
++6. Prove behavior is unchanged on the real artifact, not "it compiles" (**principle-prove-it-works**). For larger reshapes, run an equivalence check: a script that diffs old-vs-new outputs, a recorded baseline replayed against the new code, or a smoke run on the matching surface via the relevant control skill.
+ 7. Confirm the change is worth keeping. The success measure is reduced reader load (**principle-minimize-reader-load**). If the diff does not lower reader load somewhere, revert it.
+ 8. Rebase into small ordered commits. A subtraction commit, then the reshape, then any follow-on cleanup. Shape them with the **sequence-verifiable-units** principle skill, so each behavior-preserving slice stays green before the next. Run **Opening a PR**.
+ 
+diff --git a/pstack/skills/principle-guard-the-context-window/SKILL.md b/pstack/skills/principle-guard-the-context-window/SKILL.md
+index eb2cecc..c4db544 100644
+--- a/pstack/skills/principle-guard-the-context-window/SKILL.md
++++ b/pstack/skills/principle-guard-the-context-window/SKILL.md
+@@ -12,6 +12,5 @@ The context window is finite and non-renewable within a session. Every token sho
+ 
+ **Pattern:**
+ - **Isolate large payloads.** Route verbose outputs, screenshots, and large documents to subagents. The main context gets summaries, not raw data.
+-- **Don't read what you won't use.** Read selectively based on relevance. If a file isn't needed for the current task, skip it.
+ - **Keep frequently used content inline.** Templates and references used on every invocation belong in the skill file, not in separate files that cost a read each time.
+ - **Size phases and cap scope.** Limit files per phase, set turn budgets, account for mechanism costs.
+diff --git a/pstack/skills/principle-never-block-on-the-human/SKILL.md b/pstack/skills/principle-never-block-on-the-human/SKILL.md
+index 46d4107..11f08b6 100644
+--- a/pstack/skills/principle-never-block-on-the-human/SKILL.md
++++ b/pstack/skills/principle-never-block-on-the-human/SKILL.md
+@@ -12,9 +12,7 @@ The human supervises asynchronously. Agents must stay unblocked. Make reasonable
+ 
+ **Pattern:**
+ - **Proceed, then present.** Do the work, show the result. Don't ask "should I do X?" Do X, explain why.
+-- **Reserve questions for genuine ambiguity.** Ask only when you cannot infer intent from context.
+ - **Make the system self-healing.** When you notice a problem, log it and fix it in the next round.
+-- **Supervision is async.** Design workflows for review-after-the-fact.
+ 
+ **Boundaries:**
+ - **Irreversible actions** (force-push, delete production data, send external messages) still require confirmation.
+diff --git a/pstack/skills/principle-outcome-oriented-execution/SKILL.md b/pstack/skills/principle-outcome-oriented-execution/SKILL.md
+index 4c2ed46..c49be0b 100644
+--- a/pstack/skills/principle-outcome-oriented-execution/SKILL.md
++++ b/pstack/skills/principle-outcome-oriented-execution/SKILL.md
+@@ -13,7 +13,6 @@ Optimize for the intended, verifiable end state rather than preserving smooth in
+ **Core rule:**
+ - Prioritize end-state integrity over transitional stability
+ - Intermediate breakage is acceptable when it is planned, scoped, and reversible
+-- Always run final verification before declaring done
+ 
+ **Guardrails:**
+ - Use this for planned rewrites and migrations with explicit phase boundaries
+diff --git a/pstack/skills/principle-prove-it-works/SKILL.md b/pstack/skills/principle-prove-it-works/SKILL.md
+index b596462..5dc14a3 100644
+--- a/pstack/skills/principle-prove-it-works/SKILL.md
++++ b/pstack/skills/principle-prove-it-works/SKILL.md
+@@ -15,15 +15,6 @@ Check the real thing, not a proxy:
+ - Read the actual value, not a cached or derived representation
+ - When verification fails, suspect the observation method before suspecting the system
+ 
+-Code and features:
+-1. Build it (necessary but not sufficient)
+-2. Run it and exercise the actual feature path
+-3. Check the full chain: does data flow from input to output?
+-4. For integrations, test the full communication path end-to-end
+-
+-Delegation: trust artifacts, not self-reports.
+-When verifying delegated work, inspect the actual output artifact (git diff, file contents, runtime behavior), not the delegate's summary.
+-
+ ## Script the check when you can
+ 
+ The strongest proof is a deterministic script that re-runs the same comparison, not a one-time eyeball. Write the script, run it, and keep its output as an artifact a reviewer can re-run instead of trusting your word.
+diff --git a/pstack/skills/reflect/references/divergent-reviewer.md b/pstack/skills/reflect/references/divergent-reviewer.md
+index 73969d8..de95be3 100644
+--- a/pstack/skills/reflect/references/divergent-reviewer.md
++++ b/pstack/skills/reflect/references/divergent-reviewer.md
+@@ -31,7 +31,7 @@ Two valid finding shapes:
+ 
+ The "skill should have been invoked but wasn't" bullet above is the canonical missed-trigger case. Route those to `tune description`. If the skill was neither invoked nor a missed-trigger candidate, drop it.
+ 
+-Surface 3-5 durable learnings. For each:
++List each durable learning you find. For each:
+ - Principle: one sentence naming the contrarian or second-order observation. Don't restate the obvious learning. Name the one beneath it.
+ - Evidence: the exact moment in the transcript (turn number or short quote, including what was said AND what wasn't).
+ - Routing: most relevant existing skill (give the `SKILL.md` path as it appears in the transcript), OR `tune description: <skill path>` when the skill should have triggered but didn't, OR "new skill: <kebab-name>".
+diff --git a/pstack/skills/reflect/references/judgment-reviewer.md b/pstack/skills/reflect/references/judgment-reviewer.md
+index 830213a..222f02b 100644
+--- a/pstack/skills/reflect/references/judgment-reviewer.md
++++ b/pstack/skills/reflect/references/judgment-reviewer.md
+@@ -30,7 +30,7 @@ Two valid finding shapes:
+ 
+ If a skill was neither invoked nor a missed-trigger candidate, drop it.
+ 
+-Surface 3-5 durable learnings. For each:
++List each durable learning you find. For each:
+ - Principle: one sentence describing what generalizes. State the rule, not the label, no name-dropping.
+ - Evidence: the exact moment in the transcript that surfaced it (turn number or short quote).
+ - Routing: most relevant existing skill (give the `SKILL.md` path as it appears in the transcript), OR `tune description: <skill path>` when the skill should have triggered but didn't, OR "new skill: <kebab-name>" if no existing skill is a real home.
+diff --git a/pstack/skills/reflect/references/tooling-reviewer.md b/pstack/skills/reflect/references/tooling-reviewer.md
+index e7fcd9e..a37e200 100644
+--- a/pstack/skills/reflect/references/tooling-reviewer.md
++++ b/pstack/skills/reflect/references/tooling-reviewer.md
+@@ -43,7 +43,7 @@ Two valid finding shapes:
+ 
+ If a skill was neither invoked nor a missed-trigger candidate, drop it.
+ 
+-Surface 3-5 durable learnings. For each:
++List each durable learning you find. For each:
+ - Principle: one sentence naming the convention or technical fact. Concrete enough that a future agent recognizes when it applies.
+ - Evidence: the exact moment in the transcript (turn number or short quote, including the command or flag).
+ - Routing: most relevant existing skill (give the `SKILL.md` path as it appears in the transcript), OR `tune description: <skill path>` when the skill should have triggered but didn't, OR "new skill: <kebab-name>".
+diff --git a/pstack/skills/tdd/SKILL.md b/pstack/skills/tdd/SKILL.md
+index 6f4933f..ca6f24c 100644
+--- a/pstack/skills/tdd/SKILL.md
++++ b/pstack/skills/tdd/SKILL.md
+@@ -21,7 +21,7 @@ Do not force a test when it would be impractical. If the available test would re
+ 
+ ## If a Failing Test Is Impractical
+ 
+-Do not silently skip the regression step. Before fixing, explicitly explain why a failing test is impossible or not worth the cost, then choose the closest executable regression check available. Examples include a targeted script, manual reproduction command, browser automation, snapshot comparison, log assertion, or focused integration check.
++Use the closest executable regression check instead: a targeted script, manual reproduction command, browser automation, snapshot comparison, log assertion, or focused integration check.
+ 
+ Prefer no new test over a bad test. A bad test is one that mostly tests mocks, encodes current implementation details, depends on timing or unrelated global state, needs expensive infrastructure for a small fix, or would be deleted immediately after proving the fix.
+ 
+@@ -30,7 +30,6 @@ Prefer no new test over a bad test. A bad test is one that mostly tests mocks, e
+ - Do not change tests merely to match a wrong implementation.
+ - Do not weaken existing assertions unless the expected behavior has genuinely changed and the reason is clear.
+ - Keep the regression test focused on the bug. Avoid broad fixture churn or unrelated coverage expansion.
+-- Do not add tests when the practical signal is weak. Use manual or scripted verification and say why.
+ - If the bug is flaky, make the test deterministic where possible and document the signal being locked down.
+ - If the bug exposes a broader class of failures, first land the focused regression path, then consider additional sibling coverage.
+ 
