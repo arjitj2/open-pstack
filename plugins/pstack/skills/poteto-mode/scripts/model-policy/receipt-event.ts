@@ -58,10 +58,12 @@ function fail(issues: readonly string[]): never {
 // attempt exactly, and the terminal status must be coherent with the rest of
 // the receipt. Outcomes that cannot prove their eligibility — a timed-out
 // receipt with no recorded explicit deadline, a started failure with no
-// settled child evidence, a started or possibly started recoverable claim
-// with no recorded success-conflict assessment, a receipt carrying a
-// trusted terminal success, or a launcher/programming error — normalize to
-// "failed", which never advances a chain.
+// settled child evidence, a quota claim recorded before or outside the
+// workload phases, a route claim once the child may have started, a
+// started or possibly started recoverable claim with no recorded
+// success-conflict assessment, a receipt carrying a trusted terminal
+// success, or a launcher/programming error — normalize to "failed", which
+// never advances a chain.
 export function normalizeReceiptEvent(
   value: unknown,
   expected: ReceiptIdentity
@@ -247,12 +249,27 @@ export function normalizeReceiptEvent(
     ) {
       mapped = "failed";
     }
+  } else if (receiptStatus === "usage-exhausted") {
+    // Runner quota is only knowable after the workload ran: the failure
+    // must land in the invocation or postprocess phase of a settled child.
+    // A preflight or phase-less claim can never prove exhaustion, and a
+    // not-started receipt is already confined to preflight above.
+    if (
+      receipt.failurePhase !== "invocation" &&
+      receipt.failurePhase !== "postprocess"
+    ) {
+      mapped = "failed";
+    }
   } else if (
     receiptStatus === "unavailable-cli" ||
     receiptStatus === "unauthenticated" ||
     receiptStatus === "unavailable-model"
   ) {
-    if (processStarted !== false && receipt.terminalSuccess !== false) {
+    // Route proof exists only before the workload starts. A not-started
+    // receipt is already confined to the preflight phase above; once the
+    // child may have run, an unproven authentication or model claim can
+    // mask completed work no recorded assessment can rule out.
+    if (processStarted !== false) {
       mapped = "failed";
     }
   } else if (receiptStatus === "child-failed" || receiptStatus === "malformed-output") {

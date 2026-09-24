@@ -1,5 +1,10 @@
 import { describe, expect, it } from "bun:test";
-import { ModelPolicyError, type AttemptOutcomeStatus } from "./model-policy.ts";
+import {
+  ModelPolicyError,
+  nextAttempt,
+  type AttemptOutcomeStatus,
+  type LanePolicy,
+} from "./model-policy.ts";
 import {
   RECEIPT_EVENT_STATUS,
   normalizeReceiptEvent,
@@ -14,6 +19,19 @@ const IDENTITY: ReceiptIdentity = {
   effort: "high",
   mode: "read-only",
   apiSpend: "unset",
+};
+
+// A two-attempt writer lane whose saved policy authorizes every recoverable
+// outcome, so only the normalized event status can stop a launch.
+const WRITER_LANE: LanePolicy = {
+  id: "swarm workers#1",
+  fallback: {
+    on: ["usage-exhausted", "route-unavailable", "terminal-failure", "deadline-exceeded"],
+  },
+  attempts: [
+    { descriptor: "claude:opus@high", attempt: { kind: "descriptor", provider: "claude", model: "opus", effort: "high" }, exhaustionGroup: "claude", funding: "included", apiSpend: "deny", route: "external", authorization: { state: "allowed" } },
+    { descriptor: "grok:grok-4.7@xhigh", attempt: { kind: "descriptor", provider: "grok", model: "grok-4.7", effort: "xhigh" }, exhaustionGroup: "grok", funding: "included", apiSpend: "deny", route: "external", authorization: { state: "allowed" } },
+  ],
 };
 
 function receipt(overrides: Record<string, unknown> = {}): Record<string, unknown> {
@@ -59,6 +77,8 @@ describe("receipt event mapping", () => {
     const preflightStatuses = new Set([
       "billing-policy-blocked",
       "unavailable-cli",
+      "unauthenticated",
+      "unavailable-model",
       "timed-out",
     ]);
     for (const provider of PROVIDERS) {
@@ -273,9 +293,6 @@ describe("receipt event mapping", () => {
 
   it("requires a recorded assessment for every started or unknown-start broad outcome", () => {
     for (const [status, extra] of [
-      ["unavailable-cli", {}],
-      ["unauthenticated", {}],
-      ["unavailable-model", {}],
       ["timed-out", { timeoutMs: 30_000 }],
       ["child-failed", {}],
       ["malformed-output", { exitCode: 0, failurePhase: "postprocess" }],
@@ -333,6 +350,103 @@ describe("receipt event mapping", () => {
         ).status,
         `${status} preflight`
       ).toBe(expected);
+    }
+  });
+
+  it("grants quota only to a workload-phase failure of a settled child", () => {
+    for (const overrides of [
+      // A proved-not-started preflight receipt cannot observe runner quota,
+      // however it settled and however it was assessed.
+      { status: "usage-exhausted", processStarted: false, failurePhase: "preflight", exitCode: null },
+      { status: "usage-exhausted", processStarted: false, failurePhase: "preflight", exitCode: 75, terminalSuccess: false },
+      // A quota claim with no recorded workload phase fails closed.
+      { status: "usage-exhausted", failurePhase: null },
+      { status: "usage-exhausted", failurePhase: null, terminalSuccess: false },
+    ]) {
+      const event = normalizeReceiptEvent(
+        receipt({ error: { message: "quota", evidence: "captured diagnostic" }, ...overrides }),
+        IDENTITY
+      );
+      expect(event.status, JSON.stringify(overrides)).toBe("failed");
+      expect(
+        nextAttempt(
+          WRITER_LANE,
+          [{ attemptIndex: 0, ...event }],
+          new Set(),
+          "isolated-write"
+        ),
+        JSON.stringify(overrides)
+      ).toMatchObject({ kind: "stop", reason: "not-eligible" });
+    }
+    // A receipt that omits failurePhase entirely is rejected, not mapped.
+    const { failurePhase, ...noPhase } = receipt({
+      status: "usage-exhausted",
+      error: { message: "quota", evidence: "captured diagnostic" },
+    });
+    expect(() => normalizeReceiptEvent(noPhase, IDENTITY)).toThrow(ModelPolicyError);
+    // A legacy receipt that predates processStarted stays eligible when the
+    // recorded workload phase and a settled child carry the proof.
+    const { processStarted, ...legacy } = receipt({
+      status: "usage-exhausted",
+      exitCode: 75,
+      error: { message: "quota", evidence: "captured diagnostic" },
+    });
+    expect(normalizeReceiptEvent(legacy, IDENTITY).status).toBe("usage-exhausted");
+    // The runner's postprocess quota form: a terminal envelope after a clean
+    // child exit.
+    expect(
+      normalizeReceiptEvent(
+        receipt({
+          status: "usage-exhausted",
+          exitCode: 0,
+          failurePhase: "postprocess",
+          terminalSuccess: false,
+        }),
+        IDENTITY
+      ).status
+    ).toBe("usage-exhausted");
+  });
+
+  it("grants route-unavailable only to a proved-not-started preflight failure", () => {
+    for (const status of ["unavailable-cli", "unauthenticated", "unavailable-model"] as const) {
+      // A started invocation claim can mask completed work: it normalizes to
+      // failed even when the runner recorded no success conflict.
+      for (const overrides of [
+        { status, terminalSuccess: false },
+        { status, exitCode: 69, terminalSuccess: false },
+        { status },
+      ]) {
+        const event = normalizeReceiptEvent(receipt(overrides), IDENTITY);
+        expect(event.status, JSON.stringify(overrides)).toBe("failed");
+        expect(
+          nextAttempt(
+            WRITER_LANE,
+            [{ attemptIndex: 0, ...event }],
+            new Set(),
+            "isolated-write"
+          ),
+          JSON.stringify(overrides)
+        ).toMatchObject({ kind: "stop", reason: "not-eligible" });
+      }
+      // An unknown start is treated as possibly started, assessed or not.
+      for (const terminalSuccess of [false, undefined]) {
+        const { processStarted, ...unknownStart } = receipt({ status, terminalSuccess });
+        expect(
+          normalizeReceiptEvent(unknownStart, IDENTITY).status,
+          `${status} unknown-start`
+        ).toBe("failed");
+      }
+      // Only a proved-not-started preflight failure stays eligible, with or
+      // without a recorded success-conflict assessment.
+      for (const terminalSuccess of [false, undefined]) {
+        expect(
+          normalizeReceiptEvent(
+            receipt({ status, processStarted: false, failurePhase: "preflight", terminalSuccess }),
+            IDENTITY
+          ).status,
+          `${status} preflight`
+        ).toBe("route-unavailable");
+      }
     }
   });
 
@@ -416,6 +530,7 @@ describe("receipt identity and consistency validation", () => {
   it("rejects contradictory phase, start, and exit combinations", () => {
     for (const overrides of [
       { processStarted: false, failurePhase: "invocation" },
+      { processStarted: false, failurePhase: "invocation", status: "usage-exhausted", exitCode: 75 },
       { processStarted: false, failurePhase: "postprocess" },
       { processStarted: false, failurePhase: "invocation", status: "malformed-output", exitCode: null },
       { processStarted: true, failurePhase: "preflight" },
