@@ -19,6 +19,14 @@ Installed tests in Codex CLI 0.154.0 and Claude Code 2.1.281 exercised confirmed
 
 External quota recognition currently covers verified Codex/Grok workload formats. Claude, Devin, and Cursor external quota formats remain ordinary failures until verified. A fallback cannot recover an exhausted parent controller. Local API guards do not prove that a provider has disabled account-managed overage. Tests preserved the captured `.2` installation and global model settings.
 
+## Recovery changes under validation
+
+[Issue #12](https://github.com/arjitj2/open-pstack/issues/12) tracks broader automatic recovery. This work is not included in the stable `.4` package above.
+
+The candidate requires a quota adapter for every provider and adds saved policies for unavailable routes, terminal backend failures, and explicit deadlines. The parent reports the failure, inspects any partial work, and continues through approved backups without asking for a replacement. Quiet workers remain active unless an explicit deadline or authoritative failure ends the attempt. A cancelled attempt, a billing block, conflicting evidence, or an exhausted chain does not authorize another model.
+
+Claude quota handling includes a captured real exhaustion response. Devin quota fixtures use diagnostics found in the installed CLI. Cursor fixtures combine error framing from its installed bundle with publicly reported usage-limit wording. Those fixtures do not certify real quota exhaustion on those accounts. Installed checks in both Codex and Claude Code are required before release; candidate evidence will be recorded here when complete.
+
 ## Cursor catch-up validation
 
 [Release PR #9](https://github.com/arjitj2/open-pstack/pull/9) records the Cursor catch-up and installed checks with Codex CLI 0.154.0 and Claude Code 2.1.281. Budget selection, custom-effort preservation, fixed-effort mappings, confirmed save/readback, native workers, and separate judges passed. The package passed 225 Bun tests, strict typechecks, 26 maintenance tests, and static/plugin checks. The captured `.2` installation and global model settings were restored. See the [adoption report](cursor-adoption-20260924.md) for evidence limits.

@@ -22,6 +22,20 @@ const CAPACITIES = ["standard", "high", "unknown"] as const;
 const PROVENANCES = ["user", "provider"] as const;
 const API_SPENDS = ["deny", "approved"] as const;
 
+export const FALLBACK_REASONS = [
+  "usage-exhausted",
+  "route-unavailable",
+  "terminal-failure",
+  "deadline-exceeded",
+] as const;
+export type FallbackReason = (typeof FALLBACK_REASONS)[number];
+
+export interface FallbackPolicy {
+  readonly on: readonly FallbackReason[];
+}
+
+export const QUOTA_ONLY_FALLBACK: FallbackPolicy = { on: ["usage-exhausted"] };
+
 export class ModelPolicyError extends Error {
   readonly issues: readonly string[];
   constructor(issues: readonly string[]) {
@@ -91,6 +105,9 @@ export interface SheetModel {
   readonly trailingNewline: boolean;
   readonly budget: string | null;
   readonly access: readonly AccessFact[];
+  // The declared `# fallback:` policy, or null when the sheet never declares
+  // one (quota-only default).
+  readonly fallback: FallbackPolicy | null;
 }
 
 export type AttemptAuthorization =
@@ -110,6 +127,7 @@ export interface AttemptPolicy {
 export interface LanePolicy {
   readonly id: string;
   readonly attempts: readonly AttemptPolicy[];
+  readonly fallback: FallbackPolicy;
 }
 
 export interface RolePolicy {
@@ -223,6 +241,43 @@ function parseAccessFact(json: string, line: string): AccessFact {
     note: (record.note as string | undefined) ?? null,
     observedAt: (record.observedAt as string | undefined) ?? null,
   };
+}
+
+function parseFallbackPolicy(json: string, line: string): FallbackPolicy {
+  let value: unknown;
+  try {
+    value = JSON.parse(json);
+  } catch {
+    throw new ModelPolicyError([`fallback line is not valid JSON: ${line}`]);
+  }
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    throw new ModelPolicyError([`fallback line must be a JSON object: ${line}`]);
+  }
+  const record = value as Record<string, unknown>;
+  for (const key of Object.keys(record)) {
+    if (key !== "on") {
+      throw new ModelPolicyError([`fallback line has unknown key ${JSON.stringify(key)}: ${line}`]);
+    }
+  }
+  const on = record.on;
+  if (!Array.isArray(on)) {
+    throw new ModelPolicyError([`fallback "on" must be an array: ${line}`]);
+  }
+  const seen = new Set<string>();
+  const reasons: FallbackReason[] = [];
+  for (const entry of on) {
+    if (typeof entry !== "string" || !(FALLBACK_REASONS as readonly string[]).includes(entry)) {
+      throw new ModelPolicyError([
+        `fallback reason must be one of ${FALLBACK_REASONS.join(", ")}: ${line}`,
+      ]);
+    }
+    if (seen.has(entry)) {
+      throw new ModelPolicyError([`fallback line repeats reason ${JSON.stringify(entry)}: ${line}`]);
+    }
+    seen.add(entry);
+    reasons.push(entry as FallbackReason);
+  }
+  return { on: reasons };
 }
 
 function collectComments(model: {
@@ -403,6 +458,8 @@ export function parseSheet(text: string, context: PolicyContext = {}): SheetMode
   let budget: string | null = null;
   const access: AccessFact[] = [];
   const accessProviders = new Set<string>();
+  let fallback: FallbackPolicy | null = null;
+  let fallbackLines = 0;
   for (const comment of comments) {
     if (comment.startsWith("# budget:")) {
       budget = comment.slice("# budget:".length).trim();
@@ -424,10 +481,23 @@ export function parseSheet(text: string, context: PolicyContext = {}): SheetMode
         else throw error;
       }
     }
+    if (comment.startsWith("# fallback:")) {
+      fallbackLines += 1;
+      const json = comment.slice("# fallback:".length).trim();
+      try {
+        fallback = parseFallbackPolicy(json, comment);
+      } catch (error) {
+        if (error instanceof ModelPolicyError) issues.push(...error.issues);
+        else throw error;
+      }
+    }
+  }
+  if (fallbackLines > 1) {
+    issues.push("more than one # fallback: declaration; declare the recovery policy once");
   }
 
   if (issues.length > 0) throw new ModelPolicyError(issues);
-  return { preamble, rows, footer, trailingNewline, budget, access };
+  return { preamble, rows, footer, trailingNewline, budget, access, fallback };
 }
 
 export function renderSheet(model: SheetModel): string {
@@ -494,6 +564,7 @@ export function resolveRole(
   parent: Parent
 ): RolePolicy | null {
   const policyEnabled = model.access.length > 0 ||
+    model.fallback !== null ||
     model.rows.some((entry) => entry.seats.some((seat) => seat.attempts.length > 1));
   const row = leafRow(model, role);
   if (row === null) {
@@ -551,7 +622,11 @@ export function resolveRole(
         authorization,
       };
     });
-    return { id: `${row.spec.header}#${index + 1}`, attempts };
+    return {
+      id: `${row.spec.header}#${index + 1}`,
+      attempts,
+      fallback: model.fallback ?? QUOTA_ONLY_FALLBACK,
+    };
   });
   if (issues.length > 0) throw new ModelPolicyError(issues);
   return { role, header: row.spec.header, lanes };
@@ -588,18 +663,59 @@ export function validateSheet(model: SheetModel, parent: Parent): void {
   if (issues.length > 0) throw new ModelPolicyError(issues);
 }
 
-export type AttemptOutcomeStatus = "complete" | "usage-exhausted" | "failed";
+export type AttemptOutcomeStatus =
+  | "complete"
+  | "usage-exhausted"
+  | "route-unavailable"
+  | "terminal-failure"
+  | "deadline-exceeded"
+  | "failed";
+
+// The parent's own verdict after inspecting a started writer's preserved
+// worktree and external side effects. `evidenceRef` records what was
+// inspected; it is an attestation by the trusted caller, not proof that the
+// helper itself inspected anything.
+export interface AttemptInspection {
+  readonly state: "clear" | "unsafe";
+  readonly evidenceRef: string;
+}
 
 export interface AttemptEvent {
   readonly attemptIndex: number;
   readonly status: AttemptOutcomeStatus;
   readonly processStarted?: boolean;
+  readonly inspection?: AttemptInspection;
+  readonly receiptPath?: string;
 }
 
 export type NextAttempt =
   | { readonly kind: "launch"; readonly attemptIndex: number; readonly attempt: AttemptPolicy }
-  | { readonly kind: "stop"; readonly reason: "complete" | "chain-exhausted" | "not-eligible" | "unauthorized" }
+  | { readonly kind: "stop"; readonly reason: "complete" | "chain-exhausted" | "not-eligible" | "unauthorized" | "unsafe-writer" }
   | { readonly kind: "inspect"; readonly reason: "started-writer" };
+
+function outcomeAuthorized(lane: LanePolicy, status: AttemptOutcomeStatus): boolean {
+  return (lane.fallback.on as readonly string[]).includes(status);
+}
+
+// Whether a terminal event could have advanced to a later attempt under the
+// lane's saved policy and access mode. `nextAttempt` uses this for the last
+// event; the CLI applies it to every earlier event so a recorded history
+// cannot contain a continuation that was never authorized.
+export function eventAdvancesUnderPolicy(
+  lane: LanePolicy,
+  event: AttemptEvent,
+  access: "read-only" | "isolated-write"
+): boolean {
+  if (event.status === "complete" || event.status === "failed") return false;
+  if (!outcomeAuthorized(lane, event.status)) return false;
+  if (access === "isolated-write" && event.processStarted !== false) {
+    return (
+      event.inspection?.state === "clear" &&
+      event.inspection.evidenceRef.trim().length > 0
+    );
+  }
+  return true;
+}
 
 export function nextAttempt(
   lane: LanePolicy,
@@ -613,11 +729,23 @@ export function nextAttempt(
   const last = events.at(-1);
   if (last !== undefined) {
     if (last.status === "failed") return { kind: "stop", reason: "not-eligible" };
+    if (!outcomeAuthorized(lane, last.status)) {
+      return { kind: "stop", reason: "not-eligible" };
+    }
     if (
       access === "isolated-write" &&
       last.processStarted !== false
     ) {
-      return { kind: "inspect", reason: "started-writer" };
+      const inspection = last.inspection;
+      if (inspection?.state === "unsafe") {
+        return { kind: "stop", reason: "unsafe-writer" };
+      }
+      if (
+        inspection?.state !== "clear" ||
+        inspection.evidenceRef.trim().length === 0
+      ) {
+        return { kind: "inspect", reason: "started-writer" };
+      }
     }
   }
   for (let index = (last?.attemptIndex ?? -1) + 1; index < lane.attempts.length; index += 1) {

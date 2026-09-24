@@ -1,20 +1,28 @@
 # Open Pstack, maintained by Arjit
 
-An independently maintained Pstack distribution for Codex and Claude Code. It builds on Lauren Tan's original Pstack and Eric Litman's Open Pstack port, with Devin and Cursor workers, flexible provider setup, and tested releases. Cursor changes are tracked directly; adoption does not depend on another port merging them.
+This Open Pstack distribution lets Codex and Claude Code coordinate coding work across the AI subscriptions you already have. Arjit Jaiswal maintains it as an intelligent model router built around Pstack's engineering workflows.
 
-See [why use this distribution](docs/distribution.md), [compatibility and release evidence](docs/compatibility.md), and [upstream status](UPSTREAM.md).
+`setup-pstack` checks provider and model access, asks about subscriptions it cannot verify, and recommends models for implementation, investigation, and review. You approve the assignments and backup chains during setup. Pstack then routes workers to those models and uses approved backups for supported quota failures. Broader recovery with automatic inspection and visible failure notices is being validated for the next release.
+
+This repository maintains its own provider integrations, recovery behavior, and tested releases while tracking Cursor's Pstack directly. It builds on Lauren Tan's original Pstack and Eric Litman's Open Pstack port, with their attribution preserved.
+
+See [release evidence and recovery limits](docs/compatibility.md), [why use this distribution](docs/distribution.md), and [upstream status](UPSTREAM.md).
 
 [![CI](https://github.com/arjitj2/open-pstack/actions/workflows/ci.yml/badge.svg)](https://github.com/arjitj2/open-pstack/actions/workflows/ci.yml)
 [![Latest release](https://img.shields.io/github/v/release/arjitj2/open-pstack)](https://github.com/arjitj2/open-pstack/releases/latest)
 [![MIT license](https://img.shields.io/github/license/arjitj2/open-pstack)](LICENSE)
 
-**Open Pstack brings [Lauren Tan (@poteto)](https://x.com/poteto)'s [pstack](https://github.com/cursor/plugins/tree/main/pstack) to Claude Code and Codex.** It preserves the original workflows where they fit and documents the adaptations needed by these hosts and external providers.
+## Why use this distribution
 
-Lauren built pstack from the skills she uses to ship code at Cursor. In a [55-minute interview with Denis Labelle](https://x.com/DenisLabelle/status/2091337807939706928), she says that she shipped 1,000 pull requests in one month after steadily improving how her agents work and verify their results.
+- Match models to the work and the subscriptions you have. Setup considers task fit, confirmed access, capacity where known, and the effort level you choose.
+- Check the routes you will actually use. Setup verifies selected models through their native app or signed-in CLI. An unused provider does not block setup.
+- Combine Codex, Claude, Grok, Devin SWE-2 or SWE-1.6, and Cursor CLI workers. Keep one set of engineering skills across Codex and Claude Code.
+- Save backup chains instead of choosing a replacement during a failure. Recovery follows your saved policy, reports the actual provider and model, and respects your API-spend settings.
+- Follow Cursor's Pstack directly. Scheduled checks detect changes and prepare proposals. Adaptation, review, and real Codex and Claude Code checks come before a release.
 
-> If you want to go fast, go deep first.
+Routing follows the role assignments you approve. Setup recommends a mix based on task fit and confirmed access. The saved policy controls which models run and when a backup can take over.
 
-Open Pstack is an unofficial community project that makes pstack work in Claude Code and Codex. If Cursor is your main coding environment, use [Lauren's original pstack](https://github.com/cursor/plugins/tree/main/pstack). If Claude Code or Codex is your main coding environment, use this repository.
+The current stable release has limited quota fallback support. All-provider quota recognition and recovery from other terminal backend failures are being validated in [issue #12](https://github.com/arjitj2/open-pstack/issues/12). See [compatibility](docs/compatibility.md) for what the installed release supports.
 
 ## What pstack does
 
@@ -36,7 +44,7 @@ pstack does not ask you to trust an agent on day one. It helps the agent leave e
 
 ## Install
 
-You need a current Claude Code or Codex installation. For the full three-model review, install and sign in to the Claude Code, Codex, and Grok command-line tools. [Bun](https://bun.sh) runs the small local tool that starts models outside the app you are using. You can still use the core workflows with fewer models.
+Start with a current Claude Code or Codex installation. Install and sign in to the command-line tools for the external providers you choose; unused providers are optional. [Bun](https://bun.sh) runs Pstack's local routing tools. Setup checks access before saving your model choices.
 
 ### Claude Code
 
@@ -84,13 +92,13 @@ In Codex, ask:
 Use pstack:setup-pstack to configure pstack.
 ```
 
-Setup checks the models you can actually run, asks about the subscription access it cannot observe, shows how each one will start, and asks before saving the choices. Every selected provider needs included funding or explicit approval for metered API spend; remaining capacity may stay unknown. The current default group uses GPT-5.6 Sol, Grok 4.7, and Opus.
+Setup discovers the models you can run, asks about subscriptions it cannot verify, and recommends assignments for each role. It shows which models will run natively and which will use external workers, then asks before saving. Included subscription access and permission for metered API spending are recorded separately; unknown remaining capacity stays unknown.
 
-Setup can also record an explicit ordered fallback (`primary -> fallback`, at most three attempts) per seat in the same sheet. Each run freezes that sheet and consults the shared policy helper before every attempt. A seat advances only on a supported `usage-exhausted` signal: exact Codex and Grok CLI terminal shapes in this release, or an explicit native-host capacity failure. Claude, Cursor, and Devin CLI quota errors currently remain ordinary dropouts, as do generic errors. A single descriptor authorizes no fallback, an unauthorized route stops, and the saved `apiSpend` choice accompanies every policy-enabled external attempt.
+You can save an ordered backup chain for each role, with up to three attempts. During a run, Pstack follows those approved choices and reports substitutions. Recovery depends on the installed release and saved policy; see [recovery support and validation](docs/compatibility.md). In the current stable release, a worker that may have changed files pauses the lane for inspection rather than triggering a blind replay.
 
-An older model sheet starts using the rolling aliases in memory as soon as this release is installed. Run setup once after updating to persist that migration. It replaces versioned Fable, Opus, and Sonnet entries while preserving every role assignment and effort selection.
+Only selected providers need to pass setup. You can mix providers across implementation, investigation, and review or keep the configuration small. See the [model matrix](plugins/pstack/skills/poteto-mode/references/provider-dispatch.md#model-matrix) for supported models and effort levels.
 
-Fable, Sonnet, GPT-6 Astra, GPT-5.6 Luna, and GPT-5.6 Terra are also available as opt-in role assignments in setup. They do not change the three-family first-run defaults. Only assigned families are probed; native probes and smoke candidates run within available agent capacity.
+Setup also migrates older versioned Fable, Opus, and Sonnet entries to rolling aliases while preserving role assignments and effort. Run setup after an update to persist that migration.
 
 ### 2. Use poteto-mode
 
@@ -173,7 +181,7 @@ The stable release `v1.4.1-arjit.4` incorporates pstack 0.15.5 at Cursor commit 
 
 The two projects have separate version numbers. The pstack version identifies Lauren's upstream content. The Open Pstack version identifies the Claude Code and Codex package built from it.
 
-In this repository, “upstream” means Lauren's original pstack. Open Pstack does not promise instant updates. It records the exact version it follows, reviews new changes in order, and changes only what Claude Code and Codex require. This distribution owns its release decisions. Useful fixes from other ports are reviewed separately. Pending Cursor changes remain visible until they are adopted, adapted, or excluded with a reason.
+In this repository, “upstream” means Lauren's original pstack. Open Pstack does not promise instant updates. It records the exact version it follows, reviews new changes in order, and adapts them for the shared Codex and Claude Code workflows. This distribution also maintains its own provider discovery, model routing, and recovery features, with independent release decisions. Useful fixes from other ports are reviewed separately. Pending Cursor changes remain visible until they are adopted, adapted, or excluded with a reason.
 
 ## Contributing
 

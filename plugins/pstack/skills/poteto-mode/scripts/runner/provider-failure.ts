@@ -19,57 +19,81 @@ export class ProviderTerminalError extends Error {
   }
 }
 
-// Codex evidence (first-party source):
-//   - codex-rs/exec/src/exec_events.rs @f8c6026c: terminal stream events are
-//     `turn.failed` (TurnFailedEvent { error: ThreadErrorEvent }) and `error`
-//     (ThreadErrorEvent, "unrecoverable error emitted directly by the event
-//     stream"). ThreadErrorEvent carries `message: String` only — there is NO
-//     machine code field.
-//   - codex-rs/protocol/src/error.rs @9d8de196: the details that translate to
-//     CodexErrorInfo::UsageLimitExceeded are UsageLimitReached and
-//     QuotaExceeded; their Display strings are the canonical terminal quota
-//     diagnostics below. UsageNotIncluded is an entitlement/upgrade gate, not
-//     exhaustion of available capacity, and RateLimitExceeded is retryable,
-//     while ServerOverloaded/SessionBudgetExceeded are not account quota — all
-//     deliberately excluded.
-// Grok evidence (first-party source, xai-org/grok-build @f0e3be11):
-//   - crates/codegen/xai-grok-shell/src/sampling/error.rs: the backend
-//     `subscription:free-usage-exhausted` code maps uniquely to
-//     FREE_USAGE_USER_MESSAGE, the canonical diagnostic below.
-//   - crates/codegen/xai-grok-pager/src/headless/reducer/messages/mod.rs: the
-//     streaming-messages-json terminal error is emitted as
-//     {type:"result", subtype:"error_during_execution", is_error:true,
-//     errors:[message]}.
-
-// Canonical terminal quota diagnostics (lowercased, ASCII-apostrophe
-// normalized). A turn.failed/error message counts as quota only when one of
-// these starts the message or starts the text immediately after a ": "
-// boundary — matching the optional "{prefix}: {message}" wrapping Codex applies
-// when surfacing the error. Quoted or embedded occurrences do not match.
+// Canonical Codex terminal quota diagnostics (normalized). Only the
+// UsageLimitReached/QuotaExceeded Display strings count — UsageNotIncluded is
+// an entitlement gate, RateLimitExceeded is retryable, and
+// ServerOverloaded/SessionBudgetExceeded are not account quota. Source
+// provenance for every adapter lives in references/provider-dispatch.md.
 const CODEX_QUOTA_DIAGNOSTICS = [
-  // UsageLimitReached family (all plan/promo/limit-name variants share these
-  // stems, including the workspace credits and spend-cap variants).
   "you've hit your usage limit",
   "your workspace is out of credits.",
   "you hit your spend cap set",
-  // QuotaExceeded
   "quota exceeded. check your plan and billing details.",
 ] as const;
+
+// Codex continues these diagnostics with "." or " " ("usage limit. Visit ...",
+// "spend cap set by ..."); anything else is an unproven continuation.
+const CODEX_DIAGNOSTIC_SEPARATORS = [".", " "] as const;
 
 function normalizeDiagnosticText(message: string): string {
   return message.trim().toLowerCase().replaceAll("’", "'");
 }
 
+function beginsWithDiagnostic(
+  text: string,
+  diagnostic: string,
+  separators: readonly string[]
+): boolean {
+  if (!text.startsWith(diagnostic)) return false;
+  const rest = text.slice(diagnostic.length);
+  return (
+    rest.length === 0 ||
+    separators.some((separator) => rest.startsWith(separator))
+  );
+}
+
+function stderrLines(stderr: string): string[] {
+  return stderr
+    .replaceAll(/\u001b\[[0-9;?]*[ -/]*[@-~]/g, "")
+    .split("\n")
+    .map((line) => line.replaceAll("\r", "").trim())
+    .filter((line) => line.length > 0);
+}
+
+// A caller-provided terminal envelope is trusted: a recognizably successful
+// terminal frame means the attempt did not die of exhaustion and must veto any
+// channel diagnostic. A result envelope counts only through the provider's
+// declared success subtype — a bare is_error:false object proves nothing.
+function isSuccessfulTerminalEnvelope(value: unknown): boolean {
+  const event = object(value);
+  if (event === null) return false;
+  if (event.type === "turn.completed") return true;
+  if (event.type === "result") {
+    return event.subtype === "success" && event.is_error !== true;
+  }
+  return false;
+}
+
+// Only these source-proven Codex wrappers may expose a diagnostic after their
+// ": " boundary: exec retries surface the final failure as
+// "stream disconnected after retries: {message}". Any other "{context}: "
+// prefix (authentication, rate limit, model) is unproven, so a wrapped
+// diagnostic inside it never classifies. Quoted or embedded occurrences still
+// do not match.
+const CODEX_MESSAGE_WRAPPERS = ["stream disconnected after retries: "] as const;
+
 function isCodexQuotaMessage(message: string): boolean {
   const normalized = normalizeDiagnosticText(message);
   const segments = [normalized];
-  let index = normalized.indexOf(": ");
-  while (index >= 0) {
-    segments.push(normalized.slice(index + 2));
-    index = normalized.indexOf(": ", index + 2);
+  for (const wrapper of CODEX_MESSAGE_WRAPPERS) {
+    if (normalized.startsWith(wrapper)) {
+      segments.push(normalized.slice(wrapper.length));
+    }
   }
   return segments.some((segment) =>
-    CODEX_QUOTA_DIAGNOSTICS.some((diagnostic) => segment.startsWith(diagnostic))
+    CODEX_QUOTA_DIAGNOSTICS.some((diagnostic) =>
+      beginsWithDiagnostic(segment, diagnostic, CODEX_DIAGNOSTIC_SEPARATORS)
+    )
   );
 }
 
@@ -105,6 +129,9 @@ function codexTerminalEvent(events: readonly JsonObject[]): CodexTerminal | null
   return terminal;
 }
 
+// The backend `subscription:free-usage-exhausted` code maps uniquely to this
+// message; the terminal error shape is {type:"result",
+// subtype:"error_during_execution", is_error:true, errors:[message]}.
 const GROK_FREE_USAGE_MESSAGE = normalizeDiagnosticText(
   "You\u2019ve reached your free Grok Build usage limit for now. Get SuperGrok for much higher limits, or try again later: https://grok.com/supergrok?referrer=grok-build"
 );
@@ -141,6 +168,23 @@ export interface TerminalClassification {
 
 const UNKNOWN: TerminalClassification = { status: null, code: null, evidence: "" };
 
+// Every adapter sees the same process outcome: the raw captures, the child
+// exit code, and — only when the caller already parsed a trusted terminal
+// envelope (a thrown ProviderTerminalError) — that envelope. An adapter reads
+// only the channels its provider protocol actually carries; unrecognized
+// input stays UNKNOWN and never triggers fallback.
+export interface ProviderProcessOutcome {
+  readonly stdout: string;
+  readonly stderr: string;
+  readonly exitCode: number | null;
+  readonly terminalEnvelope?: unknown;
+}
+
+interface QuotaAdapter {
+  classify(outcome: ProviderProcessOutcome): TerminalClassification;
+  succeeded(outcome: ProviderProcessOutcome): boolean;
+}
+
 function classifyCodexTerminal(terminal: CodexTerminal): TerminalClassification {
   if (terminal.kind === "completed" || terminal.message === null) return UNKNOWN;
   if (!isCodexQuotaMessage(terminal.message)) return UNKNOWN;
@@ -173,47 +217,321 @@ function classifyGrokResult(result: JsonObject): TerminalClassification {
   };
 }
 
+const codexAdapter: QuotaAdapter = {
+  classify(outcome) {
+    if (outcome.terminalEnvelope !== undefined) {
+      const event = object(outcome.terminalEnvelope);
+      if (event === null || (event.type !== "turn.failed" && event.type !== "error")) {
+        return UNKNOWN;
+      }
+      const terminal = codexTerminalEvent([event]);
+      return terminal === null ? UNKNOWN : classifyCodexTerminal(terminal);
+    }
+    const terminal = codexTerminalEvent(jsonObjects(outcome.stdout));
+    return terminal === null ? UNKNOWN : classifyCodexTerminal(terminal);
+  },
+  succeeded(outcome) {
+    const events =
+      outcome.terminalEnvelope !== undefined
+        ? [object(outcome.terminalEnvelope)].filter(
+            (event): event is JsonObject => event !== null
+          )
+        : jsonObjects(outcome.stdout);
+    return codexTerminalEvent(events)?.kind === "completed";
+  },
+};
+
+const grokAdapter: QuotaAdapter = {
+  classify(outcome) {
+    if (outcome.terminalEnvelope !== undefined) {
+      const event = object(outcome.terminalEnvelope);
+      return event === null ? UNKNOWN : classifyGrokResult(event);
+    }
+    const result = grokTerminalResult(jsonObjects(outcome.stdout));
+    return result === null ? UNKNOWN : classifyGrokResult(result);
+  },
+  succeeded(outcome) {
+    if (outcome.terminalEnvelope !== undefined) {
+      return isSuccessfulTerminalEnvelope(outcome.terminalEnvelope);
+    }
+    const result = grokTerminalResult(jsonObjects(outcome.stdout));
+    return result !== null && isSuccessfulTerminalEnvelope(result);
+  },
+};
+
+// Claude's terminal quota proof is the complete errored api_error result
+// envelope (verified against a captured real exhaustion); subtype alone or a
+// bare 429 never classify, and a later successful result supersedes. The
+// composer renders `You've hit your ${name}${tail}` and
+// `You're out of usage credits${tail}` where tail is empty or begins " · ",
+// so that separator or end-of-text is the only proven diagnostic boundary.
+// Unproven names, `errors`-carrying subtypes, entitlement/seat-tier text, and
+// non-429 api_error frames fail closed.
+const CLAUDE_QUOTA_DIAGNOSTICS = [
+  "you've hit your session limit",
+  "you've hit your weekly limit",
+  "you've hit your opus limit",
+  "you've hit your sonnet limit",
+  "you've hit your fable limit",
+  "you've hit your usage credit limit",
+  "you've hit your usage limit",
+  "you've hit your limit",
+  "you've hit your team's shared budget",
+  "you've hit your monthly spend limit",
+  "you've hit your org's monthly spend limit",
+  "you've hit your org's monthly usage limit",
+  "you're out of usage credits",
+] as const;
+
+const CLAUDE_DIAGNOSTIC_SEPARATORS = [" \u00b7 "] as const;
+
+function isClaudeQuotaDiagnostic(message: string): boolean {
+  const normalized = normalizeDiagnosticText(message);
+  return CLAUDE_QUOTA_DIAGNOSTICS.some((diagnostic) =>
+    beginsWithDiagnostic(normalized, diagnostic, CLAUDE_DIAGNOSTIC_SEPARATORS)
+  );
+}
+
+function classifyClaudeResult(result: JsonObject): TerminalClassification {
+  if (
+    result.type !== "result" ||
+    result.is_error !== true ||
+    result.terminal_reason !== "api_error" ||
+    result.api_error_status !== 429 ||
+    typeof result.result !== "string" ||
+    !isClaudeQuotaDiagnostic(result.result)
+  ) {
+    return UNKNOWN;
+  }
+  return {
+    status: "usage-exhausted",
+    code: "claude_usage_limit_exceeded",
+    evidence: JSON.stringify(result).slice(0, 2_000),
+  };
+}
+
+function claudeTerminalResult(events: readonly JsonObject[]): JsonObject | null {
+  let result: JsonObject | null = null;
+  for (const event of events) {
+    if (event.type === "result") result = event;
+  }
+  return result;
+}
+
+const claudeAdapter: QuotaAdapter = {
+  classify(outcome) {
+    if (outcome.terminalEnvelope !== undefined) {
+      const event = object(outcome.terminalEnvelope);
+      return event === null ? UNKNOWN : classifyClaudeResult(event);
+    }
+    const result = claudeTerminalResult(jsonObjects(outcome.stdout));
+    return result === null ? UNKNOWN : classifyClaudeResult(result);
+  },
+  succeeded(outcome) {
+    if (outcome.terminalEnvelope !== undefined) {
+      return isSuccessfulTerminalEnvelope(outcome.terminalEnvelope);
+    }
+    const result = claudeTerminalResult(jsonObjects(outcome.stdout));
+    return result !== null && isSuccessfulTerminalEnvelope(result);
+  },
+};
+
+// Devin `--print` failures surface as one stderr `Error: <Display>` frame at
+// a nonzero exit. The quota contract is exactly `Error: Quota exhausted:
+// <canonical>` or `Error: <canonical>`: the `Quota exhausted:` prefix alone
+// can wrap unrelated detail, a canonical sentence nested inside another
+// Display (auth, rate, transport) is not the top-level frame, and multiple
+// `Error:` frames are ambiguous. A trusted successful terminal envelope
+// vetoes; Devin has no proven stdout result protocol (the ATIF transcript is
+// a separate export file), so an envelope can only veto, never prove quota.
+const DEVIN_QUOTA_PREFIX = "quota exhausted:";
+const DEVIN_CAP_SENTENCES = [
+  "you've reached your monthly usage limit. wait for the limit to reset next month.",
+  "your organization has reached its monthly usage limit. ask an account admin to raise it, or wait for the limit to reset next month.",
+  "usage quota has been exhausted",
+] as const;
+
+function isDevinQuotaDetail(detail: string): boolean {
+  const inner = detail.startsWith(DEVIN_QUOTA_PREFIX)
+    ? detail.slice(DEVIN_QUOTA_PREFIX.length).trim()
+    : detail;
+  return (DEVIN_CAP_SENTENCES as readonly string[]).some(
+    (sentence) => inner === sentence
+  );
+}
+
+const devinAdapter: QuotaAdapter = {
+  succeeded(outcome) {
+    return (
+      outcome.terminalEnvelope !== undefined &&
+      isSuccessfulTerminalEnvelope(outcome.terminalEnvelope)
+    );
+  },
+  classify(outcome) {
+    if (
+      outcome.terminalEnvelope !== undefined &&
+      isSuccessfulTerminalEnvelope(outcome.terminalEnvelope)
+    ) {
+      return UNKNOWN;
+    }
+    if (outcome.exitCode === null || outcome.exitCode === 0) return UNKNOWN;
+    const frames = stderrLines(outcome.stderr).filter((line) =>
+      line.startsWith("Error:")
+    );
+    if (frames.length !== 1) return UNKNOWN;
+    const detail = normalizeDiagnosticText(frames[0].slice("Error:".length));
+    if (!isDevinQuotaDetail(detail)) return UNKNOWN;
+    return {
+      status: "usage-exhausted",
+      code: "devin_quota_exhausted",
+      evidence: outcome.stderr.trim().slice(0, 2_000),
+    };
+  },
+};
+
+// Cursor's headless error path prints a single `ClassError: <message>`
+// frame on stderr and exits nonzero; success writes a result envelope on
+// stdout. FREE_USER_USAGE_LIMIT and PRO_USER_USAGE_LIMIT share
+// ActionRequiredError with rate-limit, login, payment, and pro-only errors,
+// so the class alone proves nothing: exactly one error frame is required
+// (multiple frames are contradictory) and its message must begin with the
+// documented cap diagnostic at a separator boundary. A successful stdout
+// result envelope or trusted terminal envelope vetoes; invented structured
+// codes and generic upgrade/rate/auth strings never classify.
+const CURSOR_QUOTA_DIAGNOSTIC = "you've hit your usage limit";
+const CURSOR_DIAGNOSTIC_SEPARATORS = [" ", "."] as const;
+const CURSOR_ERROR_CLASS = "ActionRequiredError:";
+const CURSOR_ERROR_FRAME = /^\S*Error:/;
+
+const cursorAdapter: QuotaAdapter = {
+  succeeded(outcome) {
+    if (
+      outcome.terminalEnvelope !== undefined &&
+      isSuccessfulTerminalEnvelope(outcome.terminalEnvelope)
+    ) {
+      return true;
+    }
+    for (const event of jsonObjects(outcome.stdout)) {
+      if (
+        event.type === "result" &&
+        event.subtype === "success" &&
+        event.is_error === false
+      ) {
+        return true;
+      }
+    }
+    return false;
+  },
+  classify(outcome) {
+    if (
+      outcome.terminalEnvelope !== undefined &&
+      isSuccessfulTerminalEnvelope(outcome.terminalEnvelope)
+    ) {
+      return UNKNOWN;
+    }
+    if (outcome.exitCode === null || outcome.exitCode === 0) return UNKNOWN;
+    for (const event of jsonObjects(outcome.stdout)) {
+      if (
+        event.type === "result" &&
+        event.subtype === "success" &&
+        event.is_error === false
+      ) {
+        return UNKNOWN;
+      }
+    }
+    const frames = stderrLines(outcome.stderr).filter((line) =>
+      CURSOR_ERROR_FRAME.test(line)
+    );
+    if (frames.length !== 1) return UNKNOWN;
+    const frame = frames[0];
+    if (!frame.startsWith(CURSOR_ERROR_CLASS)) return UNKNOWN;
+    const detail = normalizeDiagnosticText(
+      frame.slice(CURSOR_ERROR_CLASS.length)
+    );
+    if (
+      !beginsWithDiagnostic(
+        detail,
+        CURSOR_QUOTA_DIAGNOSTIC,
+        CURSOR_DIAGNOSTIC_SEPARATORS
+      )
+    ) {
+      return UNKNOWN;
+    }
+    return {
+      status: "usage-exhausted",
+      code: "cursor_usage_limit_exceeded",
+      evidence: frame.slice(0, 2_000),
+    };
+  },
+};
+
+const QUOTA_ADAPTERS: Readonly<Record<Provider, QuotaAdapter>> = {
+  claude: claudeAdapter,
+  codex: codexAdapter,
+  grok: grokAdapter,
+  devin: devinAdapter,
+  cursor: cursorAdapter,
+};
+
+export class QuotaAdapterNotImplementedError extends Error {
+  readonly provider: string;
+  constructor(provider: string) {
+    super(
+      `no quota adapter implemented for provider ${JSON.stringify(provider)}`
+    );
+    this.name = "QuotaAdapterNotImplementedError";
+    this.provider = provider;
+  }
+}
+
+function adapterFor(provider: Provider): QuotaAdapter {
+  // An adversarial or future provider name ("toString", "__proto__", ...)
+  // must not resolve through Object.prototype: require an own registry entry
+  // with a callable classifier.
+  const adapter: QuotaAdapter | undefined = Object.prototype.hasOwnProperty.call(
+    QUOTA_ADAPTERS,
+    provider
+  )
+    ? QUOTA_ADAPTERS[provider]
+    : undefined;
+  if (
+    adapter === undefined ||
+    typeof adapter.classify !== "function" ||
+    typeof adapter.succeeded !== "function"
+  ) {
+    throw new QuotaAdapterNotImplementedError(provider);
+  }
+  return adapter;
+}
+
+export function assertQuotaAdapter(provider: Provider): void {
+  adapterFor(provider);
+}
+
+export function classifyProcessOutcome(
+  provider: Provider,
+  outcome: ProviderProcessOutcome
+): TerminalClassification {
+  return adapterFor(provider).classify(outcome);
+}
+
+export function hasTerminalSuccess(
+  provider: Provider,
+  outcome: ProviderProcessOutcome
+): boolean {
+  return adapterFor(provider).succeeded(outcome);
+}
+
 export function classifyTerminalEnvelope(
   provider: Provider,
   envelope: unknown
 ): TerminalClassification {
-  const event = object(envelope);
-  if (event === null) return UNKNOWN;
-  switch (provider) {
-    case "codex": {
-      if (event.type === "turn.failed" || event.type === "error") {
-        const terminal = codexTerminalEvent([event]);
-        return terminal === null ? UNKNOWN : classifyCodexTerminal(terminal);
-      }
-      return UNKNOWN;
-    }
-    case "grok":
-      return classifyGrokResult(event);
-    default:
-      return UNKNOWN;
-  }
-}
-
-export function classifyTerminalOutput(
-  provider: Provider,
-  stdout: string,
-  stderr: string
-): TerminalClassification {
-  // The verified structured protocol stream for both supported providers is
-  // stdout; stderr is diagnostics and can never override a stdout terminal.
-  const events = jsonObjects(stdout);
-  switch (provider) {
-    case "codex": {
-      const terminal = codexTerminalEvent(events);
-      return terminal === null ? UNKNOWN : classifyCodexTerminal(terminal);
-    }
-    case "grok": {
-      const result = grokTerminalResult(events);
-      return result === null ? UNKNOWN : classifyGrokResult(result);
-    }
-    default:
-      return UNKNOWN;
-  }
+  return adapterFor(provider).classify({
+    stdout: "",
+    stderr: "",
+    exitCode: 0,
+    terminalEnvelope: envelope,
+  });
 }
 
 // Only credential/control names are reported. Provider-managed overage and

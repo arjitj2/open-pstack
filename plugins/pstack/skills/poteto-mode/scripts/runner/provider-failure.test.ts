@@ -1,10 +1,15 @@
 import { describe, expect, it } from "bun:test";
 import {
+  QuotaAdapterNotImplementedError,
+  assertQuotaAdapter,
   apiCredentialTakeover,
+  classifyProcessOutcome,
   classifyTerminalEnvelope,
-  classifyTerminalOutput,
+  hasTerminalSuccess,
   subscriptionAuthEvidence,
+  type ProviderProcessOutcome,
 } from "./provider-failure.ts";
+import { PROVIDERS, type Provider } from "./types.ts";
 
 // Canonical terminal quota diagnostic emitted by Codex
 // (codex-rs/protocol/src/error.rs @9d8de196, UsageLimitReached for a
@@ -13,6 +18,10 @@ import {
 // the CLI does not emit a machine code.
 const CODEX_QUOTA_MESSAGE =
   "You’ve hit your usage limit. Visit https://chatgpt.com/codex/settings/usage to purchase more credits or try again later.";
+
+function outcome(partial: Partial<ProviderProcessOutcome>): ProviderProcessOutcome {
+  return { stdout: "", stderr: "", exitCode: 1, ...partial };
+}
 
 describe("codex terminal quota classification", () => {
   it("recognizes the canonical Codex quota diagnostic on a failed turn", () => {
@@ -24,7 +33,7 @@ describe("codex terminal quota classification", () => {
       `stream disconnected after retries: ${CODEX_QUOTA_MESSAGE}`,
     ]) {
       const stream = JSON.stringify({ type: "turn.failed", error: { message } });
-      const result = classifyTerminalOutput("codex", stream, "");
+      const result = classifyProcessOutcome("codex", outcome({ stdout: stream }));
       expect(result.status, message).toBe("usage-exhausted");
       expect(result.code).toBe("codex_usage_limit_exceeded");
     }
@@ -32,7 +41,7 @@ describe("codex terminal quota classification", () => {
 
   it("recognizes a quota diagnostic in an unrecoverable stream error event", () => {
     const stream = JSON.stringify({ type: "error", message: CODEX_QUOTA_MESSAGE });
-    expect(classifyTerminalOutput("codex", stream, "").status).toBe("usage-exhausted");
+    expect(classifyProcessOutcome("codex", outcome({ stdout: stream })).status).toBe("usage-exhausted");
   });
 
   it("lets a final turn.completed win over an earlier failed or error event", () => {
@@ -42,7 +51,7 @@ describe("codex terminal quota classification", () => {
       JSON.stringify({ type: "error", message: CODEX_QUOTA_MESSAGE }),
     ]) {
       expect(
-        classifyTerminalOutput("codex", `${earlier}\n${completed}`, "").status
+        classifyProcessOutcome("codex", outcome({ stdout: `${earlier}\n${completed}` })).status
       ).toBeNull();
     }
   });
@@ -51,10 +60,10 @@ describe("codex terminal quota classification", () => {
     const failed = JSON.stringify({ type: "turn.failed", error: { message: CODEX_QUOTA_MESSAGE } });
     const completed = JSON.stringify({ type: "turn.completed", usage: {} });
     expect(
-      classifyTerminalOutput("codex", completed, failed).status
+      classifyProcessOutcome("codex", outcome({ stdout: completed, stderr: failed })).status
     ).toBeNull();
     expect(
-      classifyTerminalOutput("codex", "", failed).status
+      classifyProcessOutcome("codex", outcome({ stderr: failed })).status
     ).toBeNull();
   });
 
@@ -66,20 +75,20 @@ describe("codex terminal quota classification", () => {
         text: JSON.stringify({ code: "insufficient_quota" }),
       },
     });
-    expect(classifyTerminalOutput("codex", generated, "").status).toBeNull();
+    expect(classifyProcessOutcome("codex", outcome({ stdout: generated })).status).toBeNull();
 
     const proseQuota = JSON.stringify({
       type: "item.completed",
       item: { type: "agent_message", text: CODEX_QUOTA_MESSAGE },
     });
     const done = JSON.stringify({ type: "turn.completed", usage: {} });
-    expect(classifyTerminalOutput("codex", `${proseQuota}\n${done}`, "").status).toBeNull();
+    expect(classifyProcessOutcome("codex", outcome({ stdout: `${proseQuota}\n${done}` })).status).toBeNull();
 
     const itemError = JSON.stringify({
       type: "item.completed",
       item: { type: "error", message: CODEX_QUOTA_MESSAGE },
     });
-    expect(classifyTerminalOutput("codex", itemError, "").status).toBeNull();
+    expect(classifyProcessOutcome("codex", outcome({ stdout: itemError })).status).toBeNull();
   });
 
   it("refuses quoted, generic, and non-quota terminal messages", () => {
@@ -96,16 +105,50 @@ describe("codex terminal quota classification", () => {
     ]) {
       const stream = JSON.stringify({ type: "turn.failed", error: { message } });
       expect(
-        classifyTerminalOutput("codex", stream, "").status,
+        classifyProcessOutcome("codex", outcome({ stdout: stream })).status,
         message
       ).toBeNull();
     }
     expect(
-      classifyTerminalOutput("codex", "You exceeded your current quota", "").status
+      classifyProcessOutcome("codex", outcome({ stdout: "You exceeded your current quota" })).status
     ).toBeNull();
     expect(
-      classifyTerminalOutput("codex", "", "HTTP 429 too many requests").status
+      classifyProcessOutcome("codex", outcome({ stderr: "HTTP 429 too many requests" })).status
     ).toBeNull();
+  });
+
+  it("requires the message end or a documented separator after the diagnostic", () => {
+    for (const message of [
+      "You've hit your usage limitless plan",
+      "You hit your spend cap setup by the workspace",
+      "Your workspace is out of credits.x please retry",
+      "Quota exceeded. Check your plan and billing details.x",
+      `prefix: You've hit your usage limitless plan`,
+    ]) {
+      const stream = JSON.stringify({ type: "turn.failed", error: { message } });
+      expect(
+        classifyProcessOutcome("codex", outcome({ stdout: stream })).status,
+        message
+      ).toBeNull();
+    }
+  });
+
+  it("rejects quota diagnostics hidden behind unproven auth, rate, or model wrappers", () => {
+    for (const message of [
+      "Authentication required: You've hit your usage limit. Please log in",
+      `Rate limited: ${CODEX_QUOTA_MESSAGE}`,
+      `Model unavailable: ${CODEX_QUOTA_MESSAGE}`,
+      `upstream call failed: ${CODEX_QUOTA_MESSAGE}`,
+      `prefix: ${CODEX_QUOTA_MESSAGE}`,
+      `stream disconnected after retries: Authentication required: ${CODEX_QUOTA_MESSAGE}`,
+      `note: stream disconnected after retries: ${CODEX_QUOTA_MESSAGE}`,
+    ]) {
+      const stream = JSON.stringify({ type: "turn.failed", error: { message } });
+      expect(
+        classifyProcessOutcome("codex", outcome({ stdout: stream })).status,
+        message
+      ).toBeNull();
+    }
   });
 
   it("classifies the same envelope from a zero-exit terminal error result", () => {
@@ -135,14 +178,14 @@ describe("grok terminal quota classification", () => {
     };
     for (const classification of [
       classifyTerminalEnvelope("grok", result),
-      classifyTerminalOutput("grok", JSON.stringify(result), ""),
+      classifyProcessOutcome("grok", outcome({ stdout: JSON.stringify(result) })),
     ]) {
       expect(classification.status).toBe("usage-exhausted");
       expect(classification.code).toBe("grok_free_usage_exhausted");
     }
     const prefixed = JSON.stringify({ type: "assistant", message: { content: [] } });
     expect(
-      classifyTerminalOutput("grok", `${prefixed}\n${JSON.stringify(result)}`, "").status
+      classifyProcessOutcome("grok", outcome({ stdout: `${prefixed}\n${JSON.stringify(result)}` })).status
     ).toBe("usage-exhausted");
   });
 
@@ -160,7 +203,7 @@ describe("grok terminal quota classification", () => {
       result: "ok",
     });
     expect(
-      classifyTerminalOutput("grok", `${earlier}\n${success}`, "").status
+      classifyProcessOutcome("grok", outcome({ stdout: `${earlier}\n${success}` })).status
     ).toBeNull();
   });
 
@@ -171,7 +214,7 @@ describe("grok terminal quota classification", () => {
       is_error: false,
       result: `The error was: ${GROK_FREE_USAGE_MESSAGE}`,
     });
-    expect(classifyTerminalOutput("grok", generated, "").status).toBeNull();
+    expect(classifyProcessOutcome("grok", outcome({ stdout: generated })).status).toBeNull();
 
     for (const result of [
       { type: "result", subtype: "error_during_execution", is_error: true, errors: [`"${GROK_FREE_USAGE_MESSAGE}"`] },
@@ -188,29 +231,536 @@ describe("grok terminal quota classification", () => {
         JSON.stringify(result)
       ).toBeNull();
       expect(
-        classifyTerminalOutput("grok", JSON.stringify(result), "").status,
+        classifyProcessOutcome("grok", outcome({ stdout: JSON.stringify(result) })).status,
         JSON.stringify(result)
       ).toBeNull();
     }
-    expect(classifyTerminalOutput("grok", GROK_FREE_USAGE_MESSAGE, "").status).toBeNull();
+    expect(classifyProcessOutcome("grok", outcome({ stdout: GROK_FREE_USAGE_MESSAGE })).status).toBeNull();
   });
 });
 
-describe("other providers have no substantiated quota envelope", () => {
-  it("keeps structured quota-looking envelopes as ordinary failures", () => {
-    for (const [provider, envelope] of [
-      ["claude", { is_error: true, errors: [JSON.stringify({ type: "error", error: { type: "insufficient_quota" } })] }],
-      ["cursor", { type: "result", subtype: "error_during_execution", is_error: true }],
-      ["devin", { error: { code: "quota_exhausted" } }],
+// Sanitized capture of the real Claude 2.1.281 quota result recorded during
+// this change (exit 1): subtype stays "success" while is_error, the
+// api_error terminal reason, the 429 status, and the canonical diagnostic
+// together prove exhaustion.
+const CLAUDE_REAL_QUOTA = {
+  type: "result",
+  subtype: "success",
+  is_error: true,
+  api_error_status: 429,
+  terminal_reason: "api_error",
+  result: "You've hit your session limit \u00b7 resets 4pm (America/New_York)",
+};
+
+describe("claude terminal quota classification", () => {
+  it("recognizes the captured real quota envelope on stdout and as a terminal envelope", () => {
+    const stdout = JSON.stringify(CLAUDE_REAL_QUOTA);
+    for (const classification of [
+      classifyProcessOutcome("claude", outcome({ stdout })),
+      classifyTerminalEnvelope("claude", CLAUDE_REAL_QUOTA),
+    ]) {
+      expect(classification.status).toBe("usage-exhausted");
+      expect(classification.code).toBe("claude_usage_limit_exceeded");
+    }
+  });
+
+  it("recognizes the other source-proven rejected-limit diagnostics", () => {
+    for (const result of [
+      "You've hit your weekly limit \u00b7 resets Monday 9am (America/New_York)",
+      "You've hit your Opus limit \u00b7 resets Friday",
+      "You've hit your Sonnet limit",
+      "You've hit your Fable limit",
+      "You've hit your usage credit limit",
+      "You've hit your usage limit",
+      "You've hit your limit",
+      "You've hit your team's shared budget \u00b7 ask your admin to raise it at claude.ai/admin-settings/usage",
+      "You've hit your monthly spend limit \u00b7 raise it at claude.ai/settings/usage",
+      "You've hit your org's monthly spend limit \u00b7 ask your admin to raise it at claude.ai/admin-settings/usage",
+      "You've hit your org's monthly usage limit \u00b7 resets next month",
+      "You're out of usage credits \u00b7 resets tomorrow",
+    ]) {
+      const envelope = { ...CLAUDE_REAL_QUOTA, result };
+      expect(
+        classifyProcessOutcome("claude", outcome({ stdout: JSON.stringify(envelope) })).status,
+        result
+      ).toBe("usage-exhausted");
+    }
+  });
+
+  it("requires the full trustworthy errored api_error frame, not subtype or 429 alone", () => {
+    for (const envelope of [
+      { ...CLAUDE_REAL_QUOTA, is_error: false },
+      { ...CLAUDE_REAL_QUOTA, terminal_reason: "overloaded" },
+      { ...CLAUDE_REAL_QUOTA, api_error_status: 500 },
+      { ...CLAUDE_REAL_QUOTA, api_error_status: 403 },
+      { ...CLAUDE_REAL_QUOTA, terminal_reason: undefined, api_error_status: undefined },
+      { ...CLAUDE_REAL_QUOTA, result: "Request rejected (429) \u00b7 slow down" },
+      { ...CLAUDE_REAL_QUOTA, result: "insufficient_quota" },
+      { ...CLAUDE_REAL_QUOTA, result: `"${CLAUDE_REAL_QUOTA.result}"` },
+      { ...CLAUDE_REAL_QUOTA, result: `note: ${CLAUDE_REAL_QUOTA.result}` },
+      { type: "result", subtype: "error_during_execution", is_error: true, terminal_reason: "api_error", api_error_status: 429, errors: [CLAUDE_REAL_QUOTA.result] },
+      { type: "error", is_error: true, terminal_reason: "api_error", api_error_status: 429, result: CLAUDE_REAL_QUOTA.result },
+      { is_error: true, errors: [JSON.stringify({ type: "error", error: { type: "insufficient_quota" } })] },
+    ]) {
+      expect(
+        classifyProcessOutcome("claude", outcome({ stdout: JSON.stringify(envelope) })).status,
+        JSON.stringify(envelope)
+      ).toBeNull();
+      expect(
+        classifyTerminalEnvelope("claude", envelope).status,
+        JSON.stringify(envelope)
+      ).toBeNull();
+    }
+    expect(
+      classifyProcessOutcome("claude", outcome({ stdout: CLAUDE_REAL_QUOTA.result })).status
+    ).toBeNull();
+    expect(
+      classifyProcessOutcome("claude", outcome({ stderr: JSON.stringify(CLAUDE_REAL_QUOTA) })).status
+    ).toBeNull();
+  });
+
+  it("requires the message end or the composer's ` \u00b7 ` separator after the diagnostic", () => {
+    for (const result of [
+      "You've hit your session limitless requests",
+      "You've hit your usage limitless credits",
+      "You've hit your weekly limited-time offer",
+      "You've hit your limit, sorry",
+      "You're out of usage creditsville",
+    ]) {
+      const envelope = { ...CLAUDE_REAL_QUOTA, result };
+      expect(
+        classifyProcessOutcome("claude", outcome({ stdout: JSON.stringify(envelope) })).status,
+        result
+      ).toBeNull();
+      expect(classifyTerminalEnvelope("claude", envelope).status, result).toBeNull();
+    }
+  });
+
+  it("lets a later successful result supersede an earlier quota error", () => {
+    const success = JSON.stringify({
+      type: "result",
+      subtype: "success",
+      is_error: false,
+      result: "ok",
+    });
+    expect(
+      classifyProcessOutcome(
+        "claude",
+        outcome({ stdout: `${JSON.stringify(CLAUDE_REAL_QUOTA)}\n${success}` })
+      ).status
+    ).toBeNull();
+  });
+});
+
+describe("devin terminal quota classification", () => {
+  const monthly =
+    "You've reached your monthly usage limit. Wait for the limit to reset next month.";
+  const orgMonthly =
+    "Your organization has reached its monthly usage limit. Ask an account admin to raise it, or wait for the limit to reset next month.";
+
+  it("recognizes anchored Error: quota lines only on a nonzero exit", () => {
+    for (const stderr of [
+      `Error: Quota exhausted: ${monthly}`,
+      `Error: Quota exhausted: ${orgMonthly}`,
+      "Error: Quota exhausted: usage quota has been exhausted",
+      `Error: ${monthly}`,
+      `Error: ${orgMonthly}`,
+      "Error: usage quota has been exhausted",
+      `warning: retrying transport\nError: Quota exhausted: ${monthly}`,
+      `\u001b[31mError: Quota exhausted: ${monthly}\u001b[0m\r`,
+    ]) {
+      const result = classifyProcessOutcome("devin", outcome({ stderr }));
+      expect(result.status, stderr).toBe("usage-exhausted");
+      expect(result.code, stderr).toBe("devin_quota_exhausted");
+    }
+  });
+
+  it("requires a nonzero exit and refuses rate, auth, admin-pause, model, and prose shapes", () => {
+    const monthly =
+      "You've reached your monthly usage limit. Wait for the limit to reset next month.";
+    for (const value of [
+      outcome({ stderr: `Error: Quota exhausted: ${monthly}`, exitCode: 0 }),
+      outcome({ stderr: `Error: Quota exhausted: ${monthly}`, exitCode: null }),
+      outcome({ stderr: "Error: Rate limited: retry after 30 seconds" }),
+      outcome({ stderr: "Error: Authentication required: Sign in again to continue" }),
+      outcome({ stderr: "Error: An admin paused usage on your account. Ask them to resume it to continue." }),
+      outcome({ stderr: "Error: Unknown model: 'pstack-nonexistent-model'" }),
+      outcome({ stderr: "Error: HTTP 429 too many requests" }),
+      outcome({ stdout: `final answer: ${monthly}`, stderr: "" }),
+      outcome({ stdout: `Error: Quota exhausted: ${monthly}`, stderr: "" }),
+      outcome({ stderr: `Quota exhausted: ${monthly}` }),
+    ]) {
+      expect(
+        classifyProcessOutcome("devin", value).status,
+        JSON.stringify(value)
+      ).toBeNull();
+    }
+  });
+  it("refuses diagnostics nested inside auth, rate, or arbitrary Error: prefixes", () => {
+    const monthly =
+      "You've reached your monthly usage limit. Wait for the limit to reset next month.";
+    for (const stderr of [
+      "Error: Authentication required: usage quota has been exhausted",
+      `Error: Authentication required: ${monthly}`,
+      "Error: Rate limited: Quota exhausted: temporary burst",
+      "Error: Rate limited: Quota exhausted: usage quota has been exhausted",
+      "Error: upstream call failed: usage quota has been exhausted",
+      "Error: Quota exhausted: temporary burst",
+      "Error: Quota exhausted: usage quota has been exhausted. retry now",
+      "Error: Quota exhausted:",
+      "Error: Quota exhausted",
+      `Error: ${monthly} (simulated)`,
+      `Error: monthly acu limit reached`,
+    ]) {
+      expect(
+        classifyProcessOutcome("devin", outcome({ stderr })).status,
+        stderr
+      ).toBeNull();
+    }
+  });
+
+  it("rejects multiple stderr Error: frames as ambiguous", () => {
+    const monthly =
+      "You've reached your monthly usage limit. Wait for the limit to reset next month.";
+    for (const stderr of [
+      `Error: Rate limited: retry later\nError: Quota exhausted: ${monthly}`,
+      `Error: Quota exhausted: ${monthly}\nError: Authentication required: sign in`,
+      `Error: Quota exhausted: ${monthly}\nError: Quota exhausted: ${monthly}`,
+    ]) {
+      expect(
+        classifyProcessOutcome("devin", outcome({ stderr })).status,
+        stderr
+      ).toBeNull();
+    }
+  });
+
+  it("lets a trusted successful terminal envelope veto the stderr diagnostic", () => {
+    const monthly =
+      "You've reached your monthly usage limit. Wait for the limit to reset next month.";
+    for (const terminalEnvelope of [
+      { type: "result", subtype: "success", is_error: false, result: "done" },
+      { type: "result", subtype: "success" },
+      { type: "turn.completed", usage: {} },
+    ]) {
+      expect(
+        classifyProcessOutcome(
+          "devin",
+          outcome({
+            stderr: `Error: Quota exhausted: ${monthly}`,
+            terminalEnvelope,
+          })
+        ).status,
+        JSON.stringify(terminalEnvelope)
+      ).toBeNull();
+    }
+  });
+
+  it("does not let an unrecognized or errored terminal envelope veto the stderr contract", () => {
+    const monthly =
+      "You've reached your monthly usage limit. Wait for the limit to reset next month.";
+    for (const terminalEnvelope of [
+      { type: "result", is_error: true, errors: ["other"] },
+      { type: "result", subtype: "success", is_error: true },
+      { type: "result", is_error: false },
+      { type: "result", subtype: "error_during_execution", is_error: false },
+      { unexpected: true },
+    ]) {
+      expect(
+        classifyProcessOutcome(
+          "devin",
+          outcome({
+            stderr: `Error: Quota exhausted: ${monthly}`,
+            terminalEnvelope,
+          })
+        ).status,
+        JSON.stringify(terminalEnvelope)
+      ).toBe("usage-exhausted");
+    }
+  });
+});
+
+
+describe("cursor terminal quota classification", () => {
+  const cap =
+    "ActionRequiredError: You've hit your usage limit for Opus. Upgrade your plan or wait for your limit to reset.";
+
+  it("recognizes the exact error frame plus the documented cap diagnostic on a nonzero exit", () => {
+    for (const stderr of [
+      cap,
+      `warning: reconnecting\n${cap}`,
+    ]) {
+      const result = classifyProcessOutcome("cursor", outcome({ stderr }));
+      expect(result.status, stderr).toBe("usage-exhausted");
+      expect(result.code, stderr).toBe("cursor_usage_limit_exceeded");
+    }
+  });
+
+  it("lets a successful stdout result envelope outrank the stderr diagnostic", () => {
+    const success = JSON.stringify({
+      type: "result",
+      subtype: "success",
+      is_error: false,
+      result: "done",
+    });
+    expect(
+      classifyProcessOutcome("cursor", outcome({ stdout: success, stderr: cap })).status
+    ).toBeNull();
+  });
+
+  it("refuses other ActionRequiredError causes, other error classes, bare diagnostics, and zero exits", () => {
+    for (const value of [
+      outcome({ stderr: cap, exitCode: 0 }),
+      outcome({ stderr: cap, exitCode: null }),
+      outcome({ stderr: "ActionRequiredError: Upgrade to Pro to use this model" }),
+      outcome({ stderr: "ActionRequiredError: Please log in to continue" }),
+      outcome({ stderr: "ActionRequiredError: rate limit exceeded, retry later" }),
+      outcome({ stderr: "NonRetriableError: You've hit your usage limit for Opus" }),
+      outcome({ stderr: "Error: ActionRequiredError: You've hit your usage limit for Opus" }),
+      outcome({ stderr: "You've hit your usage limit for Opus" }),
+      outcome({ stdout: cap, stderr: "" }),
+      outcome({ stderr: "ActionRequiredError: Agent-store quota exceeded: your write was rejected because the user storage quota is full" }),
+    ]) {
+      expect(
+        classifyProcessOutcome("cursor", value).status,
+        JSON.stringify(value)
+      ).toBeNull();
+    }
+  });
+
+  it("rejects contradictory or multiple stderr error frames", () => {
+    for (const stderr of [
+      `ActionRequiredError: login required\n${cap}`,
+      `${cap}\nActionRequiredError: login required`,
+      `NonRetriableError: payment failed\n${cap}`,
+      `${cap}\n${cap}`,
+      `Error: transport broke\n${cap}`,
+    ]) {
+      expect(
+        classifyProcessOutcome("cursor", outcome({ stderr })).status,
+        stderr
+      ).toBeNull();
+    }
+  });
+
+  it("normalizes ANSI styling and CRLF endings on the error frame only", () => {
+    for (const stderr of [
+      `\u001b[31m${cap}\u001b[0m`,
+      `${cap}\r\n`,
+      `noise\n\u001b[1;31m${cap}\u001b[0m\r`,
+    ]) {
+      expect(
+        classifyProcessOutcome("cursor", outcome({ stderr })).status,
+        JSON.stringify(stderr)
+      ).toBe("usage-exhausted");
+    }
+  });
+
+  it("requires the message end or a separator after the usage-limit diagnostic", () => {
+    for (const stderr of [
+      "ActionRequiredError: You've hit your usage limitless plan",
+      "ActionRequiredError: You've hit your usage limited tier",
+    ]) {
+      expect(
+        classifyProcessOutcome("cursor", outcome({ stderr })).status,
+        stderr
+      ).toBeNull();
+    }
+  });
+
+  it("lets a trusted successful terminal envelope veto the stderr diagnostic", () => {
+    for (const terminalEnvelope of [
+      { type: "result", subtype: "success", is_error: false, result: "done" },
+      { type: "turn.completed" },
+    ]) {
+      expect(
+        classifyProcessOutcome(
+          "cursor",
+          outcome({ stderr: cap, terminalEnvelope })
+        ).status,
+        JSON.stringify(terminalEnvelope)
+      ).toBeNull();
+    }
+  });
+});
+
+
+interface ProviderContract {
+  readonly quota: readonly ProviderProcessOutcome[];
+  readonly nonquota: readonly ProviderProcessOutcome[];
+  readonly terminalSuccess: readonly ProviderProcessOutcome[];
+}
+
+const PROVIDER_CONTRACTS: Readonly<Record<Provider, ProviderContract>> = {
+  claude: {
+    quota: [
+      outcome({ stdout: JSON.stringify(CLAUDE_REAL_QUOTA) }),
+      { stdout: "", stderr: "", exitCode: 0, terminalEnvelope: CLAUDE_REAL_QUOTA },
+    ],
+    nonquota: [
+      outcome({ stdout: JSON.stringify({ ...CLAUDE_REAL_QUOTA, result: "Request rejected (429)" }) }),
+      outcome({ stdout: JSON.stringify({ ...CLAUDE_REAL_QUOTA, api_error_status: 500 }) }),
+      outcome({ stdout: JSON.stringify({ ...CLAUDE_REAL_QUOTA, result: "You've hit your session limitless" }) }),
+    ],
+    terminalSuccess: [
+      outcome({
+        stdout: `${JSON.stringify(CLAUDE_REAL_QUOTA)}\n${JSON.stringify({ type: "result", subtype: "success", is_error: false, result: "ok" })}`,
+      }),
+      outcome({ stdout: JSON.stringify({ ...CLAUDE_REAL_QUOTA, is_error: false }), exitCode: 0 }),
+    ],
+  },
+  codex: {
+    quota: [
+      outcome({ stdout: JSON.stringify({ type: "turn.failed", error: { message: CODEX_QUOTA_MESSAGE } }) }),
+      outcome({ stdout: JSON.stringify({ type: "error", message: CODEX_QUOTA_MESSAGE }), exitCode: 0 }),
+    ],
+    nonquota: [
+      outcome({ stdout: JSON.stringify({ type: "turn.failed", error: { message: "rate limit exceeded" } }) }),
+      outcome({ stdout: JSON.stringify({ type: "turn.failed", error: { message: "You've hit your usage limitless plan" } }) }),
+      outcome({ stderr: CODEX_QUOTA_MESSAGE }),
+    ],
+    terminalSuccess: [
+      outcome({
+        stdout: `${JSON.stringify({ type: "turn.failed", error: { message: CODEX_QUOTA_MESSAGE } })}\n${JSON.stringify({ type: "turn.completed", usage: {} })}`,
+      }),
+    ],
+  },
+  grok: {
+    quota: [
+      outcome({
+        stdout: JSON.stringify({ type: "result", subtype: "error_during_execution", is_error: true, errors: [GROK_FREE_USAGE_MESSAGE] }),
+      }),
+    ],
+    nonquota: [
+      outcome({
+        stdout: JSON.stringify({ type: "result", subtype: "error_during_execution", is_error: true, errors: ["HTTP 429 too many requests"] }),
+      }),
+    ],
+    terminalSuccess: [
+      outcome({
+        stdout: `${JSON.stringify({ type: "result", subtype: "error_during_execution", is_error: true, errors: [GROK_FREE_USAGE_MESSAGE] })}\n${JSON.stringify({ type: "result", subtype: "success", is_error: false, result: "ok" })}`,
+      }),
+    ],
+  },
+  devin: {
+    quota: [
+      outcome({ stderr: "Error: Quota exhausted: You've reached your monthly usage limit. Wait for the limit to reset next month." }),
+      outcome({ stderr: "Error: Your organization has reached its monthly usage limit. Ask an account admin to raise it, or wait for the limit to reset next month." }),
+    ],
+    nonquota: [
+      outcome({ stderr: "Error: Rate limited: retry later" }),
+      outcome({ stderr: "Error: Authentication required: Sign in again to continue" }),
+      outcome({ stderr: "Error: Authentication required: usage quota has been exhausted" }),
+      outcome({ stderr: "Error: Rate limited: Quota exhausted: temporary burst" }),
+      outcome({ stderr: "Error: upstream call failed: usage quota has been exhausted" }),
+      outcome({ stderr: "Error: Rate limited: retry later\nError: Quota exhausted: usage quota has been exhausted" }),
+      outcome({ stderr: "Error: An admin paused usage on your account. Ask them to resume it to continue." }),
+    ],
+    terminalSuccess: [
+      outcome({ stderr: "Error: Quota exhausted: usage quota has been exhausted", exitCode: 0 }),
+      outcome({
+        stderr: "Error: Quota exhausted: usage quota has been exhausted",
+        terminalEnvelope: { type: "result", subtype: "success", is_error: false, result: "done" },
+      }),
+    ],
+  },
+  cursor: {
+    quota: [
+      outcome({ stderr: "ActionRequiredError: You've hit your usage limit for Opus. Upgrade your plan or wait for your limit to reset." }),
+    ],
+    nonquota: [
+      outcome({ stderr: "ActionRequiredError: Upgrade to Pro to use this model" }),
+      outcome({ stderr: "ActionRequiredError: Please log in to continue" }),
+      outcome({ stderr: "ActionRequiredError: login required\nActionRequiredError: You've hit your usage limit for Opus" }),
+      outcome({ stderr: "ActionRequiredError: You've hit your usage limitless plan" }),
+    ],
+    terminalSuccess: [
+      outcome({
+        stdout: JSON.stringify({ type: "result", subtype: "success", is_error: false, result: "done" }),
+        stderr: "ActionRequiredError: You've hit your usage limit for Opus",
+      }),
+      outcome({ stderr: "ActionRequiredError: You've hit your usage limit for Opus", exitCode: 0 }),
+      outcome({
+        stderr: "ActionRequiredError: You've hit your usage limit for Opus",
+        terminalEnvelope: { type: "result", subtype: "success", is_error: false, result: "done" },
+      }),
+    ],
+  },
+};
+
+describe("terminal success detection", () => {
+  it("requires a meaningful provider final success, not a loose is_error:false object", () => {
+    for (const provider of PROVIDERS) {
+      for (const input of [
+        outcome({ stdout: JSON.stringify({ type: "result", is_error: false }) }),
+        outcome({ terminalEnvelope: { type: "result", is_error: false } }),
+        outcome({ terminalEnvelope: { type: "result", subtype: "error_during_execution", is_error: false } }),
+      ]) {
+        expect(hasTerminalSuccess(provider, input), `${provider} ${JSON.stringify(input)}`).toBe(false);
+      }
+    }
+    for (const [provider, input] of [
+      ["claude", outcome({ stdout: JSON.stringify({ type: "result", subtype: "success", is_error: false, result: "ok" }) })],
+      ["grok", outcome({ stdout: JSON.stringify({ type: "result", subtype: "success", is_error: false, result: "ok" }) })],
+      ["codex", outcome({ stdout: JSON.stringify({ type: "turn.completed", usage: {} }) })],
+      ["devin", outcome({ terminalEnvelope: { type: "result", subtype: "success", is_error: false } })],
+      ["cursor", outcome({ stdout: JSON.stringify({ type: "result", subtype: "success", is_error: false, result: "done" }) })],
     ] as const) {
-      expect(
-        classifyTerminalEnvelope(provider, envelope).status,
-        provider
-      ).toBeNull();
-      expect(
-        classifyTerminalOutput(provider, JSON.stringify(envelope), "").status,
-        provider
-      ).toBeNull();
+      expect(hasTerminalSuccess(provider, input), provider).toBe(true);
+    }
+  });
+});
+
+describe("provider quota adapter registry", () => {
+  for (const provider of PROVIDERS) {
+    it(`${provider} implements the quota classification contract`, () => {
+      const contract = PROVIDER_CONTRACTS[provider];
+      expect(contract.quota.length).toBeGreaterThan(0);
+      expect(contract.nonquota.length).toBeGreaterThan(0);
+      expect(contract.terminalSuccess.length).toBeGreaterThan(0);
+      for (const input of contract.quota) {
+        expect(
+          classifyProcessOutcome(provider, input).status,
+          JSON.stringify(input)
+        ).toBe("usage-exhausted");
+      }
+      for (const input of [...contract.nonquota, ...contract.terminalSuccess]) {
+        expect(
+          classifyProcessOutcome(provider, input).status,
+          JSON.stringify(input)
+        ).toBeNull();
+      }
+    });
+  }
+
+  it("throws explicitly for a provider with no adapter instead of silently returning unknown", () => {
+    const future = "newprovider" as Provider;
+    expect(() => classifyProcessOutcome(future, outcome({}))).toThrow(
+      QuotaAdapterNotImplementedError
+    );
+    expect(() => classifyTerminalEnvelope(future, {})).toThrow(
+      QuotaAdapterNotImplementedError
+    );
+  });
+
+  it("throws for prototype keys and other non-own names before routing", () => {
+    for (const name of [
+      "toString",
+      "constructor",
+      "__proto__",
+      "hasOwnProperty",
+      "valueOf",
+      "prototype",
+    ]) {
+      const provider = name as Provider;
+      expect(() => assertQuotaAdapter(provider), name).toThrow(
+        QuotaAdapterNotImplementedError
+      );
+      expect(() => classifyProcessOutcome(provider, outcome({})), name).toThrow(
+        QuotaAdapterNotImplementedError
+      );
+      expect(() => classifyTerminalEnvelope(provider, {}), name).toThrow(
+        QuotaAdapterNotImplementedError
+      );
     }
   });
 });

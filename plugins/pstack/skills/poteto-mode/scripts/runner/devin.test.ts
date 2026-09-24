@@ -6,6 +6,7 @@ import { devinConfig, devinConfigPath, devinExportDirectory, devinExportPath, de
 import { invocationCommand } from "./commands.ts";
 import { childEnvironment, runLane } from "./run.ts";
 import { parseArgs } from "./cli.ts";
+import { normalizeReceiptEvent } from "../model-policy/receipt-event.ts";
 import type { RunnerOptions } from "./types.ts";
 
 let scratch: string;
@@ -207,6 +208,47 @@ describe("Devin external provider", () => {
     expect(existsSync(options.outputPath)).toBe(false);
   });
 
+  it("vetoes replay when a rejected tool call masks a finished final export", async () => {
+    fakeDevin("I will create the file.", 0, "Logged in (via Devin).",
+      "warning: rejected a tool call that requires confirmation. Running in non-interactive mode. Use --permission-mode dangerous to auto-approve all tools.");
+    const input = { ...options, mode: "isolated-write" as const };
+    const result = await runLane(input);
+    expect(result.receipt.status).toBe("malformed-output");
+    expect(result.receipt.terminalSuccess).toBe(true);
+    expect(
+      normalizeReceiptEvent(result.receipt, {
+        parent: input.parent,
+        provider: input.provider,
+        model: input.model,
+        effort: input.effort,
+        mode: input.mode,
+        apiSpend: "unset",
+      }).status
+    ).toBe("failed");
+    expect(existsSync(input.outputPath)).toBe(false);
+  });
+
+  it("keeps an unfinished export as failure evidence despite a rejected tool call", async () => {
+    fakeDevin("I will create the file.", 0, "Logged in (via Devin).",
+      "warning: rejected a tool call that requires confirmation. Running in non-interactive mode. Use --permission-mode dangerous to auto-approve all tools.",
+      { schema_version: "ATIF-v1.7", steps: [{ source: "agent", message: "Working", tool_calls: [{ function_name: "exec" }] }] });
+    const input = { ...options, mode: "isolated-write" as const };
+    const result = await runLane(input);
+    expect(result.receipt.status).toBe("malformed-output");
+    expect(result.receipt.terminalSuccess).toBe(false);
+    expect(
+      normalizeReceiptEvent(result.receipt, {
+        parent: input.parent,
+        provider: input.provider,
+        model: input.model,
+        effort: input.effort,
+        mode: input.mode,
+        apiSpend: "unset",
+      }).status
+    ).toBe("terminal-failure");
+    expect(existsSync(input.outputPath)).toBe(false);
+  });
+
   for (const [name, exported] of [
     ["progress before rejected tools", transcript("I'll attempt both writes now.", [{ function_name: "write" }])],
     ["tool-only turn", transcript("", [{ function_name: "exec" }])],
@@ -234,6 +276,49 @@ describe("Devin external provider", () => {
     expect(result.exitCode).toBe(0);
     expect(readFileSync(options.outputPath, "utf8")).toBe("PSTACK_TEST_PASSED");
     expect(existsSync(devinExportDirectory(options))).toBe(false);
+  });
+
+  it("vetoes replay when a finished ATIF export conflicts with a nonzero exit", async () => {
+    fakeDevin("PSTACK_DONE", 1, "Logged in (via Devin).", "neutral stderr");
+    const result = await runLane(options);
+    expect(result.receipt.status).toBe("child-failed");
+    expect(result.receipt.terminalSuccess).toBe(true);
+    expect(
+      normalizeReceiptEvent(result.receipt, {
+        parent: options.parent,
+        provider: options.provider,
+        model: options.model,
+        effort: options.effort,
+        mode: options.mode,
+        apiSpend: "unset",
+      }).status
+    ).toBe("failed");
+    expect(existsSync(options.outputPath)).toBe(false);
+  });
+
+  it("keeps a missing or unfinished export as failure evidence on nonzero exit", async () => {
+    for (const [name, exported, omitExport] of [
+      ["omitted export", transcript("PSTACK_DONE"), true],
+      ["unfinished export", { schema_version: "ATIF-v1.7", steps: [{ source: "agent", message: "Working", tool_calls: [{ function_name: "exec" }] }] }, false],
+      ["malformed export", "not json", false],
+    ] as const) {
+      fakeDevin("PSTACK_DONE", 1, "Logged in (via Devin).", "neutral stderr", exported, omitExport);
+      const attempt = { ...options, receiptPath: join(scratch, `receipt-${name}.json`) };
+      const result = await runLane(attempt);
+      expect(result.receipt.status, name).toBe("child-failed");
+      expect(result.receipt.terminalSuccess, name).toBe(false);
+      expect(
+        normalizeReceiptEvent(result.receipt, {
+          parent: attempt.parent,
+          provider: attempt.provider,
+          model: attempt.model,
+          effort: attempt.effort,
+          mode: attempt.mode,
+          apiSpend: "unset",
+        }).status,
+        name
+      ).toBe("terminal-failure");
+    }
   });
 
   it("fails closed when the CLI omits its export", async () => {

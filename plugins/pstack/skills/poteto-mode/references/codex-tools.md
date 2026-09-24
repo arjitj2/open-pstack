@@ -28,7 +28,7 @@ Subagent dispatch needs `multi_agent` enabled. Add to `~/.codex/config.toml`:
 multi_agent = true
 ```
 
-Without it, the native Codex lane is a named dropout. Independent external lanes still run, and the parent records the reduced provider count. Never collapse a panel into a sequential single-model pass, and never substitute a lane outside its saved `usage-exhausted` chain in `provider-dispatch.md`.
+Without it, record the unavailable native route from explicit host metadata and consult the same saved fallback policy. If no approved continuation is available, the lane is a named dropout. Independent external lanes still run, and the parent records the reduced provider count. Never collapse a panel into a sequential single-model pass, and never substitute a lane outside the saved chain and `# fallback` policy in `provider-dispatch.md`.
 
 ## Subagent policy
 

@@ -10,6 +10,7 @@ import {
 } from "../runner/types.ts";
 import {
   ModelPolicyError,
+  eventAdvancesUnderPolicy,
   nextAttempt,
   parseSheet,
   resolveRole,
@@ -19,6 +20,7 @@ import {
   type LanePolicy,
   type RolePolicy,
 } from "./model-policy.ts";
+import { normalizeReceiptEvent } from "./receipt-event.ts";
 
 const HELP = `Usage: pstack-model-policy <command> [options]
 
@@ -31,11 +33,25 @@ Commands:
        --state <file> [--lane <index>]
       Apply the shared finite decision to one lane and print the outcome as
       JSON: launch, stop, or inspect. The state file is a JSON object:
-      {"events":[{"attemptIndex":0,"status":"complete|usage-exhausted|failed",
-      "processStarted":true}...], "exhaustedGroups":["provider"...],
+      {"events":[{"attemptIndex":0,"status":"complete|usage-exhausted|
+      route-unavailable|terminal-failure|deadline-exceeded|failed",
+      "processStarted":true,"inspection":{"state":"clear|unsafe",
+      "evidenceRef":"..."},"receiptPath":"..."}...],
+      "exhaustedGroups":["provider"...],
       "access":"read-only|isolated-write"}. exhaustedGroups defaults to [] and
-      access is required. This helper only decides; the parent owns
-      dispatch, evidence, and writer isolation.
+      access is required. Every earlier event must have been able to advance
+      under the lane's saved # fallback policy (or the quota-only default).
+      This helper only decides; the parent owns dispatch, evidence, and
+      writer isolation.
+  normalize --sheet <file> --role "<role row or leaf role>" --parent <claude|codex> \
+            --lane <index> --attempt <index> --receipt <file> --mode <read-only|isolated-write>
+      Read one runner receipt and print the lane event it proves as JSON. The
+      receipt's parent, provider, model, effort, access mode, and recorded
+      apiSpend must exactly match the authorized attempt at that index and
+      its saved access fact; terminal statuses normalize through the shared
+      mapping and a receipt path is preserved on the event. Native lanes have
+      no runner receipt: normalize them only from explicit host terminal
+      metadata.
   validate --sheet <file> --parent <claude|codex>
       Strict-parse the sheet, require every documented role row, panel
       minimums, chain limits, and access-fact fields, then resolve every row
@@ -103,7 +119,16 @@ interface DecisionState {
   readonly access: AccessMode;
 }
 
-const EVENT_STATUSES = ["complete", "usage-exhausted", "failed"] as const;
+const EVENT_STATUSES = [
+  "complete",
+  "usage-exhausted",
+  "route-unavailable",
+  "terminal-failure",
+  "deadline-exceeded",
+  "failed",
+] as const;
+
+const INSPECTION_STATES = ["clear", "unsafe"] as const;
 
 function parseDecisionState(path: string): DecisionState {
   let text: string;
@@ -137,7 +162,7 @@ function parseDecisionState(path: string): DecisionState {
     }
     const entry = event as Record<string, unknown>;
     for (const key of Object.keys(entry)) {
-      if (!["attemptIndex", "status", "processStarted"].includes(key)) {
+      if (!["attemptIndex", "status", "processStarted", "inspection", "receiptPath"].includes(key)) {
         throw new UsageError(`events[${index}] has unknown key ${JSON.stringify(key)}`);
       }
     }
@@ -159,10 +184,45 @@ function parseDecisionState(path: string): DecisionState {
     if (entry.processStarted !== undefined && typeof entry.processStarted !== "boolean") {
       throw new UsageError(`events[${index}].processStarted must be a boolean`);
     }
+    let inspection: AttemptEvent["inspection"];
+    if (entry.inspection !== undefined) {
+      const record = entry.inspection;
+      if (record === null || typeof record !== "object" || Array.isArray(record)) {
+        throw new UsageError(`events[${index}].inspection must be an object`);
+      }
+      const value = record as Record<string, unknown>;
+      for (const key of Object.keys(value)) {
+        if (!["state", "evidenceRef"].includes(key)) {
+          throw new UsageError(`events[${index}].inspection has unknown key ${JSON.stringify(key)}`);
+        }
+      }
+      if (
+        typeof value.state !== "string" ||
+        !(INSPECTION_STATES as readonly string[]).includes(value.state)
+      ) {
+        throw new UsageError(
+          `events[${index}].inspection.state must be one of ${INSPECTION_STATES.join(", ")}`
+        );
+      }
+      if (typeof value.evidenceRef !== "string" || value.evidenceRef.trim().length === 0) {
+        throw new UsageError(
+          `events[${index}].inspection.evidenceRef must be a nonempty string`
+        );
+      }
+      inspection = {
+        state: value.state as "clear" | "unsafe",
+        evidenceRef: value.evidenceRef,
+      };
+    }
+    if (entry.receiptPath !== undefined && typeof entry.receiptPath !== "string") {
+      throw new UsageError(`events[${index}].receiptPath must be a string`);
+    }
     return {
       attemptIndex: entry.attemptIndex,
       status: entry.status as AttemptOutcomeStatus,
       processStarted: entry.processStarted as boolean | undefined,
+      inspection,
+      receiptPath: entry.receiptPath as string | undefined,
     };
   });
   if (
@@ -304,12 +364,17 @@ function commandNext(argv: readonly string[], io: Io): number {
     if (event.attemptIndex >= lanePolicy.attempts.length) {
       throw new UsageError("event attemptIndex is out of range for this lane");
     }
+    if (lanePolicy.attempts[event.attemptIndex].authorization.state === "blocked") {
+      throw new UsageError("event history records an attempt the saved policy does not authorize");
+    }
     if (previous !== undefined) {
       if (event.attemptIndex <= previous.attemptIndex) {
         throw new UsageError("events must have unique, increasing attempt indices");
       }
-      if (previous.status !== "usage-exhausted") {
-        throw new UsageError("events cannot follow a complete or failed attempt");
+      if (!eventAdvancesUnderPolicy(lanePolicy, previous, decision.access)) {
+        throw new UsageError(
+          "events contain an attempt after an outcome the saved policy could not advance, or a started writer without a clear inspection"
+        );
       }
     }
     for (let skipped = (previous?.attemptIndex ?? -1) + 1; skipped < event.attemptIndex; skipped += 1) {
@@ -338,6 +403,132 @@ function commandNext(argv: readonly string[], io: Io): number {
         laneIndex,
         lane: lanePolicy.id,
         decision: outcome,
+      },
+      null,
+      2
+    )}\n`
+  );
+  return 0;
+}
+
+function commandNormalize(argv: readonly string[], io: Io): number {
+  let sheet: string | undefined;
+  let role: string | undefined;
+  let parent: string | undefined;
+  let receiptPath: string | undefined;
+  let mode: string | undefined;
+  let lane = "0";
+  let attempt = "0";
+  for (let i = 0; i < argv.length; i += 1) {
+    switch (argv[i]) {
+      case "--sheet":
+        sheet = optionValue("--sheet", argv, i);
+        i += 1;
+        break;
+      case "--role":
+        role = optionValue("--role", argv, i);
+        i += 1;
+        break;
+      case "--parent":
+        parent = optionValue("--parent", argv, i);
+        i += 1;
+        break;
+      case "--lane":
+        lane = optionValue("--lane", argv, i);
+        i += 1;
+        break;
+      case "--attempt":
+        attempt = optionValue("--attempt", argv, i);
+        i += 1;
+        break;
+      case "--receipt":
+        receiptPath = optionValue("--receipt", argv, i);
+        i += 1;
+        break;
+      case "--mode":
+        mode = optionValue("--mode", argv, i);
+        i += 1;
+        break;
+      default:
+        throw new UsageError(`unknown argument: ${argv[i]}`);
+    }
+  }
+  if (sheet === undefined) throw new UsageError("--sheet is required");
+  if (role === undefined) throw new UsageError("--role is required");
+  if (receiptPath === undefined) throw new UsageError("--receipt is required");
+  if (mode === undefined || !(ACCESS_MODES as readonly string[]).includes(mode)) {
+    throw new UsageError(`--mode must be one of: ${ACCESS_MODES.join(", ")}`);
+  }
+  const resolvedParent = parseParent(parent);
+  const laneIndex = Number(lane);
+  const attemptIndex = Number(attempt);
+  if (!Number.isInteger(laneIndex) || laneIndex < 0) {
+    throw new UsageError("--lane must be a nonnegative integer");
+  }
+  if (!Number.isInteger(attemptIndex) || attemptIndex < 0) {
+    throw new UsageError("--attempt must be a nonnegative integer");
+  }
+
+  const target = resolveTarget(sheet, role, resolvedParent, io);
+  if (target === null) return 0;
+  const lanePolicy: LanePolicy | undefined = target.policy.lanes[laneIndex];
+  if (lanePolicy === undefined) {
+    throw new UsageError(
+      `lane ${laneIndex} is out of range; ${target.policy.header} has ${target.policy.lanes.length} lane(s)`
+    );
+  }
+  const attemptPolicy = lanePolicy.attempts[attemptIndex];
+  if (attemptPolicy === undefined) {
+    throw new UsageError(
+      `attempt ${attemptIndex} is out of range; lane ${laneIndex} has ${lanePolicy.attempts.length} attempt(s)`
+    );
+  }
+  if (attemptPolicy.attempt.kind !== "descriptor" || attemptPolicy.route === "native") {
+    throw new UsageError(
+      `attempt ${attemptIndex} (${attemptPolicy.descriptor}) is a native lane; normalize native lanes only from explicit host terminal metadata, never a runner receipt or generated prose`
+    );
+  }
+  const descriptor = attemptPolicy.attempt;
+
+  let text: string;
+  try {
+    text = readFileSync(receiptPath, "utf8");
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new UsageError(`cannot read receipt ${receiptPath}: ${message}`);
+  }
+  let raw: unknown;
+  try {
+    raw = JSON.parse(text);
+  } catch {
+    throw new UsageError(`receipt is not valid JSON: ${receiptPath}`);
+  }
+  const normalized = normalizeReceiptEvent(raw, {
+    parent: resolvedParent,
+    provider: descriptor.provider,
+    model: descriptor.model,
+    effort: descriptor.effort,
+    mode: mode as AccessMode,
+    apiSpend: attemptPolicy.apiSpend,
+  });
+  const event: AttemptEvent = {
+    attemptIndex,
+    status: normalized.status,
+    ...(normalized.processStarted === undefined
+      ? {}
+      : { processStarted: normalized.processStarted }),
+    receiptPath,
+  };
+  io.stdout(
+    `${JSON.stringify(
+      {
+        status: "event",
+        role,
+        header: target.policy.header,
+        laneIndex,
+        lane: lanePolicy.id,
+        attempt: attemptPolicy.descriptor,
+        event,
       },
       null,
       2
@@ -385,6 +576,7 @@ export function main(
     }
     if (command === "resolve") return commandResolve(argv.slice(1), io);
     if (command === "next") return commandNext(argv.slice(1), io);
+    if (command === "normalize") return commandNormalize(argv.slice(1), io);
     if (command === "validate") return commandValidate(argv.slice(1), io);
     throw new UsageError(`unknown command: ${command}`);
   } catch (error) {
