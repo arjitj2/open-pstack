@@ -477,6 +477,15 @@ class MaintenanceGitTests(unittest.TestCase):
         self.assertEqual(len(self.fake.pulls), 1)
         dispatch.assert_not_called()
 
+    def test_candidate_rejects_advanced_checkout_even_if_api_base_is_stale(self):
+        result = self.candidate()
+        (self.repos.fork / 'README.md').write_text('main advanced after dispatch\n')
+        self.git('commit', '-am', 'Advance trusted main checkout')
+        with patch.object(m, 'api', side_effect=self.fake.api), \
+                patch.object(m, 'CURSOR_URL', str(self.repos.cursor)):
+            with self.assertRaisesRegex(m.CheckFailed, 'trusted checkout'):
+                m.check_candidate(result['pr']['number'], result['commit'], self.repos.base, self.repos.c2)
+
     def test_check_candidate_accepts_canonical_proposal(self):
         with patch.object(m, 'api', side_effect=self.fake.api), patch.object(m, 'run'), \
                 patch.object(m, 'CURSOR_URL', str(self.repos.cursor)):

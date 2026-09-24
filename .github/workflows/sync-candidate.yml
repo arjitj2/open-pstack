@@ -55,6 +55,7 @@ jobs:
     if: always() && github.repository == 'arjitj2/open-pstack' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
+      contents: read
       statuses: write
       pull-requests: read
     steps:
@@ -74,6 +75,9 @@ jobs:
           assert re.fullmatch(r'[1-9][0-9]*', pr)
           assert all(re.fullmatch(r'[0-9a-f]{40}', sha) for sha in (head, base))
           current = json.loads(subprocess.check_output(['gh', 'api', f'repos/arjitj2/open-pstack/pulls/{pr}']))
+          main_ref = json.loads(subprocess.check_output(['gh', 'api', 'repos/arjitj2/open-pstack/git/ref/heads/main']))
+          if main_ref['object']['sha'] != base:
+              raise SystemExit('Main advanced after validation; no stale status published.')
           head_repo = (current.get('head') or {}).get('repo') or {}
           if head_repo.get('full_name') != 'arjitj2/open-pstack':
               raise SystemExit('Candidate head is not in this repository; no status published.')

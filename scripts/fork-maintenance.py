@@ -726,6 +726,8 @@ def check_candidate(pr, head, base, target):
             problems.append(name + " must be a full commit SHA")
     if problems:
         raise CheckFailed(problems)
+    if git("rev-parse", "HEAD") != base:
+        raise CheckFailed(["trusted checkout does not match the dispatched base"])
     branch = branch_name(target, base)
     git("fetch", "--no-tags", "origin", "refs/heads/" + branch)
     git("fetch", "--no-tags", CURSOR_URL, "main:" + CURSOR_REF)
