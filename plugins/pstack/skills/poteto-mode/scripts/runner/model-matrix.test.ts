@@ -61,11 +61,18 @@ const SHEET_ROLES = [
 ] as const;
 const SETUP_SECTION_ORDER = [
   "### 2. Load current state",
-  "### 3. Select role assignments",
-  "### 4. Validate and choose assigned efforts",
-  "### 5. Probe the assigned routes",
-  "### 6. Render the selected role map",
-  "### 7. Confirm and commit",
+  "### 3. Ask the reasoning budget",
+  "### 4. Select role assignments",
+  "### 5. Validate and choose assigned efforts",
+  "### 6. Probe the assigned routes",
+  "### 7. Render the selected role map",
+  "### 8. Confirm and commit",
+] as const;
+const BUDGET_LABELS = [
+  "unlimited — keep max",
+  "large — xhigh reasoning",
+  "medium — high reasoning",
+  "small — medium reasoning",
 ] as const;
 
 interface MatrixRow {
@@ -240,10 +247,10 @@ describe("model matrix", () => {
         row.firstRunActive,
       ])
     ).toEqual([
-      ["fable", "claude", "fable", "max", "fable", true],
+      ["fable", "claude", "fable", "max", "fable", false],
       ["sol", "codex", "gpt-5.6-sol", "max", null, true],
-      ["grok", "grok", "grok-4.6", "xhigh", null, true],
-      ["opus", "claude", "opus", "xhigh", "opus", true],
+      ["grok", "grok", "grok-4.7", "xhigh", null, true],
+      ["opus", "claude", "opus", "max", "opus", true],
       ["sonnet", "claude", "sonnet", "high", "sonnet", false],
       ["astra", "codex", "gpt-6-astra", "high", null, false],
       ["luna", "codex", "gpt-5.6-luna", "high", null, false],
@@ -251,7 +258,7 @@ describe("model matrix", () => {
     ]);
     expect(
       rows.filter((row) => row.firstRunActive).map((row) => row.family)
-    ).toEqual(["fable", "sol", "grok", "opus"]);
+    ).toEqual(["sol", "grok", "opus"]);
     expect(
       rows.filter((row) => row.provider === "claude").map((row) => row.model)
     ).toEqual([...ROLLING_CLAUDE_ALIASES]);
@@ -305,7 +312,7 @@ describe("model matrix", () => {
     const sheet = firstRunSheet(setup);
     const roles = sheet
       .split("\n")
-      .filter((line) => line.includes(": "))
+      .filter((line) => line.includes(": ") && !line.startsWith("#"))
       .map((line) => line.slice(0, line.indexOf(": ")));
     expect(roles).toEqual([...SHEET_ROLES]);
     const byFamily = new Map<string, MatrixRow>(
@@ -375,8 +382,8 @@ describe("model matrix", () => {
   });
 
   it("bounds native probes and smoke while retaining external concurrency", () => {
-    const probes = setup.slice(setup.indexOf("### 5."), setup.indexOf("### 6."));
-    const smoke = setup.slice(setup.indexOf("### 9."));
+    const probes = setup.slice(setup.indexOf("### 6."), setup.indexOf("### 7."));
+    const smoke = setup.slice(setup.indexOf("### 10."));
     expect(probes).toContain("observe the available native agent slots");
     expect(probes).toContain("Drain each completed handle and release its slot");
     expect(probes).toContain("run native probes conservatively one at a time");
@@ -415,5 +422,37 @@ describe("model matrix", () => {
     expect(normalization).toContain(
       "runner rejects a missed Fable, Opus, or Sonnet version pin"
     );
+  });
+
+  it("keeps the reasoning budget contract aligned with the matrix", () => {
+    const budget = setup.slice(
+      setup.indexOf("### 3."),
+      setup.indexOf("### 4.")
+    );
+    for (const label of BUDGET_LABELS) {
+      expect(budget).toContain(`\`${label}\``);
+    }
+    expect(budget).toContain("the ladder `max` > `xhigh` > `high` > `medium` > `low`");
+    expect([...EFFORTS].reverse().join("` > `")).toBe(
+      "max` > `xhigh` > `high` > `medium` > `low"
+    );
+    for (const [label, target] of [
+      ["unlimited — keep max", "max"],
+      ["large — xhigh reasoning", "xhigh"],
+      ["medium — high reasoning", "high"],
+      ["small — medium reasoning", "medium"],
+    ] as const) {
+      expect(budget).toContain(`\`${label}\``);
+      expect(EFFORTS).toContain(target);
+    }
+    expect(budget).toContain("highest selectable effort at or below the target");
+    expect(budget).toContain("Aliases and fixed-`default` families");
+    for (const alias of ["inherit-parent", "auto"]) {
+      expect(budget).toContain(`\`${alias}\``);
+    }
+    expect(setup).toContain("the sheet's `# budget` line as the recorded budget choice");
+    expect(setup).toContain("`# budget: <label> (<target effort>)`");
+    const sheet = firstRunSheet(setup);
+    expect(sheet).toContain("# budget: unlimited (max)");
   });
 });

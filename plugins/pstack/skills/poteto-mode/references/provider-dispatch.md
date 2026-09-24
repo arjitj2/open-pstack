@@ -10,10 +10,10 @@ pstack model choices are provider-qualified descriptors:
 
 | Family | Upstream pstack choice | Provider | Model | Default effort | Selectable efforts | Claude-native agent stem | First-run active |
 |---|---|---|---|---|---|---|---|
-| fable | fable | claude | fable | max | low medium high xhigh max | fable | yes |
+| fable | - | claude | fable | max | low medium high xhigh max | fable | no |
 | sol | gpt-5.6-sol-max | codex | gpt-5.6-sol | max | low medium high xhigh max | - | yes |
-| grok | grok-4.6-fast-xhigh | grok | grok-4.6 | xhigh | low medium high xhigh max | - | yes |
-| opus | opus | claude | opus | xhigh | low medium high xhigh max | opus | yes |
+| grok | grok-4.7-xhigh-fast | grok | grok-4.7 | xhigh | low medium high xhigh max | - | yes |
+| opus | claude-opus-5-5-max | claude | opus | max | low medium high xhigh max | opus | yes |
 | sonnet | - | claude | sonnet | high | low medium high xhigh max | sonnet | no |
 | astra | - | codex | gpt-6-astra | high | low medium high xhigh max | - | no |
 | luna | - | codex | gpt-5.6-luna | high | low medium high xhigh max | - | no |
@@ -25,14 +25,14 @@ For the model matrix, the allowed effort universe is exactly `low`, `medium`, `h
 
 ## Optional Devin models
 
-Devin is an external provider from either parent, not a parent harness. These opt-in families do not change the four-model default panel.
+Devin is an external provider from either parent, not a parent harness. These opt-in families do not change the three-model default panel.
 
 | Family | Provider | Model | Default effort | Selectable efforts | CLI model UID |
 |---|---|---|---|---|---|
 | swe-2 | devin | swe-2 | high | medium high max | swe-2-<effort> |
 | swe-1.6 | devin | swe-1.6 | default | default | swe-1-6 |
 
-Use descriptors such as `devin:swe-2@high` or `devin:swe-1.6@default`. `default` records that SWE-1.6 has no selectable effort; it is also used for Cursor slugs without a separate effort flag. Never clamp SWE-2's unsupported `low` or `xhigh` to another level. The runner pins the exact CLI UID instead of a rolling family alias or Fusion pairing.
+Use descriptors such as `devin:swe-2@high` or `devin:swe-1.6@default`. `default` records that SWE-1.6 has no selectable effort; it is also used for Cursor slugs without a separate effort flag. An explicit or stored SWE-2 descriptor with unsupported `low` or `xhigh` is invalid. Never clamp it during dispatch or after a failed probe. Setup may propose a supported effort below a user-requested budget ceiling for an already valid descriptor, but must show the change and obtain confirmation before saving. The runner pins the exact CLI UID instead of a rolling family alias or Fusion pairing.
 
 Install and sign in to [Devin CLI](https://docs.devin.ai/cli). Inspect `devin models list --format json` and probe each selected pair: listing a model does not prove the account can execute it. An upgrade-required response is an unavailable-model failure, never permission to substitute another model.
 
@@ -42,7 +42,7 @@ The temporary config marks shell onboarding complete. The runner requests a priv
 
 ## Optional Cursor models
 
-Cursor is an external provider from both parents. Install and authenticate `cursor-agent`, run `cursor-agent models`, and choose an exact available slug as `cursor:<slug>@default` (for example, `cursor:composer-2.5@default` when listed). `default` means no separate effort flag is available; select any reasoning variant by its exact model slug. Do not translate Claude/Codex/Grok slugs into Cursor slugs or use Cursor's `auto` selector. Model availability and subscription limits remain Cursor's responsibility. Adding a Cursor lane does not alter the four baseline families.
+Cursor is an external provider from both parents. Install and authenticate `cursor-agent`, run `cursor-agent models`, and choose an exact available slug as `cursor:<slug>@default` (for example, `cursor:composer-2.5@default` when listed). `default` means no separate effort flag is available; select any reasoning variant by its exact model slug. Do not translate Claude/Codex/Grok slugs into Cursor slugs or use Cursor's `auto` selector. Model availability and subscription limits remain Cursor's responsibility. Adding a Cursor lane does not alter the three baseline families.
 
 ## Read-time normalization
 
@@ -50,7 +50,7 @@ Normalize configured descriptors before matching them to the matrix or choosing 
 
 This read-time rule makes an older installed sheet use the latest family revision immediately without writing user files. Once per parent run, report that the persisted sheet is stale and that `/setup-pstack` will rewrite it after its normal probes and confirmation. Unknown versioned Claude models remain invalid. The external runner rejects a missed Fable, Opus, or Sonnet version pin instead of silently executing it.
 
-`fast` is part of Cursor's Grok selector, not a Grok Build CLI model or effort flag. The portable Grok route pins the current CLI model `grok-4.6`. The first-run Grok effort is `xhigh`.
+`fast` is part of Cursor's Grok selector, not a Grok Build CLI model or effort flag. Upstream's current Grok default `grok-4.7-xhigh-fast` names that selector; the portable Grok route pins `grok-4.7`, as advertised by Grok Build CLI. A model listing does not prove authenticated execution; setup still probes every selected route. The first-run Grok effort is `xhigh`. Update the pin only when `grok` CLI reports a newer model.
 
 ## The parent owns the route
 

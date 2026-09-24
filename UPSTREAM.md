@@ -20,12 +20,12 @@ The table above records the content incorporated in the stable release, with the
 
 - Commits `799151d` and `6fecddb` add and relocate `make-bot-ui`. It depends on Cursor routines, webhook events, and UI primitives that Claude Code and Codex do not share.
 - Four `disable-model-invocation: true` lines from `73f8be4` are not applied to `how`, `why`, `unslop`, or `typescript-best-practices`. Poteto-mode invokes those skills by name, and the flag blocks that route on Claude Code.
-- The `23a56e2` default-model hunks for `bug-fix`, `perf-issue`, and `hillclimb` are not applied. The first-run defaults for those roles stay on `codex:gpt-5.6-sol@max` for cost. Existing user assignments take precedence.
+- The `23a56e2` default-model hunks for `bug-fix`, `perf-issue`, and `hillclimb` are not applied, and the equivalent hunks in `889ec4b` and `70b2dc8` carry the same exclusion. The first-run defaults for those roles stay on `codex:gpt-5.6-sol@max` for cost. Existing user assignments take precedence.
 - The Claude manifest does not take the logo field from `efa2a53` because Claude Code has no schema for it. The shared asset is exposed through the Codex manifest instead.
 
 ## Pending source changes
 
-The [maintenance issue](https://github.com/arjitj2/open-pstack/issues/1) and direct Cursor proposal PRs show outstanding changes. The committed [decision ledger](maintenance/upstream-ledger.json) distinguishes adopted, adapted, excluded, and pending commits. Each final disposition needs a reason and evidence. Pending rows stay visible after the review cursor advances.
+The [maintenance issue](https://github.com/arjitj2/open-pstack/issues/1) and direct Cursor proposal PRs show outstanding changes. The committed [decision ledger](maintenance/upstream-ledger.json) distinguishes adopted, adapted, excluded, and pending commits. Each final disposition needs a reason and evidence. Pending rows stay visible after the review cursor advances. The working proposal for the seven commits through `12d587df` is documented in [docs/cursor-adoption-20260924.md](docs/cursor-adoption-20260924.md); its dispositions are proposed until installed-parent validation.
 
 ## Check for changes
 

@@ -81,15 +81,15 @@ describe("parseProviderOutput", () => {
             total_tokens: 43,
           },
           total_cost_usd: 0.02,
-          modelUsage: { "grok-4.6-build": {} },
+          modelUsage: { "grok-4.7-build": {} },
         }),
       ].join("\n"),
       "",
-      "grok-4.6"
+      "grok-4.7"
     );
     expect(parsed.text).toBe("GROK_OK");
-    expect(parsed.reportedModel).toBe("grok-4.6-build");
-    expect(reportedModelMatches("grok", "grok-4.6", parsed.reportedModel)).toBe(
+    expect(parsed.reportedModel).toBe("grok-4.7-build");
+    expect(reportedModelMatches("grok", "grok-4.7", parsed.reportedModel)).toBe(
       true
     );
   });

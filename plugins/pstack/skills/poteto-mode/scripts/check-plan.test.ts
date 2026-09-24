@@ -56,7 +56,7 @@ function introLines(count: number): string {
 function contractPhrases(): string[] {
   const phrases: string[] = [
     CONTRACT.rule,
-    CONTRACT.laneSentence,
+    CONTRACT.laneTemplate.replace("<swarm workers descriptor>", "devin:swe-2@high"),
     CONTRACT.howToRead,
     CONTRACT.program,
     CONTRACT.close,
@@ -116,16 +116,25 @@ afterEach(async () => {
 });
 
 const playbook = await readFile(PLAYBOOK, "utf8");
-const skeleton = extractSkeleton(playbook);
+const rawSkeleton = extractSkeleton(playbook);
+const skeleton = rawSkeleton.replaceAll("<swarm workers descriptor>", "devin:swe-2@high");
 
 describe("check-plan", () => {
-  it("accepts the extracted playbook skeleton", () => {
+  it("accepts the extracted playbook skeleton after filling the worker descriptor", () => {
     const result = checkPlan(skeleton, "skeleton.md");
     expect(result.problems).toEqual([]);
     expect(result.ok).toBe(true);
     expect(result.prCount).toBe(1);
     expect(result.report[0]).toContain("verify-live=10");
     expect(result.report[0]).toContain("verify-perf=4");
+  });
+
+  it("rejects unresolved or malformed worker descriptors", () => {
+    for (const descriptor of ["<swarm workers descriptor>", "codex:bad model@high", "unknown:model@high", "devin:swe-2@", "grok-4.7-xhigh-fast"]) {
+      const result = checkPlan(skeleton.replaceAll("devin:swe-2@high", descriptor), "invalid-lane.md");
+      expect(result.ok, descriptor).toBe(false);
+      expect(result.problems.some((problem) => problem.includes("descriptor filled in")), descriptor).toBe(true);
+    }
   });
 
   it("rejects the playbook file as checker input", () => {
@@ -139,7 +148,7 @@ describe("check-plan", () => {
       expect(skeleton.includes(item), item).toBe(false);
     }
     expect(skeleton).toContain("30-minute");
-    expect(skeleton).toContain(CONTRACT.laneSentence);
+    expect(rawSkeleton).toContain(CONTRACT.laneTemplate);
   });
 
   it("makes every contract phrase load-bearing", () => {
@@ -343,10 +352,10 @@ describe("check-plan", () => {
       "a hard-coded Cursor Grok string",
       replaceOnce(
         skeleton,
-        CONTRACT.laneSentence,
+        CONTRACT.laneTemplate.replace("<swarm workers descriptor>", "devin:swe-2@high"),
         "Ten lanes on `grok-4.6-fast-xhigh` at the PR head",
       ),
-      `Verify, live lacks "${CONTRACT.laneSentence}"`,
+      'Verify, live lacks "Ten lanes on `<swarm workers descriptor>` at the PR head" with the descriptor filled in',
     ],
     [
       "incomplete perf evidence",
