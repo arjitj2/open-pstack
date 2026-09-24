@@ -14,7 +14,7 @@ These decisions remain proposed until installed-host validation passes. The ledg
 | `70b2dc8b` | Adapted | Adopt the Opus, Sol, and Grok first-run panel, round-based verification, child tracking, and compatible workflow updates. Retain provider dispatch and guarded merges. |
 | `b42effe0` | Adopted for mapped content | Refresh the upstream README verbatim. Cursor-only guide files remain excluded. |
 | `b0b9c7a0` | Adapted | Trim repeated prose while retaining provider contracts and mandatory verification gates. Independent review found no additional regression in this guidance. |
-| `12d587df` | Adapted | Resolve configured roles consistently, clarify owner review responsibilities, and reject unresolved or malformed worker descriptors in plans. Exclude raw Cursor task fields and model fallback. |
+| `12d587df` | Adapted | Resolve configured roles consistently, clarify owner review responsibilities, and reject unresolved placeholders and malformed worker-descriptor syntax in plans. Exclude raw Cursor task fields and model fallback. |
 
 ## Provider adaptations
 
@@ -32,7 +32,7 @@ The historical merge-probe fixture is unchanged. This catch-up does not rewrite 
 
 ## Validation
 
-Run Bun tests, strict typechecks, maintenance tests, static invariants, and manifest validation. The plan regression rejects unresolved placeholders, malformed descriptors, and raw Cursor selectors while accepting a filled provider-qualified descriptor.
+Run Bun tests, strict typechecks, maintenance tests, static invariants, and manifest validation. The plan regression rejects unresolved placeholders, malformed descriptor syntax, and raw Cursor selectors while accepting a filled provider-qualified descriptor. This is a structural plan check; it does not validate provider/model/effort compatibility or account availability. Setup and provider dispatch own those checks.
 
 Before release, install the exact candidate in Codex and Claude. Exercise budgets, effort preservation, fixed-effort mappings, confirmation and saved configuration, native delegation, independent post-save judging, and unavailable selected routes leaving configuration unchanged. Restore the captured installation and model files afterward.
 
