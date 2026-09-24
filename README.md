@@ -24,6 +24,22 @@ Routing follows the role assignments you approve. Setup recommends a mix based o
 
 Recovery can cover recognized quota limits, unavailable routes, terminal backend failures, and explicitly configured deadlines. Existing configurations remain quota-only until a broader policy is saved. A quiet worker is not assumed to have failed; an exhausted parent or a chain with no safe, approved backup cannot recover automatically. See [tested behavior and limits](docs/compatibility.md).
 
+## Supported parent apps and worker providers
+
+The **parent** is the app where you start a task. It coordinates the work and keeps your tools and conversation context. A **worker** is a model it delegates a bounded task to.
+
+| Worker provider | From a Codex parent | From a Claude Code parent |
+| --- | --- | --- |
+| OpenAI / Codex | Native Codex subagent | External `codex` CLI |
+| Anthropic / Claude | External `claude` CLI | Native Claude Code subagent |
+| xAI / Grok | External `grok` CLI | External `grok` CLI |
+| Devin SWE-2 / SWE-1.6 | External `devin` CLI | External `devin` CLI |
+| Cursor models | External `cursor-agent` CLI | External `cursor-agent` CLI |
+
+**This distribution supports Codex and Claude Code as parents.** Grok, Devin, and Cursor are worker providers here. For Cursor as your parent app, use [Cursor's original Pstack](https://github.com/cursor/plugins/tree/main/pstack). Provider availability does not guarantee access to every model: setup checks the exact models you select.
+
+External workers use their own authentication and do not inherit the parent's MCP connections. Why and Reflect stay native so they retain those tools. See [compatibility](docs/compatibility.md) for supported models, permissions, and tested routes.
+
 ## What pstack does
 
 pstack is a plugin for coding agents. It is not a new model or a hosted service. It gives your agent engineering rules, step-by-step workflows for different kinds of work, focused skills, and small local tools.
@@ -76,7 +92,7 @@ Start a new Codex task after installation so it can discover the new skills and 
 
 ## Get started
 
-Lauren's original setup has two steps. Open Pstack keeps the same flow.
+Configure your model access once for each parent app you use. Then start a task. Repository-specific verification is a separate step below.
 
 ### 1. Set up the models
 
@@ -86,11 +102,7 @@ In Claude Code, run:
 /pstack:setup-pstack
 ```
 
-In Codex, ask:
-
-```text
-Use pstack:setup-pstack to configure pstack.
-```
+In the Codex app, type `/` and select `pstack:setup-pstack` from the skill list. You can also mention the skill with `$pstack:setup-pstack`. In Codex CLI, use `/skills` or type `$pstack:setup-pstack`. Asking for the skill by name works too; the words “Use pstack” are not required. See OpenAI's [slash commands](https://learn.chatgpt.com/docs/reference/slash-commands) and [skill invocation](https://learn.chatgpt.com/docs/build-skills#how-chatgpt-and-codex-use-skills).
 
 Setup discovers the models you can run, asks about subscriptions it cannot verify, and recommends assignments for each role. It shows which models will run natively and which will use external workers, then asks before saving. Included subscription access and permission for metered API spending are recorded separately; unknown remaining capacity stays unknown.
 
@@ -110,15 +122,27 @@ In Claude Code:
 /pstack:poteto-mode Add saved filters to search. Keep the design simple, verify it in the real app, and open a pull request.
 ```
 
-In Codex:
+In the Codex app, type `/`, select `pstack:poteto-mode`, and add your task. A skill mention also works in Codex:
 
 ```text
-Use pstack:poteto-mode. Add saved filters to search. Keep the design simple, verify it in the real app, and open a pull request.
+$pstack:poteto-mode Add saved filters to search. Keep the design simple, verify it in the real app, and open a pull request.
 ```
 
 For that feature, poteto-mode should first understand how search works today. It should decide how the data should be represented before writing code, implement the smallest complete version, run the feature the way a user would, review the result, and prepare the pull request.
 
+The skill name is `poteto-mode`, spelled with an “e”. Claude Code also loads this distribution's startup instruction for non-trivial engineering work. In Codex, select the skill explicitly or add a standing instruction if you want it used by default. Model setup saves routing preferences; it does not install an always-on Codex workflow instruction.
+
 That is the main workflow. The other skills are there when poteto-mode needs them or when you want to call one directly.
+
+### 3. Add verification for your repository
+
+`setup-pstack` verifies model access, saves your approved model sheet and parent integration, reads them back, and runs a small worker-and-reviewer smoke test. It does **not** create an app feature map or schedule repository maintenance.
+
+For a repository without a repeatable way to test real behavior, invoke `pstack:create-verification-skill`. It inspects how the app starts and can be driven, creates a project-local verification skill, and seeds a feature map with the first few user-facing features. Each entry describes how to reach the feature, exercise it, and recognize success. The generated skill must prove one mapped feature live before handoff; that initial map is a starting point, not a claim of complete coverage.
+
+Use `pstack:maintain-verification-skill` as the app changes. It checks the map against source and live behavior and can propose a PR correcting drift. These skills work through the same picker or mention mechanism described above. Use `/pstack:create-verification-skill` and `/pstack:maintain-verification-skill` in Claude Code.
+
+This release includes the creation and maintenance workflows, but no automatic feature-map maintenance schedule. Recurring upkeep must be configured separately in your parent app or another scheduler. Installing Pstack does not silently start background jobs.
 
 ## Useful skills
 
@@ -134,7 +158,7 @@ That is the main workflow. The other skills are there when poteto-mode needs the
 | `babysit` | A pull request needs CI failures and review comments handled until it is ready. |
 | `reflect` | A hard task is finished and its lessons should improve the next run. |
 
-Plugin skills include `pstack:` in their name. In Claude Code, invoke a native skill such as `/pstack:architect`. In Codex, ask for the skill, such as `Use pstack:architect for this design.` See the [technical reference](docs/reference.md) for the full list.
+Plugin skills include `pstack:` in their name. In Claude Code, invoke `/pstack:architect`. In Codex, select `pstack:architect` from the skill picker or mention `$pstack:architect`. See the [technical reference](docs/reference.md) for the full list.
 
 ## Optional Devin workers
 
@@ -144,24 +168,9 @@ This adapter extracts the final response from a private conversation export and 
 
 ## Models and token use
 
-Some pstack workflows use one model. Skills such as `architect`, `arena`, and `interrogate` can run several models in parallel. Each model run uses the subscription and token allowance of its own command-line tool.
+Some pstack workflows use one model. Skills such as `architect`, `arena`, and `interrogate` can run several models in parallel. Each model run uses the access configured for its native app or external CLI: included subscription capacity or explicitly approved API spending.
 
 `setup-pstack` lets you choose the models, one requested effort per assigned model family, and how many run in parallel. Choose role assignments first; setup checks only the models those roles use. Unused providers need no CLI or subscription. If a selected model fails, repair its availability or explicitly change the affected roles before saving. A model from the app you are using runs inside that app. Other models run through their own command-line tools. Open Pstack does not quietly replace a failed model with a weaker one.
-
-## Claude Code and Codex
-
-Both apps read the same pstack skills. Only the way they start those skills and models is different.
-
-| | Claude Code | Codex |
-| --- | --- | --- |
-| Start poteto-mode | Claude loads a small startup instruction that can route non-trivial work into it. You can also run `/pstack:poteto-mode` yourself. | Ask for `pstack:poteto-mode` by name. Codex does not load the Claude startup instruction. |
-| Runs inside the app | Claude models stay inside Claude Code. | Codex models stay inside Codex. |
-| Other models | Codex and Grok run through their signed-in command-line tools. | Claude and Grok run through their signed-in command-line tools. |
-| Skills and workflows | Shared with Codex. | Shared with Claude Code. |
-
-Cursor models can also join as optional external workers through the signed-in `cursor-agent` CLI. Choose an exact slug from `cursor-agent models` and configure `cursor:<slug>@default` with `/pstack:setup-pstack`; the CLI has no separate effort flag. This uses Cursor's account access and limits, and does not make Cursor a parent harness for this port.
-
-Grok can take part in a multi-model review. You cannot use Grok as the main app running pstack.
 
 ## Learn from the original
 
