@@ -530,6 +530,11 @@ export function resolveRole(
           state: "blocked",
           reason: `provider ${provider} funding is unknown; unknown funding is not autoauthorized`,
         };
+      } else if (fact.provenance !== "user") {
+        authorization = {
+          state: "blocked",
+          reason: `provider ${provider} access is provider-observed; funding and API spending require operator confirmation`,
+        };
       } else if (fact.funding === "metered" && fact.apiSpend !== "approved") {
         authorization = {
           state: "blocked",
@@ -615,9 +620,7 @@ export function nextAttempt(
       return { kind: "inspect", reason: "started-writer" };
     }
   }
-  const tried = new Set(events.map((event) => event.attemptIndex));
-  for (let index = 0; index < lane.attempts.length; index += 1) {
-    if (tried.has(index)) continue;
+  for (let index = (last?.attemptIndex ?? -1) + 1; index < lane.attempts.length; index += 1) {
     const attempt = lane.attempts[index];
     if (exhaustedGroups.has(attempt.exhaustionGroup)) continue;
     if (attempt.authorization.state === "blocked") {

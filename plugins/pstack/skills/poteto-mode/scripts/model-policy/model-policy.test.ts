@@ -527,7 +527,7 @@ describe("nextAttempt decision", () => {
         new Set(["codex"]),
         "read-only"
       )
-    ).toMatchObject({ kind: "stop", reason: "unauthorized" });
+    ).toMatchObject({ kind: "stop", reason: "chain-exhausted" });
   });
 
   it("advances only on prior usage-exhaustion, never past missing permission", () => {
@@ -596,5 +596,24 @@ describe("validateSheet", () => {
     expect(() => validateSheet(parse(missing), "claude")).toThrow(
       /missing required role row: hillclimb[\s\S]*at least 2 seats|at least 2 seats[\s\S]*missing required role row: hillclimb/
     );
+  });
+});
+
+describe("operator authorization and monotonic attempts", () => {
+  it("does not authorize provider observations as spending permission", () => {
+    for (const [funding, apiSpend] of [["included", "deny"], ["metered", "approved"]] as const) {
+      const text = `# access: ${JSON.stringify({ provider: "devin", funding, capacity: "unknown", apiSpend, provenance: "provider" })}\nswarm workers: devin:swe-2@high\n`;
+      const policy = resolveRole(parseSheet(text), "swarm workers", "codex")!;
+      expect(policy.lanes[0].attempts[0].authorization).toMatchObject({ state: "blocked" });
+      expect(nextAttempt(policy.lanes[0], [], new Set(), "read-only")).toMatchObject({ kind: "stop", reason: "unauthorized" });
+      const confirmed = resolveRole(parseSheet(text.replace('"provenance":"provider"', '"provenance":"user"')), "swarm workers", "codex")!;
+      expect(nextAttempt(confirmed.lanes[0], [], new Set(), "read-only")).toMatchObject({ kind: "launch", attemptIndex: 0 });
+    }
+  });
+
+  it("never goes backward after a later attempt has run", () => {
+    const text = '# access: {"provider":"grok","funding":"included","capacity":"unknown","apiSpend":"approved","provenance":"user"}\n# access: {"provider":"devin","funding":"included","capacity":"unknown","apiSpend":"deny","provenance":"user"}\nswarm workers: grok:grok-4.7@xhigh -> devin:swe-2@high\n';
+    const lane = resolveRole(parseSheet(text), "swarm workers", "codex")!.lanes[0];
+    expect(nextAttempt(lane, [{ attemptIndex: 1, status: "usage-exhausted", processStarted: false }], new Set(), "read-only")).toMatchObject({ kind: "stop", reason: "chain-exhausted" });
   });
 });

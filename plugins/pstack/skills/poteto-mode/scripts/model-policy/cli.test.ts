@@ -185,6 +185,16 @@ describe("model-policy next command", () => {
     }
   });
 
+  it("permits history gaps only for providers exhausted elsewhere", () => {
+    for (const exhaustedGroups of [[], ["grok"]]) {
+      const capture = io();
+      const code = main(args(statePath({ events: [{ attemptIndex: 1, status: "usage-exhausted", processStarted: false }], exhaustedGroups })), capture.capture);
+      expect(code).toBe(exhaustedGroups.length === 0 ? 64 : 0);
+      if (code === 0) expect(JSON.parse(capture.stdout.join("")).decision).toEqual({ kind: "stop", reason: "chain-exhausted" });
+      else expect(capture.stdout).toEqual([]);
+    }
+  });
+
   it("stops a started writer for inspection", async () => {
     const capture = io();
     await main(

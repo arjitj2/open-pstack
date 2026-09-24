@@ -312,6 +312,11 @@ function commandNext(argv: readonly string[], io: Io): number {
         throw new UsageError("events cannot follow a complete or failed attempt");
       }
     }
+    for (let skipped = (previous?.attemptIndex ?? -1) + 1; skipped < event.attemptIndex; skipped += 1) {
+      if (!decision.exhaustedGroups.has(lanePolicy.attempts[skipped].exhaustionGroup)) {
+        throw new UsageError("event history skips an attempt whose provider is not exhausted");
+      }
+    }
     previous = event;
   }
   const outcome = nextAttempt(
