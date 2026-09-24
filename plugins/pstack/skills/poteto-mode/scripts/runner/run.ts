@@ -415,15 +415,19 @@ function unavailableStatus(value: string): ReceiptStatus {
   return "child-failed";
 }
 
+// A started child proves its own outcome: only the provider-protocol quota
+// contract may classify here. Authentication or model wording in raw stdout or
+// stderr is unproven — generated prose and quoted logs both carry it — so an
+// invocation exit without a source-backed typed failure stays child-failed.
+// Raw bounded evidence is preserved on the receipt for diagnosis.
 function terminalFailureStatus(
   provider: Provider,
   stdout: string,
   stderr: string,
-  exitCode: number | null,
-  combined: string
+  exitCode: number | null
 ): ReceiptStatus {
   const terminal = classifyProcessOutcome(provider, { stdout, stderr, exitCode });
-  return terminal.status === "usage-exhausted" ? "usage-exhausted" : unavailableStatus(combined);
+  return terminal.status ?? "child-failed";
 }
 
 // A Devin lane can finish its final answer and still exit nonzero: the CLI's
@@ -923,7 +927,7 @@ async function executeLane(
       ? "cancelled"
       : result.timedOut
         ? "timed-out"
-        : terminalFailureStatus(options.provider, result.stdout, result.stderr, result.exitCode, rawFailureEvidence);
+        : terminalFailureStatus(options.provider, result.stdout, result.stderr, result.exitCode);
     const terminalSuccess =
       status !== "cancelled" &&
       (devinFinalExportCompleted(options) ||

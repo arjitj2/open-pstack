@@ -708,6 +708,7 @@ export function eventAdvancesUnderPolicy(
 ): boolean {
   if (event.status === "complete" || event.status === "failed") return false;
   if (!outcomeAuthorized(lane, event.status)) return false;
+  if (event.inspection?.state === "unsafe") return false;
   if (access === "isolated-write" && event.processStarted !== false) {
     return (
       event.inspection?.state === "clear" &&
@@ -732,14 +733,14 @@ export function nextAttempt(
     if (!outcomeAuthorized(lane, last.status)) {
       return { kind: "stop", reason: "not-eligible" };
     }
+    if (last.inspection?.state === "unsafe") {
+      return { kind: "stop", reason: "unsafe-writer" };
+    }
     if (
       access === "isolated-write" &&
       last.processStarted !== false
     ) {
       const inspection = last.inspection;
-      if (inspection?.state === "unsafe") {
-        return { kind: "stop", reason: "unsafe-writer" };
-      }
       if (
         inspection?.state !== "clear" ||
         inspection.evidenceRef.trim().length === 0

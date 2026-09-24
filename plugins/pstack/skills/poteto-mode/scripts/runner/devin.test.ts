@@ -151,10 +151,12 @@ describe("Devin external provider", () => {
     expect(existsSync(devinExportDirectory(input))).toBe(false);
   });
 
-  it("reports account restrictions without substituting another model", async () => {
+  it("keeps unproven account-restriction wording as an ordinary child failure", async () => {
     fakeDevin("Upgrade to Pro to access this model", 1);
     const result = await runLane(options);
-    expect(result.receipt.status).toBe("unavailable-model");
+    expect(result.receipt.status).toBe("child-failed");
+    expect(result.receipt.failurePhase).toBe("invocation");
+    expect(result.receipt.error?.evidence).toContain("Upgrade to Pro to access this model");
     expect(existsSync(options.outputPath)).toBe(false);
     expect(existsSync(devinConfigPath(options))).toBe(false);
     expect(existsSync(devinExportDirectory(options))).toBe(false);

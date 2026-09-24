@@ -380,6 +380,54 @@ describe("model-policy broad-policy next command", () => {
     expect(JSON.parse(unsafe.stdout.join("")).decision).toMatchObject({ kind: "stop", reason: "unsafe-writer" });
   });
 
+  it("stops on an unsafe verdict regardless of access mode or recorded start", () => {
+    for (const access of ["read-only", "isolated-write"] as const) {
+      for (const processStarted of [true, false, undefined] as const) {
+        const event: Record<string, unknown> = {
+          attemptIndex: 0,
+          status: "route-unavailable",
+          inspection: { state: "unsafe", evidenceRef: "diff-review#1" },
+        };
+        if (processStarted !== undefined) event.processStarted = processStarted;
+        const capture = io();
+        expect(
+          main(args(statePath({ events: [event], access })), capture.capture),
+          `${access} processStarted=${String(processStarted)}`
+        ).toBe(0);
+        expect(
+          JSON.parse(capture.stdout.join("")).decision,
+          `${access} processStarted=${String(processStarted)}`
+        ).toMatchObject({ kind: "stop", reason: "unsafe-writer" });
+      }
+    }
+  });
+
+  it("rejects recorded history that continued past an unsafe verdict", () => {
+    for (const access of ["read-only", "isolated-write"] as const) {
+      for (const processStarted of [true, false, undefined] as const) {
+        const event: Record<string, unknown> = {
+          attemptIndex: 0,
+          status: "route-unavailable",
+          inspection: { state: "unsafe", evidenceRef: "diff-review#1" },
+        };
+        if (processStarted !== undefined) event.processStarted = processStarted;
+        const capture = io();
+        expect(
+          main(
+            args(statePath({
+              events: [event, { attemptIndex: 1, status: "usage-exhausted", processStarted: false }],
+              access,
+            })),
+            capture.capture
+          ),
+          `${access} processStarted=${String(processStarted)}`
+        ).toBe(64);
+        expect(capture.stdout).toEqual([]);
+        expect(capture.stderr.join("")).toContain("could not advance");
+      }
+    }
+  });
+
   it("rejects state that bypasses a required writer inspection", () => {
     const events = [
       { attemptIndex: 0, status: "terminal-failure", processStarted: true },

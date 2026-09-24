@@ -125,11 +125,14 @@ describe("Cursor external lanes", () => {
     expect(observed("observed.json").args).toEqual(["status","--format","json"]);
   });
   for (const error of ["HTTP 401", "Unauthorized", "Invalid API key", "API key has expired"]) {
-    it(`classifies model authentication rejection: ${error}`, async () => {
+    it(`keeps unproven invocation auth wording as an ordinary child failure: ${error}`, async () => {
       process.env.CURSOR_API_KEY = "fixture-key";
       fixture({exit:1,error});
       const opts = options();
-      expect((await runLane(opts)).receipt.status).toBe("unauthenticated");
+      const receipt = (await runLane(opts)).receipt;
+      expect(receipt.status).toBe("child-failed");
+      expect(receipt.failurePhase).toBe("invocation");
+      expect(receipt.error?.evidence).toContain(error);
       expect(existsSync(join(scratch,"invoked.json"))).toBe(true);
       expect(existsSync(opts.outputPath)).toBe(false);
       expect(existsSync(cursorConfigDirectory(opts))).toBe(false);
@@ -230,7 +233,9 @@ describe("Cursor external lanes", () => {
   it("preserves a provider rejection and cleans up", async () => {
     fixture({exit:1,error:"Requested model is unavailable"});
     const opts = options();
-    expect((await runLane(opts)).receipt.status).toBe("unavailable-model");
+    const receipt = (await runLane(opts)).receipt;
+    expect(receipt.status).toBe("child-failed");
+    expect(receipt.error?.evidence).toContain("Requested model is unavailable");
     expect(existsSync(cursorConfigDirectory(opts))).toBe(false);
   });
   it("cleans up after an explicit deadline", async () => {

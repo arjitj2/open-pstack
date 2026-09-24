@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test";
 import {
   ModelPolicyError,
   assertCompleteSheet,
+  eventAdvancesUnderPolicy,
   nextAttempt,
   parseSheet,
   renderSheet,
@@ -757,6 +758,86 @@ describe("nextAttempt under a broad fallback policy", () => {
         "isolated-write"
       )
     ).toMatchObject({ kind: "launch", attemptIndex: 1 });
+  });
+
+  it("vetoes continuation on an explicit unsafe verdict regardless of start or access", () => {
+    const lane = broadLane();
+    for (const access of ["read-only", "isolated-write"] as const) {
+      for (const processStarted of [true, false, undefined] as const) {
+        const event = {
+          attemptIndex: 0,
+          status: "route-unavailable" as const,
+          processStarted,
+          inspection: { state: "unsafe" as const, evidenceRef: "diff-review#1" },
+        };
+        expect(
+          nextAttempt(lane, [event], new Set(), access),
+          `${access} processStarted=${String(processStarted)}`
+        ).toMatchObject({ kind: "stop", reason: "unsafe-writer" });
+      }
+    }
+  });
+
+  it("advances a proved-not-started writer with a clear verdict or no inspection", () => {
+    const lane = broadLane();
+    for (const access of ["read-only", "isolated-write"] as const) {
+      for (const inspection of [
+        undefined,
+        { state: "clear" as const, evidenceRef: "preflight-log#1" },
+      ]) {
+        expect(
+          nextAttempt(
+            lane,
+            [{ attemptIndex: 0, status: "route-unavailable", processStarted: false, inspection }],
+            new Set(),
+            access
+          ),
+          `${access} inspection=${JSON.stringify(inspection)}`
+        ).toMatchObject({ kind: "launch", attemptIndex: 1 });
+      }
+    }
+  });
+
+  it("never lets recorded history advance past an unsafe verdict", () => {
+    const lane = broadLane();
+    for (const access of ["read-only", "isolated-write"] as const) {
+      for (const processStarted of [true, false, undefined] as const) {
+        const event = {
+          attemptIndex: 0,
+          status: "route-unavailable" as const,
+          processStarted,
+          inspection: { state: "unsafe" as const, evidenceRef: "diff-review#1" },
+        };
+        expect(
+          eventAdvancesUnderPolicy(lane, event, access),
+          `${access} processStarted=${String(processStarted)}`
+        ).toBe(false);
+      }
+    }
+  });
+
+  it("advances recorded history only through the started-writer gate", () => {
+    const lane = broadLane();
+    const failed = { attemptIndex: 0, status: "terminal-failure" as const };
+    expect(
+      eventAdvancesUnderPolicy(lane, { ...failed, processStarted: false }, "isolated-write")
+    ).toBe(true);
+    expect(
+      eventAdvancesUnderPolicy(lane, { ...failed, processStarted: true }, "isolated-write")
+    ).toBe(false);
+    expect(
+      eventAdvancesUnderPolicy(lane, { ...failed }, "isolated-write")
+    ).toBe(false);
+    expect(
+      eventAdvancesUnderPolicy(
+        lane,
+        { ...failed, processStarted: true, inspection: { state: "clear", evidenceRef: "diff-review#1" } },
+        "isolated-write"
+      )
+    ).toBe(true);
+    expect(
+      eventAdvancesUnderPolicy(lane, { ...failed, processStarted: true }, "read-only")
+    ).toBe(true);
   });
 
   it("still stops on an unauthorized route and ends a finite exhausted chain", () => {

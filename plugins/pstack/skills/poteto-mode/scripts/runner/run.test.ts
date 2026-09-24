@@ -151,6 +151,9 @@ if (stage === "model" && process.env.FAKE_SELF_SIGNAL) {
 }
 if (name === "codex" && stage === "model" && process.env.FAKE_CODEX_TURN_FAILED) {
   console.log(JSON.stringify({type:"thread.started",thread_id:"t1"}));
+  if (process.env.FAKE_CODEX_AGENT_MESSAGE) {
+    console.log(JSON.stringify({type:"item.completed",item:{type:"agent_message",text:process.env.FAKE_CODEX_AGENT_MESSAGE}}));
+  }
   console.log(JSON.stringify({type:"turn.failed",error:{message:process.env.FAKE_CODEX_TURN_FAILED}}));
   process.exit(Number(process.env.FAKE_CODEX_TURN_FAILED_EXIT ?? "0"));
 }
@@ -328,6 +331,7 @@ beforeEach(() => {
   delete process.env.FAKE_CODEX_LOGIN_STATUS;
   delete process.env.FAKE_CODEX_TURN_FAILED;
   delete process.env.FAKE_CODEX_TURN_FAILED_EXIT;
+  delete process.env.FAKE_CODEX_AGENT_MESSAGE;
   delete process.env.FAKE_CODEX_RECOVERED_ERROR;
   delete process.env.FAKE_GROK_FREE_USAGE;
   delete process.env.FAKE_GROK_FREE_USAGE_EXIT;
@@ -385,6 +389,7 @@ afterEach(() => {
   delete process.env.FAKE_CODEX_LOGIN_STATUS;
   delete process.env.FAKE_CODEX_TURN_FAILED;
   delete process.env.FAKE_CODEX_TURN_FAILED_EXIT;
+  delete process.env.FAKE_CODEX_AGENT_MESSAGE;
   delete process.env.FAKE_CODEX_RECOVERED_ERROR;
   delete process.env.FAKE_GROK_FREE_USAGE;
   delete process.env.FAKE_GROK_FREE_USAGE_EXIT;
@@ -491,19 +496,24 @@ describe("runLane", () => {
     }
   });
 
-  it("classifies an unavailable model without falling back", async () => {
+  it("keeps unproven invocation model wording as an ordinary child failure", async () => {
     process.env.FAKE_INVALID_MODEL = "1";
     const input = options("codex");
     const result = await runLane(input);
-    expect(result.exitCode).toBe(69);
+    expect(result.exitCode).toBe(70);
     expect(existsSync(input.outputPath)).toBe(false);
     expect(receipt(input.receiptPath)).toMatchObject({
-      status: "unavailable-model",
+      status: "child-failed",
       model: "gpt-5.6-sol",
       reportedModel: null,
       modelVerified: false,
       modelEvidence: null,
+      failurePhase: "invocation",
+      processStarted: true,
     });
+    expect(receipt(input.receiptPath).error?.evidence).toContain(
+      "The requested model is not supported with this account."
+    );
   });
 
   it("retries a contradictory Grok authentication preflight before running the model", async () => {
@@ -550,6 +560,16 @@ describe("runLane", () => {
     expect(receipt(input.receiptPath).preflight.evidence).toContain(
       "attempt 2 failed"
     );
+    expect(
+      normalizeReceiptEvent(receipt(input.receiptPath), {
+        parent: input.parent,
+        provider: input.provider,
+        model: input.model,
+        effort: input.effort,
+        mode: input.mode,
+        apiSpend: "unset",
+      }).status
+    ).toBe("route-unavailable");
   }, 10_000);
 
   it("counts the Grok retry delay against the wrapper deadline", async () => {
@@ -998,6 +1018,16 @@ describe("runLane", () => {
     expect(result.exitCode).toBe(69);
     expect(existsSync(input.outputPath)).toBe(false);
     expect(receipt(input.receiptPath).status).toBe("unavailable-cli");
+    expect(
+      normalizeReceiptEvent(receipt(input.receiptPath), {
+        parent: input.parent,
+        provider: input.provider,
+        model: input.model,
+        effort: input.effort,
+        mode: input.mode,
+        apiSpend: "unset",
+      }).status
+    ).toBe("route-unavailable");
   });
 
   it("runs simultaneous same-provider lanes only into their unique paths", async () => {
@@ -1142,6 +1172,91 @@ describe("backend-recovery receipt evidence", () => {
       apiSpend: "unset",
     });
     expect(event.status).toBe("terminal-failure");
+  });
+
+  it("keeps generated stdout auth prose plus a generic terminal failure as child-failed", async () => {
+    process.env.FAKE_CODEX_AGENT_MESSAGE =
+      "authentication required for the app under test";
+    process.env.FAKE_CODEX_TURN_FAILED = "generic backend error";
+    process.env.FAKE_CODEX_TURN_FAILED_EXIT = "1";
+    const input = options("codex", "generated-auth-prose");
+    const result = await runLane(input);
+    expect(result.receipt.status).toBe("child-failed");
+    expect(result.receipt.failurePhase).toBe("invocation");
+    expect(result.receipt.processStarted).toBe(true);
+    expect(result.receipt.terminalSuccess).toBe(false);
+    expect(result.receipt.error?.evidence).toContain(
+      "authentication required for the app under test"
+    );
+    const event = normalizeReceiptEvent(result.receipt, {
+      parent: input.parent,
+      provider: input.provider,
+      model: input.model,
+      effort: input.effort,
+      mode: input.mode,
+      apiSpend: "unset",
+    });
+    expect(event.status).toBe("terminal-failure");
+    const attempts = [
+      { descriptor: "codex:gpt-5.6-sol@max", attempt: { kind: "descriptor", provider: "codex", model: "gpt-5.6-sol", effort: "max" }, exhaustionGroup: "codex", funding: "included", apiSpend: "deny", route: "external", authorization: { state: "allowed" } },
+      { descriptor: "grok:grok-4.7@xhigh", attempt: { kind: "descriptor", provider: "grok", model: "grok-4.7", effort: "xhigh" }, exhaustionGroup: "grok", funding: "included", apiSpend: "deny", route: "external", authorization: { state: "allowed" } },
+    ] as const;
+    const events = [{ attemptIndex: 0, status: event.status, processStarted: event.processStarted }];
+    expect(
+      nextAttempt(
+        { id: "how explorer#1", fallback: { on: ["route-unavailable"] }, attempts: [...attempts] },
+        events,
+        new Set(),
+        "read-only"
+      )
+    ).toMatchObject({ kind: "stop", reason: "not-eligible" });
+    expect(
+      nextAttempt(
+        { id: "how explorer#1", fallback: { on: ["route-unavailable", "terminal-failure"] }, attempts: [...attempts] },
+        events,
+        new Set(),
+        "read-only"
+      )
+    ).toMatchObject({ kind: "launch", attemptIndex: 1 });
+  });
+
+  it("never classifies quoted or logged stderr auth and model wording as a route failure", async () => {
+    for (const [index, line] of [
+      'Error: invocation failed; upstream log ended with "unauthenticated: invalid api key"',
+      'Error: backend rejected the request; log said "model not supported"',
+      "Error: authentication required for the app under test",
+    ].entries()) {
+      process.env.FAKE_DEVIN_STDERR = line;
+      const input = { ...options("devin", `devin-quoted-${index}`), model: "swe-2", effort: "high" as const };
+      const result = await runLane(input);
+      expect(result.receipt.status, line).toBe("child-failed");
+      expect(result.receipt.failurePhase, line).toBe("invocation");
+      const event = normalizeReceiptEvent(result.receipt, {
+        parent: input.parent,
+        provider: input.provider,
+        model: input.model,
+        effort: input.effort,
+        mode: input.mode,
+        apiSpend: "unset",
+      });
+      expect(event.status, line).toBe("terminal-failure");
+      expect(
+        nextAttempt(
+          {
+            id: "how explorer#1",
+            fallback: { on: ["route-unavailable"] },
+            attempts: [
+              { descriptor: "devin:swe-2@high", attempt: { kind: "descriptor", provider: "devin", model: "swe-2", effort: "high" }, exhaustionGroup: "devin", funding: "included", apiSpend: "deny", route: "external", authorization: { state: "allowed" } },
+              { descriptor: "grok:grok-4.7@xhigh", attempt: { kind: "descriptor", provider: "grok", model: "grok-4.7", effort: "xhigh" }, exhaustionGroup: "grok", funding: "included", apiSpend: "deny", route: "external", authorization: { state: "allowed" } },
+            ],
+          },
+          [{ attemptIndex: 0, status: event.status, processStarted: event.processStarted }],
+          new Set(),
+          "read-only"
+        ),
+        line
+      ).toMatchObject({ kind: "stop", reason: "not-eligible" });
+    }
   });
 
   it("never advances a broad chain on a successful final result with a nonzero exit", async () => {
@@ -1367,8 +1482,8 @@ describe("usage exhaustion and billing guard", () => {
       process.env.FAKE_DEVIN_STDERR = line;
       const input = { ...options("devin", `devin-nonquota-${index}`), model: "swe-2", effort: "high" as const };
       const result = await runLane(input);
-      expect(result.receipt.status, line).not.toBe("usage-exhausted");
-      expect(["child-failed", "unauthenticated"], line).toContain(result.receipt.status);
+      expect(result.receipt.status, line).toBe("child-failed");
+      expect(result.receipt.failurePhase, line).toBe("invocation");
     }
   });
 
@@ -1393,9 +1508,8 @@ describe("usage exhaustion and billing guard", () => {
       process.env.FAKE_CURSOR_STDERR = line;
       const input = { ...options("cursor", `cursor-nonquota-${index}`), model: "composer-2.5", effort: "default" as const };
       const result = await runLane(input);
-      expect(result.receipt.status, line).not.toBe("usage-exhausted");
-      expect(["child-failed", "unauthenticated"], line).toContain(result.receipt.status);
-      expect(result.receipt.failurePhase).toBe("invocation");
+      expect(result.receipt.status, line).toBe("child-failed");
+      expect(result.receipt.failurePhase, line).toBe("invocation");
     }
   });
 
