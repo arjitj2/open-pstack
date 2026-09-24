@@ -12,9 +12,9 @@ open-pstack tracks [Cursor's pstack](https://github.com/cursor/plugins/tree/main
 | Path | `pstack/` |
 | Commit | `f8abeddd1862dc73704e3d719dd73df0d51b8c71` |
 | Upstream version | `0.15.1` |
-| open-pstack version | `1.4.1-arjit.2` |
+| open-pstack version | `1.4.1-arjit.3` |
 
-The table above records the content incorporated in the stable release, with the exclusions below. Detecting or reviewing newer Cursor commits does not advance this baseline. `README-UPSTREAM.md` preserves the upstream pstack README verbatim. `CHANGES.md` and `NOTICE.md` describe the adaptations and provenance.
+The source commit and upstream version above record the content incorporated in the stable release, with the exclusions below. The open-pstack version identifies this checkout’s candidate package; the tested stable release remains `1.4.1-arjit.2` until the candidate passes the release gates. Detecting or reviewing newer Cursor commits does not advance this baseline. `README-UPSTREAM.md` preserves the upstream pstack README verbatim. `CHANGES.md` and `NOTICE.md` describe the adaptations and provenance.
 
 ## Upstream-only exclusions
 
