@@ -25,7 +25,7 @@ The table above records the content incorporated in the stable release, with the
 
 ## Pending source changes
 
-The [maintenance issue](https://github.com/arjitj2/open-pstack/issues/1) and direct Cursor proposal PRs show outstanding changes. The committed decision ledger distinguishes adopted, adapted, excluded, and pending commits. Each final disposition needs a reason and evidence. Pending rows stay visible after the review cursor advances.
+The [maintenance issue](https://github.com/arjitj2/open-pstack/issues/1) and direct Cursor proposal PRs show outstanding changes. The committed [decision ledger](maintenance/upstream-ledger.json) distinguishes adopted, adapted, excluded, and pending commits. Each final disposition needs a reason and evidence. Pending rows stay visible after the review cursor advances.
 
 ## Check for changes
 

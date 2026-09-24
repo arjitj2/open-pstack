@@ -1,4 +1,4 @@
-name: Sync open-pstack upstream
+name: Catalogue Cursor pstack changes
 on:
   schedule:
     - cron: '23 11 * * *'
@@ -22,7 +22,7 @@ jobs:
         with:
           ref: main
           fetch-depth: 0
-      - name: Mirror upstream, prepare review, and check alerts
+      - name: Catalogue new Cursor commits, maintain the proposal PR, and post alerts
         env:
           GH_TOKEN: ${{ github.token }}
         run: python3 scripts/fork-maintenance.py daily

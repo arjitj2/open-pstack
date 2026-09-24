@@ -4,13 +4,26 @@ Arjit Jaiswal maintains this repository directly against [Cursor's Pstack](https
 
 ## Review source changes
 
-Daily GitHub Actions checks prepare Cursor update proposals from this repository's recorded baseline. A proposal identifies exact source commits, changed files, intentional differences, and validation still required. Source content is review material. The privileged proposal job does not execute it or overwrite the packaged plugin.
+Daily GitHub Actions checks prepare Cursor update proposals from this repository's recorded baseline. A proposal identifies exact source commits and changed files, preserves their patches, and states the validation still required. Use the source-to-port audit below to inspect existing adaptations before adopting a change. Source content is review material. The privileged proposal job does not execute it or overwrite the packaged plugin.
 
-Each source change has a recorded disposition: adopted, adapted, excluded with a reason, or pending. A reviewed commit can remain pending. Neither detection nor review advances the incorporated baseline. Read [UPSTREAM.md](../UPSTREAM.md) for the stable baseline and outstanding work.
+The [decision ledger](../maintenance/upstream-ledger.json) records every catalogued source change. Each change has a disposition: adopted, adapted, excluded with a reason, or pending. A reviewed commit can remain pending. Neither detection nor review advances the incorporated baseline. Read [UPSTREAM.md](../UPSTREAM.md) for the stable baseline and outstanding work.
 
 The maintainer aims to review the backlog weekly. Seven days of outstanding substantive changes triggers attention; 21 days triggers an overdue review. Skill Markdown counts as behavior. Alerts use conservative path/title heuristics and are review prompts, not proof of a defect. Retries must not duplicate unchanged alerts.
 
 The [maintenance issue](https://github.com/arjitj2/open-pstack/issues/1) reports pending Cursor changes and the original contribution PRs. New fixes in Eric's port are considered independently. Existing contribution branches remain available for those PRs. The old `upstream-main` mirror is historical; the direct Cursor workflow does not merge from it.
+
+## Inspect a proposal locally
+
+Fetch Cursor, then preview the proposal without changing GitHub, the checkout, or the active index:
+
+```sh
+git fetch https://github.com/cursor/plugins.git main:refs/remotes/maintenance/cursor
+python3 scripts/fork-maintenance.py preview --base HEAD --target refs/remotes/maintenance/cursor --out-dir /tmp/pstack-cursor-preview
+python3 scripts/fork-maintenance.py check-ledger
+python3 scripts/upstream-audit.py --port HEAD --upstream refs/remotes/maintenance/cursor
+```
+
+The preview contains the proposed ledger, a per-commit report, a machine-readable audit, and source patches under `maintenance/proposals/`. Patches are review material; they are never applied by the scheduled job. Final decisions require `reason` and `evidence` fields. Keep the existing history when recording a decision.
 
 ## Validate a candidate
 
