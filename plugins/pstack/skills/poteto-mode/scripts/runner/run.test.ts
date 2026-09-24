@@ -25,7 +25,7 @@ import { appendFileSync, existsSync, unlinkSync, writeFileSync } from "node:fs";
 const args = process.argv.slice(2);
 const name = process.argv[1].split("/").at(-1);
 const isPreflight =
-  (name === "claude" && args[0] === "auth") ||
+  (name === "claude" && args.includes("auth")) ||
   (name === "codex" && args[0] === "login") ||
   (name === "grok" && args[0] === "models");
 const stage = isPreflight ? "preflight" : "model";
@@ -54,7 +54,7 @@ if (delay > 0) await Bun.sleep(delay);
 if (process.env.FAKE_TIMEOUT === "1" && !args.includes("status") && !args.includes("models")) {
   await Bun.sleep(5_000);
 }
-if (name === "claude" && args[0] === "auth") {
+if (name === "claude" && args.includes("auth")) {
   if (process.env.FAKE_REMOVE_EXECUTABLE_AFTER_PREFLIGHT === "1") {
     unlinkSync(process.argv[1]);
   }

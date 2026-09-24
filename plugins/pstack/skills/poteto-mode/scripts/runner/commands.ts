@@ -27,7 +27,7 @@ export function preflightCommand(provider: Provider, apiSpend: RunnerOptions["ap
     case "claude":
       return {
         command: "claude",
-        args: ["auth", "status", "--json", ...(apiSpend === "deny" ? ["--setting-sources", ""] : [])],
+        args: [...(apiSpend === "deny" ? ["--setting-sources", ""] : []), "auth", "status", "--json"],
         stdin: "none",
       };
     case "codex":

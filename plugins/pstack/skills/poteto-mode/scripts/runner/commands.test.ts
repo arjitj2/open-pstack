@@ -223,6 +223,7 @@ it("disables file settings for Claude auth checks and invocations when API spend
   for (const spec of [preflightCommand("claude", "deny"), invocationCommand(input)]) {
     expect(spec.args[spec.args.indexOf("--setting-sources") + 1]).toBe("");
   }
+  expect(preflightCommand("claude", "deny").args).toEqual(["--setting-sources", "", "auth", "status", "--json"]);
   const approved = invocationCommand({ ...input, apiSpend: "approved" });
   expect(approved.args[approved.args.indexOf("--setting-sources") + 1]).toBe("project");
 });
