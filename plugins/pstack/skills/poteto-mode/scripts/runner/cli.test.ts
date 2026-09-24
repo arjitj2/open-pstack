@@ -41,3 +41,18 @@ describe("runner CLI parsing", () => {
     );
   });
 });
+
+describe("runner --api-spend flag", () => {
+  it("leaves billing policy unset for legacy calls", () => {
+    expect(parseArgs(argv())?.apiSpend).toBeNull();
+  });
+
+  it("accepts explicit deny and approved modes", () => {
+    expect(parseArgs(argv(["--api-spend", "deny"]))?.apiSpend).toBe("deny");
+    expect(parseArgs(argv(["--api-spend", "approved"]))?.apiSpend).toBe("approved");
+  });
+
+  it("rejects an unrecognized spend mode", () => {
+    expect(() => parseArgs(argv(["--api-spend", "maybe"]))).toThrow("api-spend");
+  });
+});

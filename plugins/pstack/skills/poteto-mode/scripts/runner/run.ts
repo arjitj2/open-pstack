@@ -14,6 +14,13 @@ import { invocationCommand, preflightCommand, type CommandSpec } from "./command
 import { cursorConfigDirectory, cursorConfig, cursorHasApiKey, cursorUserConfigPath, validateCursorModel } from "./cursor.ts";
 import { versionedClaudeAlias } from "./model-aliases.ts";
 import { parseProviderOutput, reportedModelMatches } from "./parse-output.ts";
+import {
+  ProviderTerminalError,
+  apiCredentialTakeover,
+  classifyTerminalEnvelope,
+  classifyTerminalOutput,
+  subscriptionAuthEvidence,
+} from "./provider-failure.ts";
 import type {
   Provider,
   ReceiptStatus,
@@ -406,6 +413,16 @@ function unavailableStatus(value: string): ReceiptStatus {
   return "child-failed";
 }
 
+function terminalFailureStatus(
+  provider: Provider,
+  stdout: string,
+  stderr: string,
+  combined: string
+): ReceiptStatus {
+  const terminal = classifyTerminalOutput(provider, stdout, stderr);
+  return terminal.status === "usage-exhausted" ? "usage-exhausted" : unavailableStatus(combined);
+}
+
 function preflightFailureStatus(
   provider: Provider,
   model: string,
@@ -444,8 +461,12 @@ function statusExitCode(status: ReceiptStatus): number {
       return 69;
     case "child-failed":
       return 70;
+    case "usage-exhausted":
+      return 75;
     case "unauthenticated":
       return 77;
+    case "billing-policy-blocked":
+      return 78;
     case "timed-out":
       return 124;
   }
@@ -544,6 +565,7 @@ interface LaneProgress {
   executable: string | null;
   preflight: RunnerReceipt["preflight"];
   argv: readonly string[];
+  modelStarted: boolean;
 }
 
 async function executeLane(
@@ -560,6 +582,41 @@ async function executeLane(
   const env = childEnvironment(options.provider);
   const apiKeyAuth = options.provider === "cursor" && cursorHasApiKey(env);
   if (options.provider === "cursor") env.CURSOR_CONFIG_DIR = cursorConfigDirectory(options);
+
+  const takeover = options.apiSpend === "deny"
+    ? apiCredentialTakeover(options.provider, env)
+    : null;
+  if (takeover !== null) {
+    const completed = Date.now();
+    const receipt = completeReceipt(options, {
+      status: "billing-policy-blocked",
+      startedAt,
+      completedAt: new Date(completed).toISOString(),
+      elapsedMs: completed - started,
+      executable: null,
+      preflight: { argv: [preflight.command, ...preflight.args], status: "not-run", evidence: "" },
+      argv: [invocation.command, ...invocation.args],
+      exitCode: null,
+      signal: null,
+      reportedModel: null,
+      modelVerified: false,
+      modelEvidence: null,
+      sessionId: null,
+      usage: null,
+      costUsd: null,
+      error: {
+        message: `subscription-only policy refuses ambient API credential ${takeover}; approve API spend explicitly or unset it`,
+        evidence: "",
+      },
+      failurePhase: "preflight",
+      processStarted: false,
+      apiSpend: "deny",
+    });
+    removeIfExists(options.outputPath);
+    writeReceipt(options.receiptPath, receipt);
+    return { exitCode: statusExitCode(receipt.status), receipt };
+  }
+
   const executable = Bun.which(invocation.command, {
     PATH: env.PATH,
     cwd: options.cwd,
@@ -601,6 +658,9 @@ async function executeLane(
           : `launcher received ${receivedSignal} ${phase}`,
         evidence: "",
       },
+      failurePhase: "preflight",
+      processStarted: false,
+      apiSpend: options.apiSpend ?? "legacy",
     });
     removeIfExists(options.outputPath);
     writeReceipt(options.receiptPath, receipt);
@@ -636,6 +696,9 @@ async function executeLane(
         message: `${invocation.command} executable not found`,
         evidence: "",
       },
+      failurePhase: "preflight",
+      processStarted: false,
+      apiSpend: options.apiSpend ?? "legacy",
     });
     removeIfExists(options.outputPath);
     writeReceipt(options.receiptPath, receipt);
@@ -722,11 +785,16 @@ async function executeLane(
 
   if (preflightState.status !== "passed") {
     const completed = Date.now();
-    const preflightFailure = preflightFailureStatus(
-      options.provider,
-      options.model,
-      rawPreflightEvidence
-    );
+    const preflightFailure = preflightResult.cancelledBy === null &&
+      !preflightResult.timedOut &&
+      classifyTerminalOutput(options.provider, preflightResult.stdout, preflightResult.stderr)
+        .status === "usage-exhausted"
+      ? "usage-exhausted"
+      : preflightFailureStatus(
+          options.provider,
+          options.model,
+          rawPreflightEvidence
+        );
     const status: ReceiptStatus = preflightResult.cancelledBy !== null
       ? "cancelled"
       : preflightResult.timedOut
@@ -756,6 +824,9 @@ async function executeLane(
             : "authentication or model preflight failed",
         evidence: preflightEvidence,
       },
+      failurePhase: "preflight",
+      processStarted: false,
+      apiSpend: options.apiSpend ?? "legacy",
     });
     removeIfExists(options.outputPath);
     writeReceipt(options.receiptPath, receipt);
@@ -769,6 +840,45 @@ async function executeLane(
     return finishWithoutChild("timed-out", "before model execution");
   }
 
+  if (options.apiSpend === "deny") {
+    const verdict = subscriptionAuthEvidence(
+      options.provider,
+      preflightResult.stdout,
+      preflightResult.stderr
+    );
+    if (verdict !== null && !verdict.compatible) {
+      const completed = Date.now();
+      receipt = completeReceipt(options, {
+        status: "billing-policy-blocked",
+        startedAt,
+        completedAt: new Date(completed).toISOString(),
+        elapsedMs: completed - started,
+        executable,
+        preflight: preflightState,
+        argv: [executable, ...invocation.args],
+        exitCode: null,
+        signal: null,
+        reportedModel: null,
+        modelVerified: false,
+        modelEvidence: null,
+        sessionId: null,
+        usage: null,
+        costUsd: null,
+        error: {
+          message: `subscription-only policy refused the observed authentication: ${verdict.reason}`,
+          evidence: "",
+        },
+        failurePhase: "preflight",
+        processStarted: false,
+        apiSpend: "deny",
+      });
+      removeIfExists(options.outputPath);
+      writeReceipt(options.receiptPath, receipt);
+      return { exitCode: statusExitCode(receipt.status), receipt };
+    }
+  }
+
+  progress.modelStarted = true;
   const result = await runProcess(
     executable,
     invocation,
@@ -797,7 +907,7 @@ async function executeLane(
       ? "cancelled"
       : result.timedOut
         ? "timed-out"
-        : unavailableStatus(rawFailureEvidence);
+        : terminalFailureStatus(options.provider, result.stdout, result.stderr, rawFailureEvidence);
     receipt = completeReceipt(options, {
       ...base,
       status,
@@ -817,6 +927,9 @@ async function executeLane(
             : `child exited with status ${result.exitCode}`,
         evidence: failureEvidence,
       },
+      failurePhase: "invocation",
+      processStarted: true,
+      apiSpend: options.apiSpend ?? "legacy",
     });
     removeIfExists(options.outputPath);
     writeReceipt(options.receiptPath, receipt);
@@ -849,13 +962,26 @@ async function executeLane(
       usage: parsed.usage,
       costUsd: parsed.costUsd,
       error: null,
+      failurePhase: null,
+      processStarted: true,
+      apiSpend: options.apiSpend ?? "legacy",
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     removeIfExists(options.outputPath);
+    const terminal =
+      error instanceof ProviderTerminalError
+        ? classifyTerminalEnvelope(options.provider, error.envelope)
+        : null;
+    const status: ReceiptStatus =
+      terminal?.status === "usage-exhausted"
+        ? "usage-exhausted"
+        : error instanceof ProviderTerminalError
+          ? "child-failed"
+          : "malformed-output";
     receipt = completeReceipt(options, {
       ...base,
-      status: "malformed-output",
+      status,
       reportedModel: null,
       modelVerified: false,
       modelEvidence: null,
@@ -864,8 +990,13 @@ async function executeLane(
       costUsd: null,
       error: {
         message,
-        evidence: evidence(`${result.stderr}\n${result.stdout}`),
+        evidence: terminal?.evidence
+          ? evidence(terminal.evidence)
+          : evidence(`${result.stderr}\n${result.stdout}`),
       },
+      failurePhase: "postprocess",
+      processStarted: true,
+      apiSpend: options.apiSpend ?? "legacy",
     });
   }
 
@@ -880,7 +1011,7 @@ export async function runLane(
   validateOptions(options);
   const deadlineAt = options.timeoutMs === null ? null : started + options.timeoutMs;
   const invocation = invocationCommand(options);
-  const preflight = preflightCommand(options.provider);
+  const preflight = preflightCommand(options.provider, options.apiSpend);
   const progress: LaneProgress = {
     executable: null,
     preflight: {
@@ -889,6 +1020,7 @@ export async function runLane(
       evidence: "",
     },
     argv: [invocation.command, ...invocation.args],
+    modelStarted: false,
   };
   const cancellation = installRunCancellation();
   let createdCursorConfig = false;
@@ -962,6 +1094,9 @@ export async function runLane(
               : "launcher failed after reserving output paths",
           evidence: evidence(message),
         },
+        failurePhase: progress.modelStarted ? "invocation" : "preflight",
+        processStarted: progress.modelStarted,
+        apiSpend: options.apiSpend ?? "legacy",
       });
       removeIfExists(options.outputPath);
       writeReceipt(options.receiptPath, receipt);

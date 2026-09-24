@@ -58,11 +58,12 @@ if (name === "claude" && args[0] === "auth") {
   if (process.env.FAKE_REMOVE_EXECUTABLE_AFTER_PREFLIGHT === "1") {
     unlinkSync(process.argv[1]);
   }
-  console.log(JSON.stringify({loggedIn:true}));
+  console.log(process.env.FAKE_CLAUDE_AUTH_JSON ??
+    JSON.stringify({loggedIn:true,authMethod:"claude.ai",apiProvider:"firstParty",subscriptionType:"pro"}));
   process.exit(0);
 }
 if (name === "codex" && args[0] === "login") {
-  console.log("Logged in using ChatGPT");
+  console.log(process.env.FAKE_CODEX_LOGIN_STATUS ?? "Logged in using ChatGPT");
   process.exit(0);
 }
 if (name === "grok" && args[0] === "models") {
@@ -100,6 +101,26 @@ if (process.env.FAKE_INVALID_MODEL === "1") {
   console.error("The requested model is not supported with this account.");
   process.exit(1);
 }
+if (stage === "model" && process.env.FAKE_QUOTA_STDERR === "1") {
+  console.error(JSON.stringify({type:"error",error:{type:"insufficient_quota",message:"You exceeded your current quota"}}));
+  process.exit(1);
+}
+if (stage === "model" && process.env.FAKE_GENERIC_429 === "1") {
+  console.error("HTTP 429 Too Many Requests: rate limit exceeded, please slow down");
+  process.exit(1);
+}
+if (stage === "model" && process.env.FAKE_QUOTA_RESULT === "1") {
+  console.log(JSON.stringify({result:"",is_error:true,subtype:"error_during_execution",errors:[JSON.stringify({type:"error",error:{type:"insufficient_quota",message:"Your usage quota is exhausted"}})]}));
+  process.exit(0);
+}
+if (stage === "model" && process.env.FAKE_QUOTA_TEXT === "1") {
+  console.log(JSON.stringify({result:"You have exceeded your quota and cannot proceed",session_id:"c1",is_error:false,modelUsage:{[reportedModel]:{}}}));
+  process.exit(0);
+}
+if (stage === "model" && process.env.FAKE_QUOTA_WORDS_STDERR === "1") {
+  console.error("You have exceeded your current quota, please check your plan and billing details");
+  process.exit(1);
+}
 if (stage === "model" && process.env.FAKE_DESCENDANT_HOLDS_PIPES_MS) {
   const seconds = Number(process.env.FAKE_DESCENDANT_HOLDS_PIPES_MS) / 1000;
   const descendant = Bun.spawn(["/bin/sh", "-c", "sleep " + seconds], {
@@ -115,6 +136,19 @@ if (stage === "model" && process.env.FAKE_DESCENDANT_HOLDS_PIPES_MS) {
 if (stage === "model" && process.env.FAKE_SELF_SIGNAL) {
   process.kill(process.pid, process.env.FAKE_SELF_SIGNAL);
   await Bun.sleep(5_000);
+}
+if (name === "codex" && stage === "model" && process.env.FAKE_CODEX_TURN_FAILED) {
+  console.log(JSON.stringify({type:"thread.started",thread_id:"t1"}));
+  console.log(JSON.stringify({type:"turn.failed",error:{message:process.env.FAKE_CODEX_TURN_FAILED}}));
+  process.exit(Number(process.env.FAKE_CODEX_TURN_FAILED_EXIT ?? "0"));
+}
+if (name === "codex" && stage === "model" && process.env.FAKE_CODEX_RECOVERED_ERROR === "1") {
+  console.log(JSON.stringify({type:"error",message:"stream error: reconnecting"}));
+}
+if (name === "grok" && stage === "model" && process.env.FAKE_GROK_FREE_USAGE === "1") {
+  console.log(JSON.stringify({type:"assistant",message:{content:[{type:"text",text:"I inspected authentication handling."}]}}));
+  console.log(JSON.stringify({type:"result",subtype:"error_during_execution",is_error:true,errors:["You\u2019ve reached your free Grok Build usage limit for now. Get SuperGrok for much higher limits, or try again later: https://grok.com/supergrok?referrer=grok-build"]}));
+  process.exit(Number(process.env.FAKE_GROK_FREE_USAGE_EXIT ?? "0"));
 }
 if (name === "claude") {
   console.log(JSON.stringify({result:"CLAUDE_OK",session_id:"c1",usage:{input_tokens:10,output_tokens:2},total_cost_usd:0.01,modelUsage:{[reportedModel]:{}}}));
@@ -156,6 +190,7 @@ function options(provider: Provider, suffix: string = provider): RunnerOptions {
     outputPath: join(scratch, `${suffix}.out`),
     receiptPath: join(scratch, `${suffix}.receipt.json`),
     timeoutMs: null,
+    apiSpend: null,
   };
 }
 
@@ -246,6 +281,28 @@ beforeEach(() => {
   delete process.env.FAKE_DESCENDANT_HOLDS_PIPES_MS;
   delete process.env.FAKE_DESCENDANT_PID_PATH;
   delete process.env.FAKE_SELF_SIGNAL;
+  delete process.env.FAKE_QUOTA_STDERR;
+  delete process.env.FAKE_GENERIC_429;
+  delete process.env.FAKE_QUOTA_RESULT;
+  delete process.env.FAKE_QUOTA_TEXT;
+  delete process.env.FAKE_QUOTA_WORDS_STDERR;
+  delete process.env.FAKE_CLAUDE_AUTH_JSON;
+  delete process.env.FAKE_CODEX_LOGIN_STATUS;
+  delete process.env.FAKE_CODEX_TURN_FAILED;
+  delete process.env.FAKE_CODEX_TURN_FAILED_EXIT;
+  delete process.env.FAKE_CODEX_RECOVERED_ERROR;
+  delete process.env.FAKE_GROK_FREE_USAGE;
+  delete process.env.FAKE_GROK_FREE_USAGE_EXIT;
+  delete process.env.CURSOR_API_KEY;
+  delete process.env.ANTHROPIC_API_KEY;
+  delete process.env.ANTHROPIC_AUTH_TOKEN;
+  delete process.env.ANTHROPIC_AWS_API_KEY;
+  delete process.env.CLAUDE_CODE_USE_BEDROCK;
+  delete process.env.CLAUDE_CODE_USE_VERTEX;
+  delete process.env.CLAUDE_CODE_USE_FOUNDRY;
+  delete process.env.ANTHROPIC_BASE_URL;
+  delete process.env.ANTHROPIC_CUSTOM_HEADERS;
+  delete process.env.XAI_API_KEY;
 });
 
 afterEach(() => {
@@ -270,6 +327,28 @@ afterEach(() => {
   delete process.env.FAKE_DESCENDANT_HOLDS_PIPES_MS;
   delete process.env.FAKE_DESCENDANT_PID_PATH;
   delete process.env.FAKE_SELF_SIGNAL;
+  delete process.env.FAKE_QUOTA_STDERR;
+  delete process.env.FAKE_GENERIC_429;
+  delete process.env.FAKE_QUOTA_RESULT;
+  delete process.env.FAKE_QUOTA_TEXT;
+  delete process.env.FAKE_QUOTA_WORDS_STDERR;
+  delete process.env.FAKE_CLAUDE_AUTH_JSON;
+  delete process.env.FAKE_CODEX_LOGIN_STATUS;
+  delete process.env.FAKE_CODEX_TURN_FAILED;
+  delete process.env.FAKE_CODEX_TURN_FAILED_EXIT;
+  delete process.env.FAKE_CODEX_RECOVERED_ERROR;
+  delete process.env.FAKE_GROK_FREE_USAGE;
+  delete process.env.FAKE_GROK_FREE_USAGE_EXIT;
+  delete process.env.CURSOR_API_KEY;
+  delete process.env.ANTHROPIC_API_KEY;
+  delete process.env.ANTHROPIC_AUTH_TOKEN;
+  delete process.env.ANTHROPIC_AWS_API_KEY;
+  delete process.env.CLAUDE_CODE_USE_BEDROCK;
+  delete process.env.CLAUDE_CODE_USE_VERTEX;
+  delete process.env.CLAUDE_CODE_USE_FOUNDRY;
+  delete process.env.ANTHROPIC_BASE_URL;
+  delete process.env.ANTHROPIC_CUSTOM_HEADERS;
+  delete process.env.XAI_API_KEY;
   rmSync(scratch, { recursive: true, force: true });
 });
 
@@ -992,5 +1071,211 @@ describe("childEnvironment", () => {
       PATH: "/bin",
       KEEP_ME: "yes",
     });
+  });
+});
+
+describe("usage exhaustion and billing guard", () => {
+  const codexQuotaMessage =
+    "You\u2019ve hit your usage limit. Visit https://chatgpt.com/codex/settings/usage to purchase more credits or try again later.";
+
+  it("classifies the canonical codex terminal quota diagnostic on a nonzero exit", async () => {
+    process.env.FAKE_CODEX_TURN_FAILED = codexQuotaMessage;
+    process.env.FAKE_CODEX_TURN_FAILED_EXIT = "1";
+    const input = options("codex", "quota-nonzero");
+    const result = await runLane(input);
+    expect(result.exitCode).toBe(75);
+    expect(result.receipt.status).toBe("usage-exhausted");
+    expect(result.receipt.failurePhase).toBe("invocation");
+    expect(result.receipt.processStarted).toBe(true);
+    expect(existsSync(input.outputPath)).toBe(false);
+  });
+
+  it("classifies a zero-exit codex turn.failed quota event", async () => {
+    process.env.FAKE_CODEX_TURN_FAILED = codexQuotaMessage;
+    const input = options("codex", "quota-result");
+    const result = await runLane(input);
+    expect(result.exitCode).toBe(75);
+    expect(result.receipt.status).toBe("usage-exhausted");
+    expect(result.receipt.failurePhase).toBe("postprocess");
+    expect(result.receipt.processStarted).toBe(true);
+    expect(existsSync(input.outputPath)).toBe(false);
+  });
+
+  it("keeps a codex terminal failure without a quota diagnostic as an ordinary failure", async () => {
+    process.env.FAKE_CODEX_TURN_FAILED = "rate limit exceeded: 429 Too Many Requests";
+    const input = options("codex", "quota-nonquota");
+    const result = await runLane(input);
+    expect(result.receipt.status).toBe("child-failed");
+    expect(result.receipt.failurePhase).toBe("postprocess");
+  });
+
+  it("does not reclassify a recovered codex stream that ends in turn.completed", async () => {
+    process.env.FAKE_CODEX_RECOVERED_ERROR = "1";
+    const input = options("codex", "quota-recovered");
+    const result = await runLane(input);
+    expect(result.receipt.status).toBe("complete");
+    expect(existsSync(input.outputPath)).toBe(true);
+  });
+
+  it("classifies the canonical grok free-usage terminal result", async () => {
+    process.env.FAKE_GROK_FREE_USAGE = "1";
+    const input = options("grok", "quota-grok");
+    const result = await runLane(input);
+    expect(result.receipt.status).toBe("usage-exhausted");
+    expect(result.receipt.failurePhase).toBe("postprocess");
+
+    process.env.FAKE_GROK_FREE_USAGE_EXIT = "1";
+    const nonzero = options("grok", "quota-grok-nonzero");
+    const nonzeroResult = await runLane(nonzero);
+    expect(nonzeroResult.receipt.status).toBe("usage-exhausted");
+    expect(nonzeroResult.receipt.failurePhase).toBe("invocation");
+  });
+
+  it("blocks unverifiable Grok subscription routing before starting a model", async () => {
+    const started = join(scratch, "grok-billing-model-started");
+    process.env.FAKE_MODEL_STARTED_PATH = started;
+    const result = await runLane({ ...options("grok", "grok-deny-unknown-auth"), apiSpend: "deny" });
+    expect(result.receipt.status).toBe("billing-policy-blocked");
+    expect(result.receipt.processStarted).toBe(false);
+    expect(existsSync(started)).toBe(false);
+  });
+
+  it("keeps an unsubstantiated structured error envelope as an ordinary failure", async () => {
+    process.env.FAKE_QUOTA_STDERR = "1";
+    const nonzero = options("claude", "quota-nonzero-unsubstantiated");
+    const nonzeroResult = await runLane(nonzero);
+    expect(nonzeroResult.receipt.status).toBe("child-failed");
+    delete process.env.FAKE_QUOTA_STDERR;
+    process.env.FAKE_QUOTA_RESULT = "1";
+    const zeroExit = options("claude", "quota-result-unsubstantiated");
+    const zeroExitResult = await runLane(zeroExit);
+    expect(zeroExitResult.receipt.status).toBe("child-failed");
+    expect(zeroExitResult.receipt.failurePhase).toBe("postprocess");
+  });
+
+  it("never treats quota words in successful model text as exhaustion", async () => {
+    process.env.FAKE_QUOTA_TEXT = "1";
+    const input = options("claude", "quota-words");
+    const result = await runLane(input);
+    expect(result.exitCode).toBe(0);
+    expect(result.receipt.status).toBe("complete");
+    expect(readFileSync(input.outputPath, "utf8")).toContain("quota");
+  });
+
+  it("never treats quota words in plain stderr text as exhaustion", async () => {
+    process.env.FAKE_QUOTA_WORDS_STDERR = "1";
+    const input = options("claude", "quota-plain");
+    const result = await runLane(input);
+    expect(result.receipt.status).toBe("child-failed");
+    expect(result.exitCode).toBe(70);
+  });
+
+  it("keeps a generic 429 as an ordinary child failure", async () => {
+    process.env.FAKE_GENERIC_429 = "1";
+    const input = options("claude", "generic-429");
+    const result = await runLane(input);
+    expect(result.receipt.status).toBe("child-failed");
+    expect(result.receipt.failurePhase).toBe("invocation");
+  });
+
+  it("records the legacy apiSpend policy when the flag is omitted", async () => {
+    const input = options("codex", "legacy-spend");
+    const result = await runLane(input);
+    expect(result.receipt.apiSpend).toBe("legacy");
+  });
+
+  it("blocks a known ambient API credential under subscription-only policy before any process", async () => {
+    process.env.ANTHROPIC_API_KEY = "sk-ant-test-fixture";
+    process.env.FAKE_PREFLIGHT_STARTED_PATH = join(scratch, "preflight-started");
+    process.env.FAKE_MODEL_STARTED_PATH = join(scratch, "model-started");
+    const input = { ...options("claude", "deny-key"), apiSpend: "deny" as const };
+    const result = await runLane(input);
+    expect(result.exitCode).toBe(78);
+    expect(result.receipt.status).toBe("billing-policy-blocked");
+    expect(result.receipt.failurePhase).toBe("preflight");
+    expect(result.receipt.processStarted).toBe(false);
+    expect(result.receipt.apiSpend).toBe("deny");
+    expect(result.receipt.error?.message).toContain("ANTHROPIC_API_KEY");
+    expect(result.receipt.error?.message).not.toContain("sk-ant-test-fixture");
+    expect(existsSync(join(scratch, "preflight-started"))).toBe(false);
+    expect(existsSync(join(scratch, "model-started"))).toBe(false);
+    expect(existsSync(input.outputPath)).toBe(false);
+  });
+
+  it("blocks a second provider's ambient API credential under deny", async () => {
+    process.env.XAI_API_KEY = "xai-test-fixture";
+    const input = { ...options("grok", "deny-xai"), apiSpend: "deny" as const };
+    const result = await runLane(input);
+    expect(result.receipt.status).toBe("billing-policy-blocked");
+    expect(result.receipt.processStarted).toBe(false);
+  });
+
+  it("blocks known Claude alternate-auth and routing controls under deny", async () => {
+    for (const [index, name] of [
+      "ANTHROPIC_AUTH_TOKEN",
+      "ANTHROPIC_AWS_API_KEY",
+      "CLAUDE_CODE_USE_BEDROCK",
+      "CLAUDE_CODE_USE_VERTEX",
+      "ANTHROPIC_BASE_URL",
+    ].entries()) {
+      process.env[name] = "1";
+      const input = { ...options("claude", `deny-claude-route-${index}`), apiSpend: "deny" as const };
+      const result = await runLane(input);
+      expect(result.receipt.status, name).toBe("billing-policy-blocked");
+      expect(result.receipt.processStarted).toBe(false);
+      delete process.env[name];
+    }
+  });
+
+  it("requires first-party claude.ai auth under deny, not just a login", async () => {
+    const input = { ...options("claude", "deny-claude-subscription"), apiSpend: "deny" as const };
+    expect((await runLane(input)).receipt.status).toBe("complete");
+    for (const [index, auth] of [
+      { loggedIn: true, authMethod: "apiKey", apiProvider: "firstParty" },
+      { loggedIn: true, authMethod: "claude.ai", apiProvider: "bedrock" },
+      { loggedIn: true, authMethod: "apiKeyHelper", apiProvider: "firstParty" },
+      { loggedIn: true },
+    ].entries()) {
+      process.env.FAKE_CLAUDE_AUTH_JSON = JSON.stringify(auth);
+      const blocked = { ...options("claude", `deny-claude-auth-${index}`), apiSpend: "deny" as const };
+      const result = await runLane(blocked);
+      expect(result.receipt.status, JSON.stringify(auth)).toBe("billing-policy-blocked");
+      expect(result.receipt.processStarted).toBe(false);
+      expect(result.receipt.preflight.status).toBe("passed");
+      delete process.env.FAKE_CLAUDE_AUTH_JSON;
+    }
+  });
+
+  it("requires ChatGPT auth for codex under deny", async () => {
+    const input = { ...options("codex", "deny-codex-chatgpt"), apiSpend: "deny" as const };
+    expect((await runLane(input)).receipt.status).toBe("complete");
+
+    process.env.FAKE_CODEX_LOGIN_STATUS = "Logged in using an API key";
+    const blocked = { ...options("codex", "deny-codex-apikey"), apiSpend: "deny" as const };
+    const result = await runLane(blocked);
+    expect(result.receipt.status).toBe("billing-policy-blocked");
+    expect(result.receipt.processStarted).toBe(false);
+    delete process.env.FAKE_CODEX_LOGIN_STATUS;
+
+    const approved = { ...options("codex", "approved-codex-apikey"), apiSpend: "approved" as const };
+    process.env.FAKE_CODEX_LOGIN_STATUS = "Logged in using an API key";
+    expect((await runLane(approved)).receipt.status).toBe("complete");
+    delete process.env.FAKE_CODEX_LOGIN_STATUS;
+  });
+
+  it("permits the same lane with an explicit approved policy and records it", async () => {
+    process.env.ANTHROPIC_API_KEY = "sk-ant-test-fixture";
+    const input = { ...options("claude", "approved-key"), apiSpend: "approved" as const };
+    const result = await runLane(input);
+    expect(result.receipt.status).toBe("complete");
+    expect(result.receipt.apiSpend).toBe("approved");
+  });
+
+  it("keeps the legacy route when an ambient key is present without the flag", async () => {
+    process.env.ANTHROPIC_API_KEY = "sk-ant-test-fixture";
+    const input = options("claude", "legacy-key");
+    const result = await runLane(input);
+    expect(result.receipt.status).toBe("complete");
+    expect(result.receipt.apiSpend).toBe("legacy");
   });
 });

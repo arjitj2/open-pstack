@@ -14,7 +14,7 @@ export interface CommandSpec {
   readonly stdin: "prompt" | "none";
 }
 
-export function preflightCommand(provider: Provider): CommandSpec {
+export function preflightCommand(provider: Provider, apiSpend: RunnerOptions["apiSpend"] = null): CommandSpec {
   switch (provider) {
     case "devin":
       return { command: "devin", args: ["auth", "status"], stdin: "none" };
@@ -27,7 +27,7 @@ export function preflightCommand(provider: Provider): CommandSpec {
     case "claude":
       return {
         command: "claude",
-        args: ["auth", "status", "--json"],
+        args: ["auth", "status", "--json", ...(apiSpend === "deny" ? ["--setting-sources", ""] : [])],
         stdin: "none",
       };
     case "codex":
@@ -121,7 +121,7 @@ export function invocationCommand(options: RunnerOptions): CommandSpec {
           "--permission-mode",
           permissionMode(options.mode),
           "--setting-sources",
-          "project",
+          options.apiSpend === "deny" ? "" : "project",
           "--strict-mcp-config",
           "--tools",
           claudeTools(options.mode),

@@ -22,6 +22,7 @@ beforeEach(() => {
     mode: "read-only", cwd: scratch, promptPath: join(scratch, "prompt.md"),
     outputPath: join(scratch, "result.md"), receiptPath: join(scratch, "receipt.json"),
     timeoutMs: null,
+    apiSpend: null,
   };
 });
 

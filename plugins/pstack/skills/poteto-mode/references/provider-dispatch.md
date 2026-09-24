@@ -44,6 +44,52 @@ The temporary config marks shell onboarding complete. The runner requests a priv
 
 Cursor is an external provider from both parents. Install and authenticate `cursor-agent`, run `cursor-agent models`, and choose an exact available slug as `cursor:<slug>@default` (for example, `cursor:composer-2.5@default` when listed). `default` means no separate effort flag is available; select any reasoning variant by its exact model slug. Do not translate Claude/Codex/Grok slugs into Cursor slugs or use Cursor's `auto` selector. Model availability and subscription limits remain Cursor's responsibility. Adding a Cursor lane does not alter the three baseline families.
 
+## Model sheet grammar
+
+The model sheet is the only persisted routing source. Each line assigns one or more role names before the first `: ` and the seat list after it. Role names themselves contain commas (`feature, refactoring`, `why investigators, synthesizer`, `reflect tooling, judgment, divergent, synthesizer`), so the header is matched against the documented role list before the right-hand side is split.
+
+On the right-hand side, commas and arrows have different meanings and are never interchangeable:
+
+- `,` separates independent panel seats. Each seat runs one candidate concurrently; the seat count is the fan-out count and repeated entries are not deduplicated.
+- `->` separates ordered attempts within one seat: `primary -> fallback` (one or two fallbacks, for example `primary -> fallback1 -> fallback2`). A single descriptor is a one-attempt chain and authorizes no fallback.
+
+```text
+feature, refactoring: grok:grok-4.7@xhigh -> codex:gpt-5.6-sol@high
+how explorer: grok:grok-4.7@xhigh
+```
+
+A chain is bounded at three attempts. Duplicates and a second attempt on the same provider are invalid: each provider route uses that CLI's current account, so another model on the same provider cannot recover exhausted capacity. An alias and a descriptor on the parent provider use that same parent route. Why and Reflect rows keep every attempt on `inherit-parent` or `auto` because they require the parent's live MCP surface. Legacy single-attempt rows remain valid and authorize exactly one attempt.
+
+`# access: <JSON>` comment lines record one access fact per provider: `provider`, `funding` (`included`, `metered`, `unknown`), `capacity` (`standard`, `high`, `unknown`), `apiSpend` (`deny`, `approved`), `provenance` (`user`, `provider`), plus optional display-only `plan`, `note`, and `observedAt` strings. Funding, capacity, and the optional fields explain recommendations; they are advisory and never treated as durable entitlement. `apiSpend` is binding authorization: pass its exact saved `deny` or `approved` value on every policy-enabled external attempt. The sheet contains no credentials or account selector. The provider name conservatively groups exhaustion under the CLI's current account.
+
+The installed helper `skills/poteto-mode/scripts/model-policy/pstack-model-policy` is the policy boundary. It parses and decides; it never probes providers, reads credentials, or launches anything. Setup validates the complete candidate, including authorization for every row:
+
+```text
+pstack-model-policy validate --sheet <candidate-file> --parent <claude|codex>
+```
+
+At runtime, first copy the active sheet's exact bytes to a unique run-local file. Keep that frozen copy and the original parent value for the whole run; never reread the live sheet between attempts. `resolve` gives an inspection view of a role's lane chains:
+
+```text
+pstack-model-policy resolve --sheet <frozen-sheet> --role "<role>" --parent <claude|codex>
+```
+
+A missing sheet or a missing role in a legacy sheet returns `status: "unconfigured"`: use the calling skill’s documented default as one attempt, with no fallback permission. A sheet containing access metadata or an ordered chain is policy-enabled; a missing requested role is an error, so defaults cannot bypass its saved permissions. Unreadable or malformed sheets also fail instead of selecting defaults.
+
+Before **every** attempt, including each primary, ask `next` for the decision for that zero-based lane:
+
+```text
+pstack-model-policy next --sheet <frozen-sheet> --role "<role>" --parent <claude|codex> --state <lane-state.json> --lane 0
+```
+
+The parent owns `<lane-state.json>` with this exact shape:
+
+```json
+{"events":[{"attemptIndex":0,"status":"usage-exhausted","processStarted":false}],"exhaustedGroups":["grok"],"access":"read-only"}
+```
+
+`events` retains every earlier attempt for that lane in order. Both `attemptIndex` and `--lane` are zero-based; event `status` is exactly `complete`, `usage-exhausted`, or `failed`, and `processStarted` is included when known. `exhaustedGroups` is the run's accumulated provider list and must be carried into every lane state. `access` is `read-only` or `isolated-write`. A `launch` decision supplies the only authorized attempt to route. A `stop` decision ends the lane; in particular, an unauthorized route stops and is never skipped to reach a later descriptor. An `inspect` decision preserves a writer for review. After each terminal attempt, retain its receipt or native transcript, append its event, add a provider only after supported exhaustion evidence, and call `next` again. The caller also passes the selected provider's saved `apiSpend` value to every external launch and retains all histories and group failures. Skills must not duplicate this decision logic by splitting model-sheet prose themselves.
+
 ## Read-time normalization
 
 Normalize configured descriptors before matching them to the matrix or choosing a route. If a provider-qualified Claude model starts with `claude-fable-`, `claude-opus-`, or `claude-sonnet-` and its remaining revision contains only digits and hyphens, replace that model component in memory with `fable`, `opus`, or `sonnet`. Preserve provider, effort, role, and lane order. Use only the normalized descriptor for native dispatch or runner argv. Never pass the versioned predecessor to Claude.
@@ -54,7 +100,7 @@ This read-time rule makes an older installed sheet use the latest family revisio
 
 ## The parent owns the route
 
-The top-level harness resolves the route once. A child receives an assigned provider, model, effort, access mode, prompt, working directory, and output path. A child never detects the harness, chooses a provider, or launches another model. Environment markers may corroborate the top-level harness before fan-out, but nested processes inherit parent markers and must not use them for routing.
+The top-level harness freezes the sheet once and asks the helper for each attempt decision. A child receives an assigned provider, model, effort, access mode, prompt, working directory, and output path. A child never detects the harness, chooses a provider, or launches another model. Environment markers may corroborate the top-level harness before fan-out, but nested processes inherit parent markers and must not use them for routing.
 
 | Parent | `claude:*` | `codex:*` | `grok:*` | `devin:*` | `cursor:*` |
 |---|---|---|---|---|---|
@@ -87,10 +133,11 @@ pstack-runner \
   --cwd <repository or dedicated worktree> \
   --output <unique final-response file> \
   --receipt <unique receipt file> \
+  [--api-spend <deny|approved>] \
   [--timeout <seconds>]
 ```
 
-Pass arguments as an argv array or quote every path. Never interpolate prompt text into a shell command. The launcher preflights the assigned CLI and authentication, invokes the model exactly once, disables recursive agents and ambient skill dispatch where the CLI supports it, restricts the built-in tool surface, and records the exact provider/model/effort flags. External lanes do not receive the parent's MCP surface. Keep MCP-dependent Why and Reflect roles on `inherit-parent` or `auto`. The launcher never falls back.
+Pass arguments as an argv array or quote every path. Never interpolate prompt text into a shell command. For every external attempt resolved from a policy-enabled sheet, pass that provider's saved `apiSpend` value; omit `--api-spend` only when executing an untouched legacy sheet with no access metadata and no fallback chains. The launcher preflights the assigned CLI and authentication, invokes the model exactly once, disables recursive agents and ambient skill dispatch where the CLI supports it, restricts the built-in tool surface, and records the exact provider/model/effort flags. External lanes do not receive the parent's MCP surface. Keep MCP-dependent Why and Reflect roles on `inherit-parent` or `auto`. The launcher never falls back.
 
 Grok authentication preflight has one bounded retry. If the first `grok models` result would be classified as unauthenticated, the runner waits five seconds and tries the same preflight once more. A second failure is terminal. The delay and second attempt share the runner's absolute deadline and cancellation latch, and the receipt keeps evidence from both attempts. Model execution is never retried.
 
@@ -126,6 +173,37 @@ Success requires all of these:
 
 The receipt also carries elapsed time, token usage when the CLI exposes it, and cost when available. Cursor returns session IDs and may return token usage; missing model identity, usage, or cost stays null. Keep it with the arena or review artifacts so parent-harness comparisons are evidence-based.
 
-Any missing CLI, failed login, unavailable model, explicit timeout, cancellation, catchable post-reservation launcher failure, non-zero child exit, malformed result, or model mismatch is a receipt-bearing dropout. Record it and apply the calling skill's existing dropout policy. A `cancelled` receipt proves that the runner received the signal; its `signal` field is non-null only when the runner sent that signal to a still-active direct CLI child, and remains null when cancellation only stopped a post-exit pipe drain. The provider CLI owns any processes it starts beneath that direct child; the receipt does not claim a process-tree kill. Do not delete or overwrite the receipt. Never substitute the parent model, retry another provider, or reinterpret an external descriptor as a native model slug.
+Any missing CLI, failed login, unavailable model, explicit timeout, cancellation, catchable post-reservation launcher failure, non-zero child exit, malformed result, or model mismatch is a receipt-bearing dropout. Record it and apply the calling skill's existing dropout policy. A `cancelled` receipt proves that the runner received the signal; its `signal` field is non-null only when the runner sent that signal to a still-active direct CLI child, and remains null when cancellation only stopped a post-exit pipe drain. The provider CLI owns any processes it starts beneath that direct child; the receipt does not claim a process-tree kill. Do not delete or overwrite the receipt. Never substitute the parent model, retry another provider, or reinterpret an external descriptor as a native model slug — the only permitted second attempt is the saved `usage-exhausted` chain below.
 
 Start native and external lanes in the same fan-out phase, then wait for all of them before judging. A judge must not read candidate paths while their owners are still writing.
+
+## Usage-exhausted fallback
+
+The runner and native tool envelopes classify failures; the helper owns every routing decision. `usage-exhausted` is emitted only for these implemented external protocols:
+
+- Codex: the final stdout protocol outcome is a terminal `turn.failed.error.message` or unrecoverable `error.message` beginning with a pinned canonical diagnostic (optionally after Codex's `: ` wrapper): `You've hit your usage limit`, `Your workspace is out of credits.`, `You hit your spend cap set`, or `Quota exceeded. Check your plan and billing details.` A plan-upgrade/UsageNotIncluded message is an entitlement failure, not exhaustion. Stderr cannot override a later successful stdout `turn.completed`.
+- Grok: the last terminal JSON record has `type: "result"`, `subtype: "error_during_execution"`, `is_error: true`, and an `errors` array containing exactly `You’ve reached your free Grok Build usage limit for now. Get SuperGrok for much higher limits, or try again later: https://grok.com/supergrok?referrer=grok-build`. A later terminal success supersedes an earlier error.
+
+Claude, Cursor, and Devin CLI quota formats are not classified in this version; their failures remain ordinary dropouts. A native lane may classify only an explicit capacity failure from the parent host's structured tool envelope. Never infer exhaustion from model prose, generated output, or a human-readable transcript. Generic 429 or 403 errors, `resource_exhausted`, authentication or model-access failures, task failures, cancellations, timeouts, malformed output, and unrecognized provider shapes remain ordinary dropouts with their evidence preserved.
+
+The receipt's additive `failurePhase` (`preflight`, `invocation`, `postprocess`) and `processStarted` fields record how far the attempt got. `processStarted: false` proves no model or assigned workload invocation launched; authentication preflight may already have invoked the provider CLI. Anything else means the workload may have begun.
+
+The parent loop, applied per seat through `next`:
+
+1. Call `next` with the frozen sheet and current lane state. Launch only its `launch` decision, with a fresh output/receipt path and the saved `apiSpend` policy. `stop` ends the seat; `inspect` pauses a writer for review.
+2. On success, retain the evidence and finish the seat.
+3. On proven `usage-exhausted`, retain the event, add its provider to the run's exhausted groups, and call `next` again. The helper may skip an attempt only because that provider group is already exhausted. Chains remain finite and each attempt runs at most once.
+4. On any other failure, retain the evidence and apply the calling skill's existing dropout rule. Do not advance to a fallback.
+5. Report the configured primary, every attempted or exhaustion-skipped descriptor and its evidence, the actual successful descriptor, and actual provider diversity. Never describe a fallback's output as the primary's.
+
+Writer lanes are stricter: an `isolated-write` attempt whose receipt cannot prove `processStarted: false` stops for inspection even though a fresh worktree would isolate file edits, because external side effects cannot be ruled out. Only a proved-not-started writer advances automatically, and each later attempt gets a new worktree from the same immutable baseline while every failed worktree and receipt is retained untouched. Read-only attempts still need fresh exclusive output and receipt paths but may reuse the checkout.
+
+A fallback not present in the confirmed sheet requires user approval through setup; nothing searches for a closer model, retries in place, or lets a child reroute itself. If the parent account itself exhausts, the controller cannot recover itself; checkpoint and report instead of pretending worker fallback keeps the parent alive.
+
+## Billing and credential guard
+
+The runner accepts `--api-spend <deny|approved>` and records it in the receipt. `approved` explicitly authorizes a metered API route. `deny` performs a bounded preflight and writes a `billing-policy-blocked` receipt (exit 78, `failurePhase: "preflight"`, `processStarted: false`) when a known API route is present or required subscription-auth evidence cannot be established. Every external attempt from a policy-enabled sheet passes the exact saved value; omission preserves legacy behavior only for an untouched sheet with no access metadata and no chains.
+
+The bounded check covers known environment inputs without printing or persisting their values: nonblank Claude API/auth variables, `OPENAI_API_KEY`, `XAI_API_KEY`, `GROK_CODE_XAI_API_KEY`, `DEVIN_API_KEY`, and `CURSOR_API_KEY`, `DEVIN_API_URL` and `CURSOR_API_ENDPOINT` route overrides, plus enabled Claude Bedrock, Vertex, Foundry, base-URL, and custom-header controls. Claude additionally uses the exact sanitized `claude auth status --json` method/provider fields; Codex uses the exact known `codex login status` form and gives API evidence precedence over ChatGPT login evidence. Devin and Cursor have environment-guard coverage plus their ordinary account login checks and isolated runner configuration. Grok is blocked under `deny`: its models login banner cannot establish subscription routing because per-model BYOK takes precedence over OAuth. Claude uses the same empty settings-source list for its auth check and invocation under `deny`, preventing user/project/local settings from injecting API credentials; managed policies still apply. The guard reads no credential files and changes no ambient authentication.
+
+This is a narrow route guard, not a zero-charge promise. Provider-managed on-demand credits or overage can still apply under OAuth, and unsupported authentication arrangements can remain unknown. Use the provider account's billing controls for hard limits.

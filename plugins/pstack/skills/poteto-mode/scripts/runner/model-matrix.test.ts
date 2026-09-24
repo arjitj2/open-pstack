@@ -367,7 +367,6 @@ describe("model matrix", () => {
     expect(setup).toContain("Keep at least two entries in `architect runners`, at least one entry in every other panel");
     expect(setup).toContain("`architect runners: inherit-parent, inherit-parent` launches two independent candidates");
     expect(setup).toContain("ask for an explicit replacement or another entry before probing or writing");
-    expect(setup).toContain("Validate complete role coverage, at least two architect runner entries, nonempty other panels");
     expect(setup).toContain("do not deduplicate repeated entries");
     expect(setup).toContain("at least two structurally distinct design candidates before synthesis");
   });

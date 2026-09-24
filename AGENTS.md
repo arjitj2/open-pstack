@@ -4,7 +4,7 @@ This is Arjit Jaiswal's independently maintained distribution. Cursor is the con
 
 Track all durable work in this repository's GitHub Issues. Do not create a parallel Linear queue. Read `UPSTREAM.md` before changing upstream-derived content.
 
-Cursor's `cursor/plugins/pstack` tree is the content upstream. Keep one shared skill tree for Claude Code and Codex; adapt harness primitives at the existing mapping boundaries instead of forking skills or adding compatibility layers. The parent harness resolves provider routing once. Children do not detect or reroute themselves.
+Cursor's `cursor/plugins/pstack` tree is the content upstream. Keep one shared skill tree for Claude Code and Codex; adapt harness primitives at the existing mapping boundaries instead of forking skills or adding compatibility layers. The parent harness freezes the model sheet for a run and owns every provider-routing decision. Children do not detect or reroute themselves.
 
 Before opening a pull request, run the Bun tests, strict typecheck, static invariants, and plugin validation.
 
@@ -12,4 +12,4 @@ Nothing merges, tags, releases, or rolls out until the exact candidate is instal
 
 For documentation or maintenance-only changes, prove that the packaged plugin tree is unchanged and exercise the changed CLI or GitHub workflow. There is no affected parent installation in that case. Record the actual maintenance evidence instead of repeating unchanged provider tests.
 
-Do not add an implicit runtime timeout or a weaker-model fallback.
+Do not add an implicit runtime timeout or a weaker-model fallback. The only permitted substitution is a saved `primary -> fallback` chain in the model sheet on a proven `usage-exhausted` receipt, per `plugins/pstack/skills/poteto-mode/references/provider-dispatch.md`; anything else remains a dropout.

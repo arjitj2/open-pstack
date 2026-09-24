@@ -84,7 +84,9 @@ In Codex, ask:
 Use pstack:setup-pstack to configure pstack.
 ```
 
-Setup checks the models you can actually run, shows how each one will start, and asks before saving the choices. The current default group uses GPT-5.6 Sol, Grok 4.7, and Opus.
+Setup checks the models you can actually run, asks about the subscription access it cannot observe, shows how each one will start, and asks before saving the choices. Every selected provider needs included funding or explicit approval for metered API spend; remaining capacity may stay unknown. The current default group uses GPT-5.6 Sol, Grok 4.7, and Opus.
+
+Setup can also record an explicit ordered fallback (`primary -> fallback`, at most three attempts) per seat in the same sheet. Each run freezes that sheet and consults the shared policy helper before every attempt. A seat advances only on a supported `usage-exhausted` signal: exact Codex and Grok CLI terminal shapes in this release, or an explicit native-host capacity failure. Claude, Cursor, and Devin CLI quota errors currently remain ordinary dropouts, as do generic errors. A single descriptor authorizes no fallback, an unauthorized route stops, and the saved `apiSpend` choice accompanies every policy-enabled external attempt.
 
 An older model sheet starts using the rolling aliases in memory as soon as this release is installed. Run setup once after updating to persist that migration. It replaces versioned Fable, Opus, and Sonnet entries while preserving every role assignment and effort selection.
 

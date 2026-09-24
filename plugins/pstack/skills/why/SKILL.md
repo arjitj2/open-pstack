@@ -9,7 +9,7 @@ Investigate the motivation and intent behind code.
 
 Companion to the `how` skill. `how` answers what the code does and how it works. `why` answers what forces led to its shape.
 
-**Dispatch contract.** Resolve every configured role through [`provider-dispatch.md`](../poteto-mode/references/provider-dispatch.md). Each lane below names a role line in the current harness's pstack model sheet and a default descriptor: use the line's value, or the default when the sheet or the line is missing. `auto` and `inherit-parent` run on the parent model natively. A descriptor that fails its route is a dropout, not a substitution. Investigators require the parent's live MCP surface, so the default and supported portable route is `inherit-parent` (or its `auto` alias). Pass the code anchor by path. On Codex, resolve remaining Claude tool names via [`codex-tools.md`](../poteto-mode/references/codex-tools.md).
+**Dispatch contract.** Resolve every configured role through [`provider-dispatch.md`](../poteto-mode/references/provider-dispatch.md). Each lane below names a role line in the current harness's pstack model sheet and a default descriptor: use the line's value, or the default when the sheet or the line is missing. `auto` and `inherit-parent` run on the parent model natively. A descriptor that fails its route is a dropout, not a substitution. Investigators require the parent's live MCP surface, so the default and supported portable route is `inherit-parent` (or its `auto` alias); an MCP-less external lane is not an equivalent fallback. Pass the code anchor by path. On Codex, resolve remaining Claude tool names via [`codex-tools.md`](../poteto-mode/references/codex-tools.md).
 
 ## Operating Posture
 
