@@ -2,7 +2,7 @@
 
 This Open Pstack distribution lets Codex and Claude Code coordinate coding work across the AI subscriptions you already have. Arjit Jaiswal maintains it as an intelligent model router built around Pstack's engineering workflows.
 
-`setup-pstack` checks provider and model access, asks about subscriptions it cannot verify, and recommends models for implementation, investigation, and review. You approve the assignments and backup chains during setup. Pstack then routes workers to those models and uses approved backups for supported quota failures. Broader recovery with automatic inspection and visible failure notices is being validated for the next release.
+`setup-pstack` checks provider and model access, asks about subscriptions it cannot verify, and recommends models for implementation, investigation, and review. You approve the assignments and backup chains during setup. Pstack routes workers to those models and automatically uses approved backups when the saved policy allows recovery. It tells you what failed and which model is taking over, and inspects and preserves partial work before continuing.
 
 This repository maintains its own provider integrations, recovery behavior, and tested releases while tracking Cursor's Pstack directly. It builds on Lauren Tan's original Pstack and Eric Litman's Open Pstack port, with their attribution preserved.
 
@@ -22,7 +22,7 @@ See [release evidence and recovery limits](docs/compatibility.md), [why use this
 
 Routing follows the role assignments you approve. Setup recommends a mix based on task fit and confirmed access. The saved policy controls which models run and when a backup can take over.
 
-The current stable release has limited quota fallback support. All-provider quota recognition and recovery from other terminal backend failures are being validated in [issue #12](https://github.com/arjitj2/open-pstack/issues/12). See [compatibility](docs/compatibility.md) for what the installed release supports.
+Recovery can cover recognized quota limits, unavailable routes, terminal backend failures, and explicitly configured deadlines. Existing configurations remain quota-only until a broader policy is saved. A quiet worker is not assumed to have failed; an exhausted parent or a chain with no safe, approved backup cannot recover automatically. See [tested behavior and limits](docs/compatibility.md).
 
 ## What pstack does
 
@@ -51,7 +51,7 @@ Start with a current Claude Code or Codex installation. Install and sign in to t
 Run these commands inside Claude Code:
 
 ```text
-/plugin marketplace add arjitj2/open-pstack#v1.4.1-arjit.4
+/plugin marketplace add arjitj2/open-pstack#v1.4.1-arjit.5
 /plugin install pstack@open-pstack
 /reload-plugins
 ```
@@ -61,7 +61,7 @@ Run these commands inside Claude Code:
 Run these commands in your shell:
 
 ```shell
-codex plugin marketplace add arjitj2/open-pstack --ref v1.4.1-arjit.4
+codex plugin marketplace add arjitj2/open-pstack --ref v1.4.1-arjit.5
 codex plugin add pstack@open-pstack
 ```
 
@@ -94,7 +94,7 @@ Use pstack:setup-pstack to configure pstack.
 
 Setup discovers the models you can run, asks about subscriptions it cannot verify, and recommends assignments for each role. It shows which models will run natively and which will use external workers, then asks before saving. Included subscription access and permission for metered API spending are recorded separately; unknown remaining capacity stays unknown.
 
-You can save an ordered backup chain for each role, with up to three attempts. During a run, Pstack follows those approved choices and reports substitutions. Recovery depends on the installed release and saved policy; see [recovery support and validation](docs/compatibility.md). In the current stable release, a worker that may have changed files pauses the lane for inspection rather than triggering a blind replay.
+You can save an ordered backup chain for each role, with up to three attempts. During a run, Pstack follows those approved choices and reports substitutions. Recovery depends on the installed release and saved policy; see [recovery support and validation](docs/compatibility.md). If a failed worker may have changed files, the parent inspects and preserves that work before continuing in a fresh workspace. An unsafe or ambiguous result stops that lane with a checkpoint.
 
 Only selected providers need to pass setup. You can mix providers across implementation, investigation, and review or keep the configuration small. See the [model matrix](plugins/pstack/skills/poteto-mode/references/provider-dispatch.md#model-matrix) for supported models and effort levels.
 
@@ -177,7 +177,7 @@ This repository also keeps:
 
 ## Staying close to Lauren's pstack
 
-The stable release `v1.4.1-arjit.4` incorporates pstack 0.15.5 at Cursor commit [`12d587dfb20741cafc376c42c696c5f6e2a64487`](https://github.com/cursor/plugins/commit/12d587dfb20741cafc376c42c696c5f6e2a64487).
+The stable release `v1.4.1-arjit.5` incorporates pstack 0.15.5 at Cursor commit [`12d587dfb20741cafc376c42c696c5f6e2a64487`](https://github.com/cursor/plugins/commit/12d587dfb20741cafc376c42c696c5f6e2a64487).
 
 The two projects have separate version numbers. The pstack version identifies Lauren's upstream content. The Open Pstack version identifies the Claude Code and Codex package built from it.
 

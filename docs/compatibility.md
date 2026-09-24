@@ -1,6 +1,6 @@
 # Compatibility and release evidence
 
-The stable package is [v1.4.1-arjit.4](https://github.com/arjitj2/open-pstack/releases/tag/v1.4.1-arjit.4). Its Cursor content baseline is 0.15.5 at `12d587dfb20741cafc376c42c696c5f6e2a64487`. Later Cursor changes are recorded in [upstream status](../UPSTREAM.md). A reviewed or detected source commit is not necessarily incorporated in the stable package.
+The stable package is [v1.4.1-arjit.5](https://github.com/arjitj2/open-pstack/releases/tag/v1.4.1-arjit.5). Its Cursor content baseline is 0.15.5 at `12d587dfb20741cafc376c42c696c5f6e2a64487`. Later Cursor changes are recorded in [upstream status](../UPSTREAM.md). A reviewed or detected source commit is not necessarily incorporated in the stable package.
 
 | Parent | Native workers | External workers |
 | --- | --- | --- |
@@ -13,19 +13,25 @@ External workers do not inherit the parent's MCP connections. Read-only Devin an
 
 ## Evidence for the stable release
 
-[Release PR #11](https://github.com/arjitj2/open-pstack/pull/11) adds subscription-aware setup and explicitly approved worker fallbacks. The tested package tree is `cddd6d809d2c9b7e5a06ff04e05bdea9c75c8f60`. It passed 329 Bun tests, strict typechecks, 26 maintenance tests, and static/plugin checks.
+[Release PR #13](https://github.com/arjitj2/open-pstack/pull/13) adds provider-complete quota adapters and saved recovery policies for unavailable routes, terminal backend failures, and explicit deadlines. The tested plugin tree is `d0436a739b1a5c5e2eb6e0605a1e2249da164d01`, frozen at candidate `c763d75d633bdf54b3568f8b59335c2b3aeca46a`. All 185 package files matched in both installed hosts. It passed 426 Bun tests, four strict typechecks, 26 maintenance tests, and static/plugin checks. Compile mutation checks rejected a provider without an adapter and an unmapped receipt status.
 
-Installed tests in Codex CLI 0.154.0 and Claude Code 2.1.281 exercised confirmed setup/save/readback with native smoke and separate judging, approved native fallback, legacy no-fallback, ordinary authentication errors, and started-writer preservation. Both installed policy helpers rejected exhausted-but-unauthorized routes and forged skip history. Quota failures were injected with a network-free test double; the approved native workers were real calls. This does not certify real quota exhaustion in every provider.
+Installed checks passed in the Codex desktop and Claude Code 2.1.281. Each host ran nine controlled failure scenarios through the installed runner and policy helper. Real native backup workers completed a read-only task and continued a failed writer's task from a separate snapshot while preserving its partial file. The parent announced the failure, inspection, and selected backup without asking for a replacement. Legacy quota-only policy stopped on a terminal failure. Synthetic negative controls rejected mismatched receipts, conflicting completion evidence, cancellation, billing blocks, unsafe inspection, and exhausted chains.
 
-External quota recognition currently covers verified Codex/Grok workload formats. Claude, Devin, and Cursor external quota formats remain ordinary failures until verified. A fallback cannot recover an exhausted parent controller. Local API guards do not prove that a provider has disabled account-managed overage. Tests preserved the captured `.2` installation and global model settings.
+Codex desktop backups explicitly requested GPT-6 Sol at high effort through its native subagent tool; that tool did not expose a separate backend model identity field. Claude native worker transcripts reported Opus 5.5 at high effort. The desktop parent read the installed candidate instructions in an existing session; this was not a fresh plugin discovery test. A separate Codex CLI 0.154.0 attempt rejected GPT-6 Sol with ChatGPT authentication before tests began. Native desktop success does not establish that external CLI route's availability.
 
-## Recovery changes under validation
+The failed providers were network-free test doubles; the backup model calls were real. Claude quota handling includes a captured real exhaustion response. Devin fixtures use diagnostics from the installed CLI. Cursor fixtures combine installed error framing with publicly reported usage-limit wording. These tests do not certify real quota depletion on every provider account, every model, or every subscription. The captured `.4` installation and global model settings were restored; the temporary Claude plugin was removed.
 
-[Issue #12](https://github.com/arjitj2/open-pstack/issues/12) tracks broader automatic recovery. This work is not included in the stable `.4` package above.
+## Recovery limits
 
-The candidate requires a quota adapter for every provider and adds saved policies for unavailable routes, terminal backend failures, and explicit deadlines. The parent reports the failure, inspects any partial work, and continues through approved backups without asking for a replacement. Quiet workers remain active unless an explicit deadline or authoritative failure ends the attempt. A cancelled attempt, a billing block, conflicting evidence, or an exhausted chain does not authorize another model.
+Recovery follows the saved policy and approved chain. Existing sheets without a `# fallback` line remain quota-only. Quiet workers remain active unless an explicit deadline or authoritative failure ends the attempt. Started writers require automatic inspection and preservation before another writer runs. Unsafe or ambiguous work, cancellation, billing blocks, conflicting evidence, and exhausted chains stop that lane with a checkpoint. Independent healthy work can continue.
 
-Claude quota handling includes a captured real exhaustion response. Devin quota fixtures use diagnostics found in the installed CLI. Cursor fixtures combine error framing from its installed bundle with publicly reported usage-limit wording. Those fixtures do not certify real quota exhaustion on those accounts. Installed checks in both Codex and Claude Code are required before release; candidate evidence will be recorded here when complete.
+A fallback cannot recover an exhausted or unavailable parent controller. Local API guards do not prove that a provider has disabled account-managed overage. See the [provider contract](../plugins/pstack/skills/poteto-mode/references/provider-dispatch.md) for exact routing and receipt rules.
+
+## Earlier subscription-aware setup validation
+
+[Release PR #11](https://github.com/arjitj2/open-pstack/pull/11) introduced subscription-aware setup and explicitly approved worker fallbacks in `.4`. Its tested package tree was `cddd6d809d2c9b7e5a06ff04e05bdea9c75c8f60`, with 329 Bun tests, strict typechecks, 26 maintenance tests, and static/plugin checks.
+
+Installed tests in Codex CLI 0.154.0 and Claude Code 2.1.281 exercised confirmed setup/save/readback with native smoke and separate judging, approved native fallback, legacy no-fallback, ordinary authentication errors, and started-writer preservation. Both installed policy helpers rejected exhausted-but-unauthorized routes and forged skip history. Quota failures were controlled fixtures and native workers were real calls. That release recognized external Codex/Grok quota formats only. Tests restored the captured `.2` installation and global model settings.
 
 ## Cursor catch-up validation
 

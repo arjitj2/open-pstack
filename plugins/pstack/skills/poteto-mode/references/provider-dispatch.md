@@ -235,7 +235,7 @@ New provider or vendor output shapes fail closed until their own evidence lands.
 
 The receipt's additive `failurePhase` (`preflight`, `invocation`, `postprocess`) and `processStarted` fields record how far the attempt got. `processStarted: false` proves no model or assigned workload invocation launched; authentication preflight may already have invoked the provider CLI. Anything else means the workload may have begun.
 
-Before replacing a failed worker, publish a brief progress notice naming the exact failed descriptor, the observed cause, and the next approved descriptor or action. For a writer, announce inspection and preservation first, then announce continuation after a clear verdict. Do not ask the user to select a replacement or approve an already authorized backup. Keep unrelated healthy lanes running. Summarize the observed cause without copying sensitive logs.
+Before replacing a failed worker, publish a brief progress notice in user-visible message text, not only in private thinking or tool logs. The notice must name the exact failed descriptor, the observed cause, and the next approved descriptor or action. For a writer, announce inspection and preservation first, then announce continuation after a clear verdict. Do not ask the user to select a replacement or approve an already authorized backup. Keep unrelated healthy lanes running. Summarize the observed cause without copying sensitive logs.
 
 The parent loop, applied per seat through `next`:
 
