@@ -29,19 +29,21 @@ For each candidate, read the first JSONL line and check that `message.content[0]
 
 ### 2. Spawn three reviewers in parallel
 
-Start all three read-only lanes in one fan-out phase through provider dispatch. Reviewers need MCP access for context lookups (tickets, chat threads, observability traces referenced in the transcript), so keep them native to the parent. The prompt forbids file writes; the parent applies edits.
+Start all three lanes in one fan-out phase through provider dispatch. Reviewers need MCP access for context lookups (tickets, chat threads, observability traces referenced in the transcript), so keep them native to the parent; a mechanically read-only mode strips MCPs. The prompt forbids file writes; the parent applies edits.
 
-| Lens | Model descriptor | Prompt template |
-|---|---|---|
-| Judgment | your configured reflect-judgment choice (default `inherit-parent`) | `references/judgment-reviewer.md` |
-| Tooling | your configured reflect-tooling choice (default `inherit-parent`) | `references/tooling-reviewer.md` |
-| Divergent | your configured reflect-judgment choice (default `inherit-parent`) | `references/divergent-reviewer.md` |
+Each lane names a role line in the current harness's pstack model sheet and a default descriptor: use the line's value, or the default when the sheet or the line is missing. `auto` and `inherit-parent` run on the parent model natively. A descriptor that fails its route is a dropout, not a substitution.
+
+| Lens | Role line | Default descriptor | Prompt template |
+|---|---|---|---|
+| Judgment | `reflect tooling, judgment, divergent, synthesizer` | `inherit-parent` | `references/judgment-reviewer.md` |
+| Tooling | `reflect tooling, judgment, divergent, synthesizer` | `inherit-parent` | `references/tooling-reviewer.md` |
+| Divergent | `reflect tooling, judgment, divergent, synthesizer` | `inherit-parent` | `references/divergent-reviewer.md` |
 
 Pass each template verbatim, substituting the transcript path or digest where marked. Reviewers return findings in the `Agent` response body.
 
 ### 3. Synthesize
 
-Dispatch one lane using your configured reflect-judgment descriptor (default `inherit-parent`). Preserve relevant MCP access because the synthesizer spot-verifies citations. Use `references/synthesizer.md` verbatim, with each reviewer's full output inlined where marked. The synthesizer returns a structured Accepted / Rejected / Backlog list.
+Dispatch one lane using the `reflect tooling, judgment, divergent, synthesizer` line's descriptor (default `inherit-parent`). Preserve relevant MCP access because the synthesizer's quality check spot-verifies citations. Use `references/synthesizer.md` verbatim, with each reviewer's full output inlined where marked. The synthesizer returns a structured Accepted / Rejected / Backlog list.
 
 ### 4. Structural enforcement check
 

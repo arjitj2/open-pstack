@@ -2,6 +2,22 @@
 
 This port applies the Cursor → Claude Code substitutions in skill bodies. Earlier drafts left them flagged; this revision resolves them. A later pass added a Codex build that shares the same skills; see [Codex port](#codex-port) below.
 
+## 1.4.1-arjit.3 — Cursor sync through 12d587df
+
+Adapts the seven pstack commits between `f8abedd` and `12d587df` with completed installed-parent validation and final ledger dispositions. Per-commit decisions and evidence are in [docs/cursor-adoption-20260924.md](docs/cursor-adoption-20260924.md).
+
+**Operator wording and status ticks** (`f5bdd68`). Skill prose is operator-neutral and the audit tick posts a status message in chat only when a tracked change has not been reported yet.
+
+**Solo code defaults** (`889ec4b`, `70b2dc8`). Upstream moves `bug-fix`, `perf-issue`, and `hillclimb` to Grok again; this port keeps them on `codex:gpt-5.6-sol@max` under the documented cost exclusion, extended from `23a56e2`.
+
+**Reasoning budget** (`5bf2b15`). Setup asks one of `unlimited — keep max`, `large — xhigh reasoning`, `medium — high reasoning`, or `small — medium reasoning`, caps requested reasoning effort without raising existing lower efforts, preserves aliases and fixed-`default` families, records the choice as a `# budget` line in the sheet, and still honors per-family overrides and existing assignments.
+
+**Defaults reshape** (`70b2dc8`). The first-run panel mirrors upstream's Opus/Sol/Grok shape with portable descriptors: `claude:opus@max`, `codex:gpt-5.6-sol@max`, `grok:grok-4.7@xhigh`. Judgment, hardest-tasks, and explainer roles move from Fable to Opus; Fable becomes an opt-in family alongside Sonnet, Astra, Luna, and Terra. Upstream's `grok-4.7-xhigh-fast` selector maps to the Grok CLI's advertised `grok-4.7` model with a separate `xhigh` effort. Why and Reflect stay on `inherit-parent` because they need the parent's live MCP surface.
+
+**Round-based verification** (`70b2dc8`, `12d587df`). Autopilot and Shipping now verify each code-ready round, track spawned children in `children.tsv`, treat a defect filed as a note as a finding, and apply the patch-id rule to prior lane results. The port's affirmative-failure-evidence stand-down rule, captured-SHA leases, and expected-head merge guards are unchanged; upstream's expected-runtime stand-down is not adopted because it is an implicit timeout.
+
+**Instruction trims and rule consistency** (`b0b9c7`, `12d587df`, `b42effe`). Upstream's prose reductions remove repeated guidance while preserving the provider-routing contract and mandatory verification gates. Role references name the model-sheet line plus a portable default descriptor instead of direct model fields. The plan checker accepts any filled `swarm workers` descriptor and still rejects raw Cursor slugs and unfilled placeholders.
+
 ## 1.4.1-arjit.2 adds optional model families
 
 Port Ted Mader's Sonnet, Astra, Luna, and Terra support from upstream PR #55 (`ae37a16`), retaining the four-family first-run defaults and this fork's selected-provider setup behavior. The existing matrix marks First-run active rows; assignments remain the sole source of selected membership. Devin and Cursor routes, alias-only native probes, Architect's minimum, missing-role materialization, and transactional confirmed writes remain intact.

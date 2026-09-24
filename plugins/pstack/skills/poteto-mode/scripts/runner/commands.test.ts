@@ -84,7 +84,7 @@ describe("invocationCommand", () => {
 
   it("limits Grok to the assigned cwd and disables recursive agents", () => {
     const spec = invocationCommand(
-      options({ provider: "grok", model: "grok-4.6", effort: "xhigh" })
+      options({ provider: "grok", model: "grok-4.7", effort: "xhigh" })
     );
     expect(spec.command).toBe("grok");
     expect(spec.stdin).toBe("none");
@@ -92,7 +92,7 @@ describe("invocationCommand", () => {
       "--prompt-file",
       "/tmp/prompt.md",
       "--model",
-      "grok-4.6",
+      "grok-4.7",
       "--reasoning-effort",
       "xhigh",
       "--permission-mode",
@@ -119,7 +119,7 @@ describe("invocationCommand", () => {
       expect.arrayContaining(["--sandbox", "workspace-write"])
     );
     const grok = invocationCommand(
-      options({ provider: "grok", model: "grok-4.6", mode: "isolated-write" })
+      options({ provider: "grok", model: "grok-4.7", mode: "isolated-write" })
     );
     expect(grok.args).toEqual(
       expect.arrayContaining([
@@ -163,7 +163,7 @@ describe("invocationCommand", () => {
       },
       {
         provider: "grok" as const,
-        model: "grok-4.6",
+        model: "grok-4.7",
         flag: (effort: "low" | "medium" | "high") => [
           "--reasoning-effort",
           effort,

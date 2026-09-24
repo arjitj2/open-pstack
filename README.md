@@ -36,14 +36,14 @@ pstack does not ask you to trust an agent on day one. It helps the agent leave e
 
 ## Install
 
-You need a current Claude Code or Codex installation. For the full four-model review, install and sign in to the Claude Code, Codex, and Grok command-line tools. [Bun](https://bun.sh) runs the small local tool that starts models outside the app you are using. You can still use the core workflows with fewer models.
+You need a current Claude Code or Codex installation. For the full three-model review, install and sign in to the Claude Code, Codex, and Grok command-line tools. [Bun](https://bun.sh) runs the small local tool that starts models outside the app you are using. You can still use the core workflows with fewer models.
 
 ### Claude Code
 
 Run these commands inside Claude Code:
 
 ```text
-/plugin marketplace add arjitj2/open-pstack#v1.4.1-arjit.2
+/plugin marketplace add arjitj2/open-pstack#v1.4.1-arjit.3
 /plugin install pstack@open-pstack
 /reload-plugins
 ```
@@ -53,7 +53,7 @@ Run these commands inside Claude Code:
 Run these commands in your shell:
 
 ```shell
-codex plugin marketplace add arjitj2/open-pstack --ref v1.4.1-arjit.2
+codex plugin marketplace add arjitj2/open-pstack --ref v1.4.1-arjit.3
 codex plugin add pstack@open-pstack
 ```
 
@@ -84,11 +84,11 @@ In Codex, ask:
 Use pstack:setup-pstack to configure pstack.
 ```
 
-Setup checks the models you can actually run, shows how each one will start, and asks before saving the choices. The current default group uses Fable, GPT-5.6 Sol, Grok 4.6, and Opus.
+Setup checks the models you can actually run, shows how each one will start, and asks before saving the choices. The current default group uses GPT-5.6 Sol, Grok 4.7, and Opus.
 
 An older model sheet starts using the rolling aliases in memory as soon as this release is installed. Run setup once after updating to persist that migration. It replaces versioned Fable, Opus, and Sonnet entries while preserving every role assignment and effort selection.
 
-Sonnet, GPT-6 Astra, GPT-5.6 Luna, and GPT-5.6 Terra are also available as opt-in role assignments in setup. They do not change the four-family first-run defaults. Only assigned families are probed; native probes and smoke candidates run within available agent capacity.
+Fable, Sonnet, GPT-6 Astra, GPT-5.6 Luna, and GPT-5.6 Terra are also available as opt-in role assignments in setup. They do not change the three-family first-run defaults. Only assigned families are probed; native probes and smoke candidates run within available agent capacity.
 
 ### 2. Use poteto-mode
 
@@ -128,7 +128,7 @@ Plugin skills include `pstack:` in their name. In Claude Code, invoke a native s
 
 ## Optional Devin workers
 
-Codex or Claude Code can delegate selected roles to SWE-2 or SWE-1.6 through an authenticated [Devin CLI](https://docs.devin.ai/cli). Ask `setup-pstack` to use `devin:swe-2@high` (medium/high/max) or `devin:swe-1.6@default` for named roles. Devin remains an external worker; the default four-model panel stays unchanged.
+Codex or Claude Code can delegate selected roles to SWE-2 or SWE-1.6 through an authenticated [Devin CLI](https://docs.devin.ai/cli). Ask `setup-pstack` to use `devin:swe-2@high` (medium/high/max) or `devin:swe-1.6@default` for named roles. Devin remains an external worker; the default three-model panel stays unchanged.
 
 This adapter extracts the final response from a private conversation export and pins the CLI model UID. It does not report provider-verified model identity, tokens, or cost. Read-only workers cannot execute shell commands. See the [Devin dispatch contract](plugins/pstack/skills/poteto-mode/references/provider-dispatch.md#optional-devin-models) for permissions and live verification requirements.
 
@@ -167,7 +167,7 @@ This repository also keeps:
 
 ## Staying close to Lauren's pstack
 
-The stable release `v1.4.1-arjit.2` incorporates pstack 0.15.1 at Cursor commit [`f8abeddd1862dc73704e3d719dd73df0d51b8c71`](https://github.com/cursor/plugins/commit/f8abeddd1862dc73704e3d719dd73df0d51b8c71).
+The stable release `v1.4.1-arjit.3` incorporates pstack 0.15.5 at Cursor commit [`12d587dfb20741cafc376c42c696c5f6e2a64487`](https://github.com/cursor/plugins/commit/12d587dfb20741cafc376c42c696c5f6e2a64487).
 
 The two projects have separate version numbers. The pstack version identifies Lauren's upstream content. The Open Pstack version identifies the Claude Code and Codex package built from it.
 

@@ -105,17 +105,17 @@ quad_bad=""
 # Anchor on the quad's last slug rather than a hard-coded one, so a model swap in
 # setup-pstack cannot leave this check hunting for a slug nobody ships any more.
 anchor="${canon_quad##* }"
-# arena and architect each state the quad on one line; interrogate lists it
-# as one slug per row of its Reviewer A/B/C/D table (upstream #167).
 for name in arena architect; do
   skill="$repo/plugins/pstack/skills/$name/SKILL.md"
   n="$(grep -Fc "$anchor" "$skill" || true)"
-  if [ "$n" != "1" ]; then
-    quad_bad="$quad_bad$skill: expected exactly 1 default-quad line, found $n"$'\n'
+  if [ "$n" -lt 1 ]; then
+    quad_bad="$quad_bad$skill: expected at least 1 default-quad line, found $n"$'\n'
     continue
   fi
-  got="$(grep -F "$anchor" "$skill" | quad_of)"
-  [ "$got" = "$canon_quad" ] || quad_bad="$quad_bad$skill: [$got] != [$canon_quad]"$'\n'
+  while IFS= read -r line; do
+    got="$(printf '%s\n' "$line" | quad_of)"
+    [ "$got" = "$canon_quad" ] || quad_bad="$quad_bad$skill: [$got] != [$canon_quad]"$'\n'
+  done < <(grep -F "$anchor" "$skill")
 done
 interrogate="$repo/plugins/pstack/skills/interrogate/SKILL.md"
 got="$(grep -E '^\| Reviewer [A-Z] \|' "$interrogate" | quad_of)"

@@ -6,8 +6,10 @@ import { fileURLToPath } from "node:url";
 
 const RULE =
   "Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.";
-const LANE_SENTENCE =
-  "Ten lanes on the configured `swarm workers` role at the PR head";
+const LANE_TEMPLATE =
+  "Ten lanes on `<swarm workers descriptor>` at the PR head";
+const LANES =
+  /Ten lanes on `(inherit-parent|auto|(?:claude|codex|grok|devin|cursor):[A-Za-z0-9][A-Za-z0-9._/-]*@(low|medium|high|xhigh|max|default))` at the PR head/;
 const BOX = /^\s*- \[[ xX]\] (.*)$/;
 const TOP_BOX = /^- \[[ xX]\] (.*)$/;
 
@@ -43,7 +45,8 @@ const TOP_BOX = /^- \[[ xX]\] (.*)$/;
 /**
  * @typedef {object} PlanContract
  * @property {string} rule
- * @property {string} laneSentence
+ * @property {string} laneTemplate
+ * @property {RegExp} lanes
  * @property {number} laneCount
  * @property {number} introMaxNonBlank
  * @property {string} howToRead
@@ -109,7 +112,8 @@ const PR_BLOCKS = Object.freeze([
 /** @type {PlanContract} */
 export const CONTRACT = Object.freeze({
   rule: RULE,
-  laneSentence: LANE_SENTENCE,
+  laneTemplate: LANE_TEMPLATE,
+  lanes: LANES,
   laneCount: 10,
   introMaxNonBlank: 9,
   howToRead: "How to read this",
@@ -428,10 +432,10 @@ function headingsOf(section) {
  * @param {(line: number, message: string) => void} fail
  */
 function checkLanes(prTitle, live, spec, fail) {
-  if (!live.rest.includes(CONTRACT.laneSentence)) {
+  if (!CONTRACT.lanes.test(live.rest)) {
     fail(
       live.n,
-      `${prTitle}: Verify, live lacks "${CONTRACT.laneSentence}"`,
+      `${prTitle}: Verify, live lacks "Ten lanes on \`<swarm workers descriptor>\` at the PR head" with the descriptor filled in`,
     );
   }
   const save = spec.save;
