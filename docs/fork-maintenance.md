@@ -65,14 +65,14 @@ GitHub can delay scheduled runs or disable schedules in inactive public reposito
 
 ## Install or migrate
 
-The tested stable release is `v1.4.1-arjit.3`. The marketplace remains `open-pstack`, and skills remain under `pstack:`. Remove an existing marketplace registration before switching its source. Preserve your model sheet and integration instructions.
+The tested stable release is `v1.4.1-arjit.4`. The marketplace remains `open-pstack`, and skills remain under `pstack:`. Remove an existing marketplace registration before switching its source. Preserve your model sheet and integration instructions.
 
 For Codex, run:
 
 ```sh
 codex plugin remove pstack@open-pstack
 codex plugin marketplace remove open-pstack
-codex plugin marketplace add https://github.com/arjitj2/open-pstack.git --ref v1.4.1-arjit.3
+codex plugin marketplace add https://github.com/arjitj2/open-pstack.git --ref v1.4.1-arjit.4
 codex plugin add pstack@open-pstack
 ```
 
@@ -81,11 +81,11 @@ For Claude Code, run inside Claude Code:
 ```text
 /plugin uninstall pstack@open-pstack
 /plugin marketplace remove open-pstack
-/plugin marketplace add arjitj2/open-pstack#v1.4.1-arjit.3
+/plugin marketplace add arjitj2/open-pstack#v1.4.1-arjit.4
 /plugin install pstack@open-pstack
 /reload-plugins
 ```
 
 On a first installation, skip the removal steps. Open a new Codex task to load the installed skills. Use `setup-pstack` when you want to change model assignments. Installation does not rewrite the model sheet.
 
-To roll back, keep this repository's marketplace URL and replace the tag with the previous tested release, `v1.4.1-arjit.2`. See [compatibility and release evidence](compatibility.md) before reporting a problem.
+To roll back, keep this repository's marketplace URL and replace the tag with the previous tested release, `v1.4.1-arjit.3`. See [compatibility and release evidence](compatibility.md) before reporting a problem.

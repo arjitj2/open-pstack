@@ -1,6 +1,6 @@
 # Compatibility and release evidence
 
-The stable package is [v1.4.1-arjit.3](https://github.com/arjitj2/open-pstack/releases/tag/v1.4.1-arjit.3). Its Cursor content baseline is 0.15.5 at `12d587dfb20741cafc376c42c696c5f6e2a64487`. Later Cursor changes are recorded in [upstream status](../UPSTREAM.md). A reviewed or detected source commit is not necessarily incorporated in the stable package.
+The stable package is [v1.4.1-arjit.4](https://github.com/arjitj2/open-pstack/releases/tag/v1.4.1-arjit.4). Its Cursor content baseline is 0.15.5 at `12d587dfb20741cafc376c42c696c5f6e2a64487`. Later Cursor changes are recorded in [upstream status](../UPSTREAM.md). A reviewed or detected source commit is not necessarily incorporated in the stable package.
 
 | Parent | Native workers | External workers |
 | --- | --- | --- |
@@ -12,6 +12,14 @@ Only assigned providers need to be installed and authenticated. Run `setup-pstac
 External workers do not inherit the parent's MCP connections. Read-only Devin and Cursor workers cannot execute shell commands. See the [provider contract](../plugins/pstack/skills/poteto-mode/references/provider-dispatch.md) for permissions, supported efforts, model evidence, and limitations.
 
 ## Evidence for the stable release
+
+[Release PR #11](https://github.com/arjitj2/open-pstack/pull/11) adds subscription-aware setup and explicitly approved worker fallbacks. The tested package tree is `cddd6d809d2c9b7e5a06ff04e05bdea9c75c8f60`. It passed 329 Bun tests, strict typechecks, 26 maintenance tests, and static/plugin checks.
+
+Installed tests in Codex CLI 0.154.0 and Claude Code 2.1.281 exercised confirmed setup/save/readback with native smoke and separate judging, approved native fallback, legacy no-fallback, ordinary authentication errors, and started-writer preservation. Both installed policy helpers rejected exhausted-but-unauthorized routes and forged skip history. Quota failures were injected with a network-free test double; the approved native workers were real calls. This does not certify real quota exhaustion in every provider.
+
+External quota recognition currently covers verified Codex/Grok workload formats. Claude, Devin, and Cursor external quota formats remain ordinary failures until verified. A fallback cannot recover an exhausted parent controller. Local API guards do not prove that a provider has disabled account-managed overage. Tests preserved the captured `.2` installation and global model settings.
+
+## Cursor catch-up validation
 
 [Release PR #9](https://github.com/arjitj2/open-pstack/pull/9) records the Cursor catch-up and installed checks with Codex CLI 0.154.0 and Claude Code 2.1.281. Budget selection, custom-effort preservation, fixed-effort mappings, confirmed save/readback, native workers, and separate judges passed. The package passed 225 Bun tests, strict typechecks, 26 maintenance tests, and static/plugin checks. The captured `.2` installation and global model settings were restored. See the [adoption report](cursor-adoption-20260924.md) for evidence limits.
 

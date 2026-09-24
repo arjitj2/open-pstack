@@ -2,9 +2,9 @@
 
 This port applies the Cursor → Claude Code substitutions in skill bodies. Earlier drafts left them flagged; this revision resolves them. A later pass added a Codex build that shares the same skills; see [Codex port](#codex-port) below.
 
-## Unreleased: 1.4.1-arjit.4 candidate — subscription-aware setup and approved usage fallback
+## 1.4.1-arjit.4 — subscription-aware setup and approved usage fallback
 
-Adds one shared model-sheet grammar with ordered per-seat fallback attempts, subscription access facts, a conservative exhaustion receipt, and an explicit billing guard. Built on the same source baseline as the `1.4.1-arjit.3` candidate; the earlier entry's pending ledger rows are unchanged.
+Adds one shared model-sheet grammar with ordered per-seat fallback attempts, subscription access facts, a conservative exhaustion receipt, and an explicit billing guard. Built on the validated Cursor 0.15.5 baseline from `1.4.1-arjit.3`.
 
 **Sheet grammar.** Role rows still name one or more comma-separated seats, and each seat may now carry `primary -> fallback` ordered attempts (at most three). A single descriptor is a one-attempt chain and authorizes no fallback. Duplicates and same-provider attempts are invalid; Why and Reflect rows accept `inherit-parent`/`auto` only. `# access: <JSON>` comment lines record one fact per provider — advisory funding/capacity observations, binding `apiSpend` authorization, provenance, and optional display-only plan metadata — without credentials, prices, persisted account identifiers, or durable entitlements. Selected routes require included funding or explicitly approved metered funding; capacity may remain unknown.
 
