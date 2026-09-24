@@ -785,16 +785,11 @@ async function executeLane(
 
   if (preflightState.status !== "passed") {
     const completed = Date.now();
-    const preflightFailure = preflightResult.cancelledBy === null &&
-      !preflightResult.timedOut &&
-      classifyTerminalOutput(options.provider, preflightResult.stdout, preflightResult.stderr)
-        .status === "usage-exhausted"
-      ? "usage-exhausted"
-      : preflightFailureStatus(
-          options.provider,
-          options.model,
-          rawPreflightEvidence
-        );
+    const preflightFailure = preflightFailureStatus(
+      options.provider,
+      options.model,
+      rawPreflightEvidence
+    );
     const status: ReceiptStatus = preflightResult.cancelledBy !== null
       ? "cancelled"
       : preflightResult.timedOut

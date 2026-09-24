@@ -1078,6 +1078,16 @@ describe("usage exhaustion and billing guard", () => {
   const codexQuotaMessage =
     "You\u2019ve hit your usage limit. Visit https://chatgpt.com/codex/settings/usage to purchase more credits or try again later.";
 
+  it("does not treat a model-shaped quota envelope from auth preflight as exhaustion", async () => {
+    process.env.FAKE_CODEX_LOGIN_STATUS = JSON.stringify({ type: "turn.failed", error: { message: codexQuotaMessage } });
+    const input = options("codex", "preflight-quota-envelope");
+    const result = await runLane(input);
+    expect(result.receipt.status).not.toBe("usage-exhausted");
+    expect(result.receipt.failurePhase).toBe("preflight");
+    expect(result.receipt.processStarted).toBe(false);
+    expect(existsSync(input.outputPath)).toBe(false);
+  });
+
   it("classifies the canonical codex terminal quota diagnostic on a nonzero exit", async () => {
     process.env.FAKE_CODEX_TURN_FAILED = codexQuotaMessage;
     process.env.FAKE_CODEX_TURN_FAILED_EXIT = "1";
