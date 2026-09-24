@@ -2,9 +2,9 @@
 
 This port applies the Cursor → Claude Code substitutions in skill bodies. Earlier drafts left them flagged; this revision resolves them. A later pass added a Codex build that shares the same skills; see [Codex port](#codex-port) below.
 
-## Unreleased: 1.4.1-arjit.3 candidate — Cursor sync through 12d587df
+## 1.4.1-arjit.3 — Cursor sync through 12d587df
 
-Adapts the seven pstack commits between `f8abedd` and `12d587df` while keeping the ledger rows pending until installed-parent validation. Per-commit dispositions, evidence, and live-validation requirements are in [docs/cursor-adoption-20260924.md](docs/cursor-adoption-20260924.md).
+Adapts the seven pstack commits between `f8abedd` and `12d587df` with completed installed-parent validation and final ledger dispositions. Per-commit decisions and evidence are in [docs/cursor-adoption-20260924.md](docs/cursor-adoption-20260924.md).
 
 **Operator wording and status ticks** (`f5bdd68`). Skill prose is operator-neutral and the audit tick posts a status message in chat only when a tracked change has not been reported yet.
 

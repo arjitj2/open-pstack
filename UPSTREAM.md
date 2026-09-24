@@ -10,11 +10,11 @@ open-pstack tracks [Cursor's pstack](https://github.com/cursor/plugins/tree/main
 | --- | --- |
 | Repository | `https://github.com/cursor/plugins.git` |
 | Path | `pstack/` |
-| Commit | `f8abeddd1862dc73704e3d719dd73df0d51b8c71` |
-| Upstream version | `0.15.1` |
+| Commit | `12d587dfb20741cafc376c42c696c5f6e2a64487` |
+| Upstream version | `0.15.5` |
 | open-pstack version | `1.4.1-arjit.3` |
 
-The source commit and upstream version above record the content incorporated in the stable release, with the exclusions below. The open-pstack version identifies this checkout’s candidate package; the tested stable release remains `1.4.1-arjit.2` until the candidate passes the release gates. Detecting or reviewing newer Cursor commits does not advance this baseline. `README-UPSTREAM.md` preserves the upstream pstack README verbatim. `CHANGES.md` and `NOTICE.md` describe the adaptations and provenance.
+The table records the tested distribution and its incorporated Cursor content, with the exclusions below. Detecting or reviewing newer Cursor commits does not advance this baseline. `README-UPSTREAM.md` preserves the upstream pstack README verbatim. `CHANGES.md` and `NOTICE.md` describe the adaptations and provenance.
 
 ## Upstream-only exclusions
 
@@ -25,7 +25,7 @@ The source commit and upstream version above record the content incorporated in 
 
 ## Pending source changes
 
-The [maintenance issue](https://github.com/arjitj2/open-pstack/issues/1) and direct Cursor proposal PRs show outstanding changes. The committed [decision ledger](maintenance/upstream-ledger.json) distinguishes adopted, adapted, excluded, and pending commits. Each final disposition needs a reason and evidence. Pending rows stay visible after the review cursor advances. The working proposal for the seven commits through `12d587df` is documented in [docs/cursor-adoption-20260924.md](docs/cursor-adoption-20260924.md); its dispositions are proposed until installed-parent validation.
+The [maintenance issue](https://github.com/arjitj2/open-pstack/issues/1) and direct Cursor proposal PRs show outstanding changes. The committed [decision ledger](maintenance/upstream-ledger.json) distinguishes adopted, adapted, excluded, and pending commits. Each final disposition needs a reason and evidence. Pending rows stay visible after the review cursor advances. The seven commits through `12d587df` have passed installed-parent validation. Their decisions and evidence are documented in [docs/cursor-adoption-20260924.md](docs/cursor-adoption-20260924.md).
 
 ## Check for changes
 
@@ -39,8 +39,8 @@ Fetch and inspect only commits that touched pstack after the recorded sync point
 
 ```shell
 git fetch cursor main
-git log --oneline f8abeddd1862dc73704e3d719dd73df0d51b8c71..cursor/main -- pstack
-git diff --stat f8abeddd1862dc73704e3d719dd73df0d51b8c71..cursor/main -- pstack
+git log --oneline 12d587dfb20741cafc376c42c696c5f6e2a64487..cursor/main -- pstack
+git diff --stat 12d587dfb20741cafc376c42c696c5f6e2a64487..cursor/main -- pstack
 ```
 
 No output means the tracked pstack tree has not changed. The daily workflow performs this comparison directly against Cursor and proposes metadata for review. It does not import or execute upstream code.

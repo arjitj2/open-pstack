@@ -43,7 +43,7 @@ You need a current Claude Code or Codex installation. For the full three-model r
 Run these commands inside Claude Code:
 
 ```text
-/plugin marketplace add arjitj2/open-pstack#v1.4.1-arjit.2
+/plugin marketplace add arjitj2/open-pstack#v1.4.1-arjit.3
 /plugin install pstack@open-pstack
 /reload-plugins
 ```
@@ -53,7 +53,7 @@ Run these commands inside Claude Code:
 Run these commands in your shell:
 
 ```shell
-codex plugin marketplace add arjitj2/open-pstack --ref v1.4.1-arjit.2
+codex plugin marketplace add arjitj2/open-pstack --ref v1.4.1-arjit.3
 codex plugin add pstack@open-pstack
 ```
 
@@ -167,7 +167,7 @@ This repository also keeps:
 
 ## Staying close to Lauren's pstack
 
-The stable release `v1.4.1-arjit.2` incorporates pstack 0.15.1 at Cursor commit [`f8abeddd1862dc73704e3d719dd73df0d51b8c71`](https://github.com/cursor/plugins/commit/f8abeddd1862dc73704e3d719dd73df0d51b8c71).
+The stable release `v1.4.1-arjit.3` incorporates pstack 0.15.5 at Cursor commit [`12d587dfb20741cafc376c42c696c5f6e2a64487`](https://github.com/cursor/plugins/commit/12d587dfb20741cafc376c42c696c5f6e2a64487).
 
 The two projects have separate version numbers. The pstack version identifies Lauren's upstream content. The Open Pstack version identifies the Claude Code and Codex package built from it.
 
