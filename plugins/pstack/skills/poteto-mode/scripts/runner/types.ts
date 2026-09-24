@@ -22,17 +22,19 @@ export interface RunnerOptions {
   readonly apiSpend: ApiSpendMode | null;
 }
 
-export type ReceiptStatus =
-  | "complete"
-  | "cancelled"
-  | "unavailable-cli"
-  | "unauthenticated"
-  | "unavailable-model"
-  | "usage-exhausted"
-  | "billing-policy-blocked"
-  | "timed-out"
-  | "child-failed"
-  | "malformed-output";
+export const RECEIPT_STATUSES = [
+  "complete",
+  "cancelled",
+  "unavailable-cli",
+  "unauthenticated",
+  "unavailable-model",
+  "usage-exhausted",
+  "billing-policy-blocked",
+  "timed-out",
+  "child-failed",
+  "malformed-output",
+] as const;
+export type ReceiptStatus = (typeof RECEIPT_STATUSES)[number];
 
 export type FailurePhase = "preflight" | "invocation" | "postprocess";
 
@@ -93,6 +95,13 @@ export interface RunnerReceipt {
   readonly failurePhase: FailurePhase | null;
   readonly processStarted: boolean;
   readonly apiSpend: ReceiptApiSpend;
+  // The explicit launcher deadline when one was supplied, or null. Absent on
+  // receipts written before this field existed.
+  readonly timeoutMs?: number | null;
+  // True when a trusted terminal success shape was observed alongside the
+  // failure (for example a final successful result with a nonzero exit). The
+  // conflict is preserved here so a retry is never authorized on top of it.
+  readonly terminalSuccess?: boolean;
 }
 
 export class UsageError extends Error {}

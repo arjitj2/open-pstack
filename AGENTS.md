@@ -12,4 +12,4 @@ Nothing merges, tags, releases, or rolls out until the exact candidate is instal
 
 For documentation or maintenance-only changes, prove that the packaged plugin tree is unchanged and exercise the changed CLI or GitHub workflow. There is no affected parent installation in that case. Record the actual maintenance evidence instead of repeating unchanged provider tests.
 
-Do not add an implicit runtime timeout or a weaker-model fallback. The only permitted substitution is a saved `primary -> fallback` chain in the model sheet on a proven `usage-exhausted` receipt, per `plugins/pstack/skills/poteto-mode/references/provider-dispatch.md`; anything else remains a dropout.
+Do not add an implicit runtime timeout or a weaker-model fallback. The only permitted substitution is a saved `primary -> fallback` chain in the model sheet on a terminal outcome the sheet's `# fallback` policy authorizes (`usage-exhausted` only when no policy line is saved), per `plugins/pstack/skills/poteto-mode/references/provider-dispatch.md`; anything else remains a dropout.

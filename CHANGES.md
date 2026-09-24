@@ -2,6 +2,14 @@
 
 This port applies the Cursor → Claude Code substitutions in skill bodies. Earlier drafts left them flagged; this revision resolves them. A later pass added a Codex build that shares the same skills; see [Codex port](#codex-port) below.
 
+## 1.4.1-arjit.5 — automatic worker recovery
+
+Adds mandatory quota adapters for every provider and saved recovery policies for recognized usage limits, unavailable routes, terminal backend failures, and explicit deadlines. Existing model sheets remain quota-only unless the user saves a broader policy. Missing adapters and unmapped receipt statuses fail the provider contract instead of silently disabling recovery.
+
+The parent validates the actual receipt against the frozen assignment, reports the failed worker and approved backup, and continues without asking for a replacement. Started writers require inspection, preserved partial work, and a fresh continuation workspace. Cancellation, billing blocks, conflicting success evidence, unsafe work, and exhausted chains stop that lane. No implicit timeout or recovery of an exhausted parent controller is added.
+
+The README now explains this independently maintained distribution's model routing, subscription-aware setup, provider discovery, approved backups, and direct Cursor tracking. The Cursor content baseline remains 0.15.5. See [compatibility and release evidence](docs/compatibility.md) for tested hosts and limitations.
+
 ## 1.4.1-arjit.4 — subscription-aware setup and approved usage fallback
 
 Adds one shared model-sheet grammar with ordered per-seat fallback attempts, subscription access facts, a conservative exhaustion receipt, and an explicit billing guard. Built on the validated Cursor 0.15.5 baseline from `1.4.1-arjit.3`.

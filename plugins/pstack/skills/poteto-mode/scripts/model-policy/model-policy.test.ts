@@ -2,11 +2,13 @@ import { describe, expect, it } from "bun:test";
 import {
   ModelPolicyError,
   assertCompleteSheet,
+  eventAdvancesUnderPolicy,
   nextAttempt,
   parseSheet,
   renderSheet,
   resolveRole,
   validateSheet,
+  type FallbackPolicy,
   type LanePolicy,
 } from "./model-policy.ts";
 
@@ -235,6 +237,96 @@ describe("model sheet parser", () => {
   });
 });
 
+describe("saved fallback policy", () => {
+  const BROAD = '# fallback: {"on":["usage-exhausted","route-unavailable","terminal-failure","deadline-exceeded"]}';
+
+  it("defaults to quota-only when no fallback line is saved", () => {
+    const model = parse(FIRST_RUN);
+    expect(model.fallback).toBeNull();
+    expect(resolveRole(model, "how explorer", "claude")?.lanes[0].fallback)
+      .toEqual({ on: ["usage-exhausted"] });
+  });
+
+  it("parses and propagates a declared broad policy", () => {
+    const facts = '# access: {"provider":"grok","funding":"included","capacity":"standard","apiSpend":"deny","provenance":"user"}\n# access: {"provider":"codex","funding":"included","capacity":"high","apiSpend":"deny","provenance":"user"}\n# access: {"provider":"claude","funding":"included","capacity":"high","apiSpend":"deny","provenance":"user"}';
+    const text = FIRST_RUN.replace("# budget: unlimited (max)", `# budget: unlimited (max)\n${BROAD}\n${facts}`);
+    const model = parse(text);
+    expect(model.fallback).toEqual({
+      on: ["usage-exhausted", "route-unavailable", "terminal-failure", "deadline-exceeded"],
+    });
+    expect(resolveRole(model, "how explorer", "claude")?.lanes[0].fallback ?? null)
+      .toEqual(model.fallback);
+  });
+
+  it("round-trips the fallback declaration byte-identically", () => {
+    const text = FIRST_RUN.replace("# budget: unlimited (max)", `# budget: unlimited (max)\n${BROAD}`);
+    const rendered = renderSheet(parse(text));
+    expect(rendered).toBe(text);
+    expect(renderSheet(parse(rendered))).toBe(rendered);
+  });
+
+  it("accepts an explicit narrower or empty policy as a real declaration", () => {
+    for (const line of [
+      '# fallback: {"on":["usage-exhausted"]}',
+      '# fallback: {"on":[]}',
+    ]) {
+      const text = FIRST_RUN.replace("# budget: unlimited (max)", `# budget: unlimited (max)\n${line}`);
+      expect(() => parse(text), line).not.toThrow();
+    }
+  });
+
+  it("rejects malformed, unknown, and duplicate policy entries", () => {
+    for (const line of [
+      "# fallback: not-json",
+      '# fallback: []',
+      '# fallback: {"on":"usage-exhausted"}',
+      '# fallback: {"on":["bogus"]}',
+      '# fallback: {"on":[1]}',
+      '# fallback: {"on":["usage-exhausted","usage-exhausted"]}',
+      '# fallback: {"on":["usage-exhausted"],"reasons":[]}',
+    ]) {
+      const text = FIRST_RUN.replace("# budget: unlimited (max)", `# budget: unlimited (max)\n${line}`);
+      expect(() => parse(text), line).toThrow(ModelPolicyError);
+    }
+  });
+
+  it("recognizes a fallback declaration only at the start of a comment", () => {
+    for (const comment of [
+      `# note: the documented syntax is # fallback: {"on":["route-unavailable"]}`,
+      `# access: {"provider":"grok","funding":"included","capacity":"standard","apiSpend":"deny","provenance":"user","note":"see # fallback: examples"} `,
+    ]) {
+      const model = parse(
+        FIRST_RUN.replace("# budget: unlimited (max)", `# budget: unlimited (max)\n${comment}`)
+      );
+      expect(model.fallback, comment).toBeNull();
+    }
+  });
+
+  it("rejects a second fallback declaration wherever it appears", () => {
+    for (const text of [
+      FIRST_RUN.replace("# budget: unlimited (max)", `# budget: unlimited (max)\n${BROAD}\n${BROAD}`),
+      `${FIRST_RUN.trimEnd()}\n${BROAD}\n`.replace(
+        "# budget: unlimited (max)",
+        `# budget: unlimited (max)\n${BROAD}`
+      ),
+      FIRST_RUN.replace("hillclimb:", `${BROAD}\nhillclimb:`).replace(
+        "# budget: unlimited (max)",
+        `# budget: unlimited (max)\n# fallback: {"on":["route-unavailable"]}`
+      ),
+    ]) {
+      expect(() => parse(text)).toThrow(/more than one # fallback/);
+    }
+  });
+
+  it("treats an explicit fallback line as policy-enabled metadata", () => {
+    const text = `how explorer: grok:grok-4.7@xhigh\n${BROAD}\n`;
+    const model = parse(text);
+    expect(() => resolveRole(model, "bug-fix", "claude")).toThrow(
+      /policy-enabled sheet has no role/
+    );
+  });
+});
+
 describe("model sheet separators", () => {
   it("rejects empty seats instead of silently filtering them", () => {
     for (const row of [
@@ -436,8 +528,10 @@ describe("chain funding authorization", () => {
 });
 
 describe("nextAttempt decision", () => {
+  const QUOTA_ONLY = { on: ["usage-exhausted"] } as const;
   const lane: LanePolicy = {
     id: "how explorer#1",
+    fallback: QUOTA_ONLY,
     attempts: [
       { descriptor: "grok:grok-4.7@xhigh", attempt: { kind: "descriptor", provider: "grok", model: "grok-4.7", effort: "xhigh" }, exhaustionGroup: "grok", funding: "included", apiSpend: "deny", route: "external", authorization: { state: "allowed" } },
       { descriptor: "codex:gpt-5.6-sol@high", attempt: { kind: "descriptor", provider: "codex", model: "gpt-5.6-sol", effort: "high" }, exhaustionGroup: "codex", funding: "included", apiSpend: "deny", route: "external", authorization: { state: "allowed" } },
@@ -513,6 +607,7 @@ describe("nextAttempt decision", () => {
   it("stops on an unauthorized next candidate instead of skipping to a later model", () => {
     const blockedLane: LanePolicy = {
       id: "swarm workers#1",
+      fallback: QUOTA_ONLY,
       attempts: [
         { descriptor: "grok:grok-4.7@xhigh", attempt: { kind: "descriptor", provider: "grok", model: "grok-4.7", effort: "xhigh" }, exhaustionGroup: "grok", funding: "unknown", apiSpend: "deny", route: "external", authorization: { state: "blocked", reason: "funding unknown" } },
         lane.attempts[1],
@@ -542,12 +637,14 @@ describe("nextAttempt decision", () => {
     };
     const blockedLane: LanePolicy = {
       id: "swarm workers#1",
+      fallback: QUOTA_ONLY,
       attempts: [blocked, lane.attempts[1]],
     };
     expect(nextAttempt(blockedLane, [], new Set(["devin"]), "read-only"))
       .toMatchObject({ kind: "stop", reason: "unauthorized" });
     const chained: LanePolicy = {
       id: "swarm workers#1",
+      fallback: QUOTA_ONLY,
       attempts: [lane.attempts[0], blocked, lane.attempts[2]],
     };
     expect(
@@ -565,6 +662,207 @@ describe("nextAttempt decision", () => {
     const policy = resolveRole(parseSheet(sheet), "swarm workers", "codex");
     expect(nextAttempt(policy!.lanes[0], [], new Set(), "read-only"))
       .toMatchObject({ kind: "stop", reason: "unauthorized" });
+  });
+});
+
+describe("nextAttempt under a broad fallback policy", () => {
+  const BROAD = { on: ["usage-exhausted", "route-unavailable", "terminal-failure", "deadline-exceeded"] } as const;
+  const QUOTA_ONLY = { on: ["usage-exhausted"] } as const;
+
+  function broadLane(fallback: FallbackPolicy = BROAD): LanePolicy {
+    return {
+      id: "how explorer#1",
+      fallback,
+      attempts: [
+        { descriptor: "grok:grok-4.7@xhigh", attempt: { kind: "descriptor", provider: "grok", model: "grok-4.7", effort: "xhigh" }, exhaustionGroup: "grok", funding: "included", apiSpend: "deny", route: "external", authorization: { state: "allowed" } },
+        { descriptor: "codex:gpt-5.6-sol@high", attempt: { kind: "descriptor", provider: "codex", model: "gpt-5.6-sol", effort: "high" }, exhaustionGroup: "codex", funding: "included", apiSpend: "deny", route: "external", authorization: { state: "allowed" } },
+      ],
+    };
+  }
+
+  it("advances on each authorized outcome and only those", () => {
+    const lane = broadLane();
+    for (const status of ["usage-exhausted", "route-unavailable", "terminal-failure", "deadline-exceeded"] as const) {
+      expect(
+        nextAttempt(lane, [{ attemptIndex: 0, status, processStarted: true }], new Set(["grok"]), "read-only"),
+        status
+      ).toMatchObject({ kind: "launch", attemptIndex: 1 });
+    }
+    for (const status of ["route-unavailable", "terminal-failure", "deadline-exceeded", "failed"] as const) {
+      expect(
+        nextAttempt(broadLane(QUOTA_ONLY), [{ attemptIndex: 0, status, processStarted: true }], new Set(), "read-only"),
+        `quota-only ${status}`
+      ).toMatchObject({ kind: "stop", reason: "not-eligible" });
+    }
+  });
+
+  it("honors a narrowed saved policy instead of assuming every reason", () => {
+    const lane = broadLane({ on: ["usage-exhausted", "route-unavailable"] });
+    expect(
+      nextAttempt(lane, [{ attemptIndex: 0, status: "route-unavailable", processStarted: true }], new Set(), "read-only")
+    ).toMatchObject({ kind: "launch", attemptIndex: 1 });
+    for (const status of ["terminal-failure", "deadline-exceeded"] as const) {
+      expect(
+        nextAttempt(lane, [{ attemptIndex: 0, status, processStarted: true }], new Set(), "read-only"),
+        status
+      ).toMatchObject({ kind: "stop", reason: "not-eligible" });
+    }
+  });
+
+  it("keeps failed terminal under every policy", () => {
+    for (const fallback of [BROAD, QUOTA_ONLY]) {
+      expect(
+        nextAttempt(broadLane(fallback), [{ attemptIndex: 0, status: "failed", processStarted: true }], new Set(), "read-only")
+      ).toMatchObject({ kind: "stop", reason: "not-eligible" });
+    }
+  });
+
+  it("returns inspect before advancing a started writer, then honors the recorded verdict", () => {
+    const lane = broadLane();
+    const failed = { attemptIndex: 0, status: "terminal-failure" as const, processStarted: true };
+    expect(
+      nextAttempt(lane, [failed], new Set(), "isolated-write")
+    ).toMatchObject({ kind: "inspect", reason: "started-writer" });
+    expect(
+      nextAttempt(
+        lane,
+        [{ ...failed, inspection: { state: "clear", evidenceRef: "worktree-review#1" } }],
+        new Set(),
+        "isolated-write"
+      )
+    ).toMatchObject({ kind: "launch", attemptIndex: 1 });
+    expect(
+      nextAttempt(
+        lane,
+        [{ ...failed, inspection: { state: "unsafe", evidenceRef: "worktree-review#1" } }],
+        new Set(),
+        "isolated-write"
+      )
+    ).toMatchObject({ kind: "stop", reason: "unsafe-writer" });
+    expect(
+      nextAttempt(
+        lane,
+        [{ ...failed, inspection: { state: "clear", evidenceRef: "  " } }],
+        new Set(),
+        "isolated-write"
+      )
+    ).toMatchObject({ kind: "inspect", reason: "started-writer" });
+  });
+
+  it("does not inspect a writer whose process provably never started", () => {
+    expect(
+      nextAttempt(
+        broadLane(),
+        [{ attemptIndex: 0, status: "terminal-failure", processStarted: false }],
+        new Set(),
+        "isolated-write"
+      )
+    ).toMatchObject({ kind: "launch", attemptIndex: 1 });
+  });
+
+  it("vetoes continuation on an explicit unsafe verdict regardless of start or access", () => {
+    const lane = broadLane();
+    for (const access of ["read-only", "isolated-write"] as const) {
+      for (const processStarted of [true, false, undefined] as const) {
+        const event = {
+          attemptIndex: 0,
+          status: "route-unavailable" as const,
+          processStarted,
+          inspection: { state: "unsafe" as const, evidenceRef: "diff-review#1" },
+        };
+        expect(
+          nextAttempt(lane, [event], new Set(), access),
+          `${access} processStarted=${String(processStarted)}`
+        ).toMatchObject({ kind: "stop", reason: "unsafe-writer" });
+      }
+    }
+  });
+
+  it("advances a proved-not-started writer with a clear verdict or no inspection", () => {
+    const lane = broadLane();
+    for (const access of ["read-only", "isolated-write"] as const) {
+      for (const inspection of [
+        undefined,
+        { state: "clear" as const, evidenceRef: "preflight-log#1" },
+      ]) {
+        expect(
+          nextAttempt(
+            lane,
+            [{ attemptIndex: 0, status: "route-unavailable", processStarted: false, inspection }],
+            new Set(),
+            access
+          ),
+          `${access} inspection=${JSON.stringify(inspection)}`
+        ).toMatchObject({ kind: "launch", attemptIndex: 1 });
+      }
+    }
+  });
+
+  it("never lets recorded history advance past an unsafe verdict", () => {
+    const lane = broadLane();
+    for (const access of ["read-only", "isolated-write"] as const) {
+      for (const processStarted of [true, false, undefined] as const) {
+        const event = {
+          attemptIndex: 0,
+          status: "route-unavailable" as const,
+          processStarted,
+          inspection: { state: "unsafe" as const, evidenceRef: "diff-review#1" },
+        };
+        expect(
+          eventAdvancesUnderPolicy(lane, event, access),
+          `${access} processStarted=${String(processStarted)}`
+        ).toBe(false);
+      }
+    }
+  });
+
+  it("advances recorded history only through the started-writer gate", () => {
+    const lane = broadLane();
+    const failed = { attemptIndex: 0, status: "terminal-failure" as const };
+    expect(
+      eventAdvancesUnderPolicy(lane, { ...failed, processStarted: false }, "isolated-write")
+    ).toBe(true);
+    expect(
+      eventAdvancesUnderPolicy(lane, { ...failed, processStarted: true }, "isolated-write")
+    ).toBe(false);
+    expect(
+      eventAdvancesUnderPolicy(lane, { ...failed }, "isolated-write")
+    ).toBe(false);
+    expect(
+      eventAdvancesUnderPolicy(
+        lane,
+        { ...failed, processStarted: true, inspection: { state: "clear", evidenceRef: "diff-review#1" } },
+        "isolated-write"
+      )
+    ).toBe(true);
+    expect(
+      eventAdvancesUnderPolicy(lane, { ...failed, processStarted: true }, "read-only")
+    ).toBe(true);
+  });
+
+  it("still stops on an unauthorized route and ends a finite exhausted chain", () => {
+    const blocked: LanePolicy = {
+      id: "swarm workers#1",
+      fallback: BROAD,
+      attempts: [
+        broadLane().attempts[0],
+        { descriptor: "devin:swe-2@high", attempt: { kind: "descriptor", provider: "devin", model: "swe-2", effort: "high" }, exhaustionGroup: "devin", funding: "unknown", apiSpend: "deny", route: "external", authorization: { state: "blocked", reason: "funding unknown" } },
+      ],
+    };
+    expect(
+      nextAttempt(blocked, [{ attemptIndex: 0, status: "terminal-failure", processStarted: false }], new Set(), "read-only")
+    ).toMatchObject({ kind: "stop", reason: "unauthorized" });
+    expect(
+      nextAttempt(
+        broadLane(),
+        [
+          { attemptIndex: 0, status: "route-unavailable", processStarted: false },
+          { attemptIndex: 1, status: "terminal-failure", processStarted: true },
+        ],
+        new Set(),
+        "read-only"
+      )
+    ).toMatchObject({ kind: "stop", reason: "chain-exhausted" });
   });
 });
 

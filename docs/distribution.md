@@ -6,7 +6,7 @@ Choose this distribution when you want Codex or Claude Code to coordinate work a
 
 ## What differs
 
-This comparison describes the released `v1.4.1-arjit.4` package and Eric's Open Pstack `1.4.1`, not promises about either project's future releases.
+This historical comparison describes `v1.4.1-arjit.4` and Eric's Open Pstack `1.4.1`. For the current release's subscription-aware routing and automatic recovery, see [compatibility and release evidence](compatibility.md).
 
 | Capability | This distribution | Open Pstack 1.4.1 |
 | --- | --- | --- |

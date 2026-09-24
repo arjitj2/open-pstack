@@ -14,6 +14,8 @@ import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 import { childEnvironment, runLane } from "./run.ts";
 import { main } from "./cli.ts";
+import { nextAttempt, type LanePolicy } from "../model-policy/model-policy.ts";
+import { normalizeReceiptEvent } from "../model-policy/receipt-event.ts";
 import type { Provider, RunnerOptions, RunnerReceipt } from "./types.ts";
 
 let scratch = "";
@@ -27,7 +29,9 @@ const name = process.argv[1].split("/").at(-1);
 const isPreflight =
   (name === "claude" && args.includes("auth")) ||
   (name === "codex" && args[0] === "login") ||
-  (name === "grok" && args[0] === "models");
+  (name === "grok" && args[0] === "models") ||
+  (name === "devin" && args[0] === "auth") ||
+  (name === "cursor-agent" && (args[0] === "status" || args[0] === "--version"));
 const stage = isPreflight ? "preflight" : "model";
 const startedPath = isPreflight
   ? process.env.FAKE_PREFLIGHT_STARTED_PATH
@@ -64,6 +68,14 @@ if (name === "claude" && args.includes("auth")) {
 }
 if (name === "codex" && args[0] === "login") {
   console.log(process.env.FAKE_CODEX_LOGIN_STATUS ?? "Logged in using ChatGPT");
+  process.exit(0);
+}
+if (name === "devin" && args[0] === "auth") {
+  console.log("Logged in as runner-test@example.invalid");
+  process.exit(0);
+}
+if (name === "cursor-agent" && (args[0] === "status" || args[0] === "--version")) {
+  console.log(args[0] === "status" ? JSON.stringify({isAuthenticated:true}) : "2026.09.23-86fc751");
   process.exit(0);
 }
 if (name === "grok" && args[0] === "models") {
@@ -139,6 +151,9 @@ if (stage === "model" && process.env.FAKE_SELF_SIGNAL) {
 }
 if (name === "codex" && stage === "model" && process.env.FAKE_CODEX_TURN_FAILED) {
   console.log(JSON.stringify({type:"thread.started",thread_id:"t1"}));
+  if (process.env.FAKE_CODEX_AGENT_MESSAGE) {
+    console.log(JSON.stringify({type:"item.completed",item:{type:"agent_message",text:process.env.FAKE_CODEX_AGENT_MESSAGE}}));
+  }
   console.log(JSON.stringify({type:"turn.failed",error:{message:process.env.FAKE_CODEX_TURN_FAILED}}));
   process.exit(Number(process.env.FAKE_CODEX_TURN_FAILED_EXIT ?? "0"));
 }
@@ -149,6 +164,28 @@ if (name === "grok" && stage === "model" && process.env.FAKE_GROK_FREE_USAGE ===
   console.log(JSON.stringify({type:"assistant",message:{content:[{type:"text",text:"I inspected authentication handling."}]}}));
   console.log(JSON.stringify({type:"result",subtype:"error_during_execution",is_error:true,errors:["You\u2019ve reached your free Grok Build usage limit for now. Get SuperGrok for much higher limits, or try again later: https://grok.com/supergrok?referrer=grok-build"]}));
   process.exit(Number(process.env.FAKE_GROK_FREE_USAGE_EXIT ?? "0"));
+}
+if (name === "claude" && stage === "model" && process.env.FAKE_CLAUDE_API_ERROR === "1") {
+  console.log(JSON.stringify({
+    type:"result",
+    subtype:"success",
+    is_error:true,
+    api_error_status:Number(process.env.FAKE_CLAUDE_API_ERROR_STATUS ?? "429"),
+    terminal_reason:process.env.FAKE_CLAUDE_TERMINAL_REASON ?? "api_error",
+    result:process.env.FAKE_CLAUDE_RESULT_TEXT ?? "You've hit your session limit \u00b7 resets 4pm (America/New_York)",
+  }));
+  process.exit(Number(process.env.FAKE_CLAUDE_API_ERROR_EXIT ?? "1"));
+}
+if (name === "devin" && stage === "model" && process.env.FAKE_DEVIN_STDERR) {
+  console.error(process.env.FAKE_DEVIN_STDERR);
+  process.exit(Number(process.env.FAKE_DEVIN_EXIT ?? "1"));
+}
+if (name === "cursor-agent" && stage === "model" && process.env.FAKE_CURSOR_STDERR) {
+  if (process.env.FAKE_CURSOR_STDOUT_RESULT === "1") {
+    console.log(JSON.stringify({type:"result",subtype:"success",is_error:false,result:"CURSOR_OK"}));
+  }
+  console.error(process.env.FAKE_CURSOR_STDERR);
+  process.exit(Number(process.env.FAKE_CURSOR_EXIT ?? "1"));
 }
 if (name === "claude") {
   console.log(JSON.stringify({result:"CLAUDE_OK",session_id:"c1",usage:{input_tokens:10,output_tokens:2},total_cost_usd:0.01,modelUsage:{[reportedModel]:{}}}));
@@ -162,6 +199,9 @@ if (name === "claude") {
 }
 if (process.env.FAKE_MODEL_EXITING_PATH) {
   writeFileSync(process.env.FAKE_MODEL_EXITING_PATH, String(process.pid));
+}
+if (process.env.FAKE_MODEL_EXIT) {
+  process.exit(Number(process.env.FAKE_MODEL_EXIT));
 }
 `;
 
@@ -258,7 +298,7 @@ beforeEach(() => {
   bin = join(scratch, "bin");
   mkdirSync(bin);
   writeFileSync(join(scratch, "prompt.md"), "Return the marker.");
-  for (const name of ["claude", "codex", "grok"]) makeExecutable(name);
+  for (const name of ["claude", "codex", "grok", "devin", "cursor-agent"]) makeExecutable(name);
   previousPath = process.env.PATH;
   process.env.PATH = `${bin}:${dirname(process.execPath)}:${previousPath ?? ""}`;
   delete process.env.FAKE_TIMEOUT;
@@ -273,6 +313,7 @@ beforeEach(() => {
   delete process.env.FAKE_PREFLIGHT_STARTED_PATH;
   delete process.env.FAKE_MODEL_STARTED_PATH;
   delete process.env.FAKE_MODEL_EXITING_PATH;
+  delete process.env.FAKE_MODEL_EXIT;
   delete process.env.FAKE_REMOVE_EXECUTABLE_AFTER_PREFLIGHT;
   delete process.env.FAKE_GROK_UNAUTH;
   delete process.env.FAKE_GROK_TRANSIENT_UNAUTH_PATH;
@@ -290,9 +331,20 @@ beforeEach(() => {
   delete process.env.FAKE_CODEX_LOGIN_STATUS;
   delete process.env.FAKE_CODEX_TURN_FAILED;
   delete process.env.FAKE_CODEX_TURN_FAILED_EXIT;
+  delete process.env.FAKE_CODEX_AGENT_MESSAGE;
   delete process.env.FAKE_CODEX_RECOVERED_ERROR;
   delete process.env.FAKE_GROK_FREE_USAGE;
   delete process.env.FAKE_GROK_FREE_USAGE_EXIT;
+  delete process.env.FAKE_CURSOR_EXIT;
+  delete process.env.FAKE_CURSOR_STDOUT_RESULT;
+  delete process.env.FAKE_CURSOR_STDERR;
+  delete process.env.FAKE_DEVIN_EXIT;
+  delete process.env.FAKE_DEVIN_STDERR;
+  delete process.env.FAKE_CLAUDE_API_ERROR_EXIT;
+  delete process.env.FAKE_CLAUDE_RESULT_TEXT;
+  delete process.env.FAKE_CLAUDE_TERMINAL_REASON;
+  delete process.env.FAKE_CLAUDE_API_ERROR_STATUS;
+  delete process.env.FAKE_CLAUDE_API_ERROR;
   delete process.env.CURSOR_API_KEY;
   delete process.env.ANTHROPIC_API_KEY;
   delete process.env.ANTHROPIC_AUTH_TOKEN;
@@ -319,6 +371,7 @@ afterEach(() => {
   delete process.env.FAKE_PREFLIGHT_STARTED_PATH;
   delete process.env.FAKE_MODEL_STARTED_PATH;
   delete process.env.FAKE_MODEL_EXITING_PATH;
+  delete process.env.FAKE_MODEL_EXIT;
   delete process.env.FAKE_REMOVE_EXECUTABLE_AFTER_PREFLIGHT;
   delete process.env.FAKE_GROK_UNAUTH;
   delete process.env.FAKE_GROK_TRANSIENT_UNAUTH_PATH;
@@ -336,9 +389,20 @@ afterEach(() => {
   delete process.env.FAKE_CODEX_LOGIN_STATUS;
   delete process.env.FAKE_CODEX_TURN_FAILED;
   delete process.env.FAKE_CODEX_TURN_FAILED_EXIT;
+  delete process.env.FAKE_CODEX_AGENT_MESSAGE;
   delete process.env.FAKE_CODEX_RECOVERED_ERROR;
   delete process.env.FAKE_GROK_FREE_USAGE;
   delete process.env.FAKE_GROK_FREE_USAGE_EXIT;
+  delete process.env.FAKE_CURSOR_EXIT;
+  delete process.env.FAKE_CURSOR_STDOUT_RESULT;
+  delete process.env.FAKE_CURSOR_STDERR;
+  delete process.env.FAKE_DEVIN_EXIT;
+  delete process.env.FAKE_DEVIN_STDERR;
+  delete process.env.FAKE_CLAUDE_API_ERROR_EXIT;
+  delete process.env.FAKE_CLAUDE_RESULT_TEXT;
+  delete process.env.FAKE_CLAUDE_TERMINAL_REASON;
+  delete process.env.FAKE_CLAUDE_API_ERROR_STATUS;
+  delete process.env.FAKE_CLAUDE_API_ERROR;
   delete process.env.CURSOR_API_KEY;
   delete process.env.ANTHROPIC_API_KEY;
   delete process.env.ANTHROPIC_AUTH_TOKEN;
@@ -432,19 +496,24 @@ describe("runLane", () => {
     }
   });
 
-  it("classifies an unavailable model without falling back", async () => {
+  it("keeps unproven invocation model wording as an ordinary child failure", async () => {
     process.env.FAKE_INVALID_MODEL = "1";
     const input = options("codex");
     const result = await runLane(input);
-    expect(result.exitCode).toBe(69);
+    expect(result.exitCode).toBe(70);
     expect(existsSync(input.outputPath)).toBe(false);
     expect(receipt(input.receiptPath)).toMatchObject({
-      status: "unavailable-model",
+      status: "child-failed",
       model: "gpt-5.6-sol",
       reportedModel: null,
       modelVerified: false,
       modelEvidence: null,
+      failurePhase: "invocation",
+      processStarted: true,
     });
+    expect(receipt(input.receiptPath).error?.evidence).toContain(
+      "The requested model is not supported with this account."
+    );
   });
 
   it("retries a contradictory Grok authentication preflight before running the model", async () => {
@@ -491,6 +560,16 @@ describe("runLane", () => {
     expect(receipt(input.receiptPath).preflight.evidence).toContain(
       "attempt 2 failed"
     );
+    expect(
+      normalizeReceiptEvent(receipt(input.receiptPath), {
+        parent: input.parent,
+        provider: input.provider,
+        model: input.model,
+        effort: input.effort,
+        mode: input.mode,
+        apiSpend: "unset",
+      }).status
+    ).toBe("route-unavailable");
   }, 10_000);
 
   it("counts the Grok retry delay against the wrapper deadline", async () => {
@@ -939,6 +1018,16 @@ describe("runLane", () => {
     expect(result.exitCode).toBe(69);
     expect(existsSync(input.outputPath)).toBe(false);
     expect(receipt(input.receiptPath).status).toBe("unavailable-cli");
+    expect(
+      normalizeReceiptEvent(receipt(input.receiptPath), {
+        parent: input.parent,
+        provider: input.provider,
+        model: input.model,
+        effort: input.effort,
+        mode: input.mode,
+        apiSpend: "unset",
+      }).status
+    ).toBe("route-unavailable");
   });
 
   it("runs simultaneous same-provider lanes only into their unique paths", async () => {
@@ -1045,6 +1134,186 @@ describe("runLane", () => {
   });
 });
 
+describe("backend-recovery receipt evidence", () => {
+  it("records the explicit deadline on every receipt", async () => {
+    const plain = options("claude", "no-deadline");
+    expect((await runLane(plain)).exitCode).toBe(0);
+    expect(receipt(plain.receiptPath).timeoutMs).toBeNull();
+
+    process.env.FAKE_TIMEOUT = "1";
+    const bounded = { ...options("claude", "with-deadline"), timeoutMs: 500 };
+    const result = await runLane(bounded);
+    expect(result.receipt.status).toBe("timed-out");
+    expect(result.receipt.timeoutMs).toBe(500);
+    expect(
+      normalizeReceiptEvent(result.receipt, {
+        parent: bounded.parent,
+        provider: bounded.provider,
+        model: bounded.model,
+        effort: bounded.effort,
+        mode: bounded.mode,
+        apiSpend: "unset",
+      }).status
+    ).toBe("deadline-exceeded");
+  });
+
+  it("maps a generic 429 child failure to terminal-failure, never quota", async () => {
+    process.env.FAKE_GENERIC_429 = "1";
+    const input = options("claude", "generic-429");
+    const result = await runLane(input);
+    expect(result.receipt.status).toBe("child-failed");
+    expect(result.receipt.terminalSuccess).toBe(false);
+    const event = normalizeReceiptEvent(result.receipt, {
+      parent: input.parent,
+      provider: input.provider,
+      model: input.model,
+      effort: input.effort,
+      mode: input.mode,
+      apiSpend: "unset",
+    });
+    expect(event.status).toBe("terminal-failure");
+  });
+
+  it("keeps generated stdout auth prose plus a generic terminal failure as child-failed", async () => {
+    process.env.FAKE_CODEX_AGENT_MESSAGE =
+      "authentication required for the app under test";
+    process.env.FAKE_CODEX_TURN_FAILED = "generic backend error";
+    process.env.FAKE_CODEX_TURN_FAILED_EXIT = "1";
+    const input = options("codex", "generated-auth-prose");
+    const result = await runLane(input);
+    expect(result.receipt.status).toBe("child-failed");
+    expect(result.receipt.failurePhase).toBe("invocation");
+    expect(result.receipt.processStarted).toBe(true);
+    expect(result.receipt.terminalSuccess).toBe(false);
+    expect(result.receipt.error?.evidence).toContain(
+      "authentication required for the app under test"
+    );
+    const event = normalizeReceiptEvent(result.receipt, {
+      parent: input.parent,
+      provider: input.provider,
+      model: input.model,
+      effort: input.effort,
+      mode: input.mode,
+      apiSpend: "unset",
+    });
+    expect(event.status).toBe("terminal-failure");
+    const attempts = [
+      { descriptor: "codex:gpt-5.6-sol@max", attempt: { kind: "descriptor", provider: "codex", model: "gpt-5.6-sol", effort: "max" }, exhaustionGroup: "codex", funding: "included", apiSpend: "deny", route: "external", authorization: { state: "allowed" } },
+      { descriptor: "grok:grok-4.7@xhigh", attempt: { kind: "descriptor", provider: "grok", model: "grok-4.7", effort: "xhigh" }, exhaustionGroup: "grok", funding: "included", apiSpend: "deny", route: "external", authorization: { state: "allowed" } },
+    ] as const;
+    const events = [{ attemptIndex: 0, status: event.status, processStarted: event.processStarted }];
+    expect(
+      nextAttempt(
+        { id: "how explorer#1", fallback: { on: ["route-unavailable"] }, attempts: [...attempts] },
+        events,
+        new Set(),
+        "read-only"
+      )
+    ).toMatchObject({ kind: "stop", reason: "not-eligible" });
+    expect(
+      nextAttempt(
+        { id: "how explorer#1", fallback: { on: ["route-unavailable", "terminal-failure"] }, attempts: [...attempts] },
+        events,
+        new Set(),
+        "read-only"
+      )
+    ).toMatchObject({ kind: "launch", attemptIndex: 1 });
+  });
+
+  it("never classifies quoted or logged stderr auth and model wording as a route failure", async () => {
+    for (const [index, line] of [
+      'Error: invocation failed; upstream log ended with "unauthenticated: invalid api key"',
+      'Error: backend rejected the request; log said "model not supported"',
+      "Error: authentication required for the app under test",
+    ].entries()) {
+      process.env.FAKE_DEVIN_STDERR = line;
+      const input = { ...options("devin", `devin-quoted-${index}`), model: "swe-2", effort: "high" as const };
+      const result = await runLane(input);
+      expect(result.receipt.status, line).toBe("child-failed");
+      expect(result.receipt.failurePhase, line).toBe("invocation");
+      const event = normalizeReceiptEvent(result.receipt, {
+        parent: input.parent,
+        provider: input.provider,
+        model: input.model,
+        effort: input.effort,
+        mode: input.mode,
+        apiSpend: "unset",
+      });
+      expect(event.status, line).toBe("terminal-failure");
+      expect(
+        nextAttempt(
+          {
+            id: "how explorer#1",
+            fallback: { on: ["route-unavailable"] },
+            attempts: [
+              { descriptor: "devin:swe-2@high", attempt: { kind: "descriptor", provider: "devin", model: "swe-2", effort: "high" }, exhaustionGroup: "devin", funding: "included", apiSpend: "deny", route: "external", authorization: { state: "allowed" } },
+              { descriptor: "grok:grok-4.7@xhigh", attempt: { kind: "descriptor", provider: "grok", model: "grok-4.7", effort: "xhigh" }, exhaustionGroup: "grok", funding: "included", apiSpend: "deny", route: "external", authorization: { state: "allowed" } },
+            ],
+          },
+          [{ attemptIndex: 0, status: event.status, processStarted: event.processStarted }],
+          new Set(),
+          "read-only"
+        ),
+        line
+      ).toMatchObject({ kind: "stop", reason: "not-eligible" });
+    }
+  });
+
+  it("never advances a broad chain on a successful final result with a nonzero exit", async () => {
+    process.env.FAKE_MODEL_EXIT = "1";
+    const input = options("codex", "conflicted-success");
+    const result = await runLane(input);
+    expect(result.receipt.status).toBe("child-failed");
+    expect(result.receipt.terminalSuccess).toBe(true);
+    const event = normalizeReceiptEvent(result.receipt, {
+      parent: input.parent,
+      provider: input.provider,
+      model: input.model,
+      effort: input.effort,
+      mode: input.mode,
+      apiSpend: "unset",
+    });
+    expect(event.status).toBe("failed");
+    const broadLane: LanePolicy = {
+      id: "how explorer#1",
+      fallback: { on: ["usage-exhausted", "route-unavailable", "terminal-failure", "deadline-exceeded"] },
+      attempts: [
+        { descriptor: "codex:gpt-5.6-sol@max", attempt: { kind: "descriptor", provider: "codex", model: "gpt-5.6-sol", effort: "max" }, exhaustionGroup: "codex", funding: "included", apiSpend: "deny", route: "external", authorization: { state: "allowed" } },
+        { descriptor: "grok:grok-4.7@xhigh", attempt: { kind: "descriptor", provider: "grok", model: "grok-4.7", effort: "xhigh" }, exhaustionGroup: "grok", funding: "included", apiSpend: "deny", route: "external", authorization: { state: "allowed" } },
+      ],
+    };
+    expect(
+      nextAttempt(broadLane, [{ attemptIndex: 0, status: event.status }], new Set(), "read-only")
+    ).toMatchObject({ kind: "stop", reason: "not-eligible" });
+  });
+
+  it("normalizes a launcher-programming failure as ineligible, not a backend failure", async () => {
+    const unreadable = options("claude", "normalize-launcher-failure");
+    chmodSync(unreadable.promptPath, 0o000);
+    const launcher = Bun.spawn([process.execPath, ...runnerArgs(unreadable)], {
+      cwd: scratch,
+      env: { ...process.env },
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+    await Promise.all([
+      new Response(launcher.stdout).text(),
+      new Response(launcher.stderr).text(),
+    ]);
+    expect(await launcher.exited).toBe(70);
+    chmodSync(unreadable.promptPath, 0o600);
+    const event = normalizeReceiptEvent(receipt(unreadable.receiptPath), {
+      parent: unreadable.parent,
+      provider: unreadable.provider,
+      model: unreadable.model,
+      effort: unreadable.effort,
+      mode: unreadable.mode,
+      apiSpend: "unset",
+    });
+    expect(event.status).toBe("failed");
+  });
+});
+
 describe("childEnvironment", () => {
   it("removes only inherited runtime identity needed to avoid nested detection", () => {
     const source = {
@@ -1097,7 +1366,18 @@ describe("usage exhaustion and billing guard", () => {
     expect(result.receipt.status).toBe("usage-exhausted");
     expect(result.receipt.failurePhase).toBe("invocation");
     expect(result.receipt.processStarted).toBe(true);
+    expect(result.receipt.terminalSuccess).toBe(false);
     expect(existsSync(input.outputPath)).toBe(false);
+    expect(
+      normalizeReceiptEvent(result.receipt, {
+        parent: input.parent,
+        provider: input.provider,
+        model: input.model,
+        effort: input.effort,
+        mode: input.mode,
+        apiSpend: "unset",
+      }).status
+    ).toBe("usage-exhausted");
   });
 
   it("classifies a zero-exit codex turn.failed quota event", async () => {
@@ -1139,6 +1419,108 @@ describe("usage exhaustion and billing guard", () => {
     const nonzeroResult = await runLane(nonzero);
     expect(nonzeroResult.receipt.status).toBe("usage-exhausted");
     expect(nonzeroResult.receipt.failurePhase).toBe("invocation");
+  });
+
+  it("reproduces the captured Claude quota envelope as usage-exhausted exit 75", async () => {
+    process.env.FAKE_CLAUDE_API_ERROR = "1";
+    const input = options("claude", "claude-quota-real");
+    const result = await runLane(input);
+    expect(result.exitCode).toBe(75);
+    expect(result.receipt.status).toBe("usage-exhausted");
+    expect(result.receipt.failurePhase).toBe("invocation");
+    expect(result.receipt.processStarted).toBe(true);
+    expect(existsSync(input.outputPath)).toBe(false);
+  });
+
+  it("classifies the same Claude envelope at zero exit through postprocess", async () => {
+    process.env.FAKE_CLAUDE_API_ERROR = "1";
+    process.env.FAKE_CLAUDE_API_ERROR_EXIT = "0";
+    const input = options("claude", "claude-quota-zero-exit");
+    const result = await runLane(input);
+    expect(result.exitCode).toBe(75);
+    expect(result.receipt.status).toBe("usage-exhausted");
+    expect(result.receipt.failurePhase).toBe("postprocess");
+    expect(result.receipt.processStarted).toBe(true);
+  });
+
+  it("keeps a Claude api_error without a canonical quota diagnostic as an ordinary failure", async () => {
+    process.env.FAKE_CLAUDE_API_ERROR = "1";
+    process.env.FAKE_CLAUDE_RESULT_TEXT = "Request rejected (429) \u00b7 slow down";
+    const input = options("claude", "claude-429-nonquota");
+    const result = await runLane(input);
+    expect(result.receipt.status).toBe("child-failed");
+    expect(result.receipt.failurePhase).toBe("invocation");
+
+    process.env.FAKE_CLAUDE_API_ERROR_STATUS = "500";
+    const other = options("claude", "claude-500");
+    const otherResult = await runLane(other);
+    expect(otherResult.receipt.status).toBe("child-failed");
+  });
+
+  it("classifies the source-derived Devin quota stderr contract on a nonzero exit", async () => {
+    process.env.FAKE_DEVIN_STDERR =
+      "Error: Quota exhausted: You've reached your monthly usage limit. Wait for the limit to reset next month.";
+    const input = { ...options("devin", "devin-quota"), model: "swe-2", effort: "high" as const };
+    const result = await runLane(input);
+    expect(result.exitCode).toBe(75);
+    expect(result.receipt.status).toBe("usage-exhausted");
+    expect(result.receipt.failurePhase).toBe("invocation");
+    expect(result.receipt.processStarted).toBe(true);
+    expect(existsSync(input.outputPath)).toBe(false);
+  });
+
+  it("keeps Devin rate-limit, auth, and admin-pause stderr as ordinary failures", async () => {
+    for (const [index, line] of [
+      "Error: Rate limited: retry after 30 seconds",
+      "Error: Authentication required: Sign in again to continue",
+      "Error: An admin paused usage on your account. Ask them to resume it to continue.",
+      "Error: Authentication required: usage quota has been exhausted",
+      "Error: Rate limited: Quota exhausted: temporary burst",
+      "Error: upstream call failed: usage quota has been exhausted",
+      "Error: Rate limited: retry later\nError: Quota exhausted: usage quota has been exhausted",
+    ].entries()) {
+      process.env.FAKE_DEVIN_STDERR = line;
+      const input = { ...options("devin", `devin-nonquota-${index}`), model: "swe-2", effort: "high" as const };
+      const result = await runLane(input);
+      expect(result.receipt.status, line).toBe("child-failed");
+      expect(result.receipt.failurePhase, line).toBe("invocation");
+    }
+  });
+
+  it("classifies the source-derived Cursor quota stderr contract on a nonzero exit", async () => {
+    process.env.FAKE_CURSOR_STDERR =
+      "ActionRequiredError: You've hit your usage limit for Opus. Upgrade your plan or wait for your limit to reset.";
+    const input = { ...options("cursor", "cursor-quota"), model: "composer-2.5", effort: "default" as const };
+    const result = await runLane(input);
+    expect(result.exitCode).toBe(75);
+    expect(result.receipt.status).toBe("usage-exhausted");
+    expect(result.receipt.failurePhase).toBe("invocation");
+    expect(result.receipt.processStarted).toBe(true);
+    expect(existsSync(input.outputPath)).toBe(false);
+  });
+
+  it("keeps non-quota and contradictory Cursor stderr as ordinary failures", async () => {
+    for (const [index, line] of [
+      "ActionRequiredError: Upgrade to Pro to use this model",
+      "ActionRequiredError: login required\nActionRequiredError: You've hit your usage limit for Opus",
+      "ActionRequiredError: You've hit your usage limitless plan",
+    ].entries()) {
+      process.env.FAKE_CURSOR_STDERR = line;
+      const input = { ...options("cursor", `cursor-nonquota-${index}`), model: "composer-2.5", effort: "default" as const };
+      const result = await runLane(input);
+      expect(result.receipt.status, line).toBe("child-failed");
+      expect(result.receipt.failurePhase, line).toBe("invocation");
+    }
+  });
+
+  it("fails an unimplemented provider before launching instead of silently disabling fallback", async () => {
+    const input = {
+      ...options("claude", "unimplemented-provider"),
+      provider: "newprovider" as Provider,
+    };
+    await expect(runLane(input)).rejects.toThrow("no quota adapter implemented");
+    expect(existsSync(input.outputPath)).toBe(false);
+    expect(existsSync(input.receiptPath)).toBe(false);
   });
 
   it("blocks unverifiable Grok subscription routing before starting a model", async () => {

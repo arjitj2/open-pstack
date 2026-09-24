@@ -17,8 +17,10 @@ import { parseProviderOutput, reportedModelMatches } from "./parse-output.ts";
 import {
   ProviderTerminalError,
   apiCredentialTakeover,
+  assertQuotaAdapter,
+  classifyProcessOutcome,
   classifyTerminalEnvelope,
-  classifyTerminalOutput,
+  hasTerminalSuccess,
   subscriptionAuthEvidence,
 } from "./provider-failure.ts";
 import type {
@@ -413,14 +415,35 @@ function unavailableStatus(value: string): ReceiptStatus {
   return "child-failed";
 }
 
+// A started child proves its own outcome: only the provider-protocol quota
+// contract may classify here. Authentication or model wording in raw stdout or
+// stderr is unproven — generated prose and quoted logs both carry it — so an
+// invocation exit without a source-backed typed failure stays child-failed.
+// Raw bounded evidence is preserved on the receipt for diagnosis.
 function terminalFailureStatus(
   provider: Provider,
   stdout: string,
   stderr: string,
-  combined: string
+  exitCode: number | null
 ): ReceiptStatus {
-  const terminal = classifyTerminalOutput(provider, stdout, stderr);
-  return terminal.status === "usage-exhausted" ? "usage-exhausted" : unavailableStatus(combined);
+  const terminal = classifyProcessOutcome(provider, { stdout, stderr, exitCode });
+  return terminal.status ?? "child-failed";
+}
+
+// A Devin lane can finish its final answer and still exit nonzero: the CLI's
+// stdout/stderr carry no result protocol, so the ATIF export is the only
+// completion evidence and must be assessed before its directory is cleaned
+// up. The same parser used for exit-0 results validates it, with an empty
+// stderr so a tool-confirmation warning cannot mask a finished transcript. A
+// missing, invalid, or incomplete export stays ordinary failure evidence.
+function devinFinalExportCompleted(options: RunnerOptions): boolean {
+  if (options.provider !== "devin") return false;
+  try {
+    parseProviderOutput("devin", readDevinExport(options), "", options.model);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function preflightFailureStatus(
@@ -504,7 +527,7 @@ function modelProof(
 
 function completeReceipt(
   options: RunnerOptions,
-  partial: Omit<RunnerReceipt, "schemaVersion" | "parent" | "provider" | "model" | "effort" | "mode" | "cwd" | "promptPath" | "outputPath">
+  partial: Omit<RunnerReceipt, "schemaVersion" | "parent" | "provider" | "model" | "effort" | "mode" | "cwd" | "promptPath" | "outputPath" | "timeoutMs">
 ): RunnerReceipt {
   return {
     schemaVersion: 1,
@@ -516,11 +539,13 @@ function completeReceipt(
     cwd: options.cwd,
     promptPath: options.promptPath,
     outputPath: options.outputPath,
+    timeoutMs: options.timeoutMs,
     ...partial,
   };
 }
 
 export function validateOptions(options: RunnerOptions): void {
+  assertQuotaAdapter(options.provider);
   if (options.provider === "cursor") validateCursorModel(options.model, options.effort);
   if (options.parent === options.provider) {
     throw new UsageError(
@@ -902,7 +927,15 @@ async function executeLane(
       ? "cancelled"
       : result.timedOut
         ? "timed-out"
-        : terminalFailureStatus(options.provider, result.stdout, result.stderr, rawFailureEvidence);
+        : terminalFailureStatus(options.provider, result.stdout, result.stderr, result.exitCode);
+    const terminalSuccess =
+      status !== "cancelled" &&
+      (devinFinalExportCompleted(options) ||
+        hasTerminalSuccess(options.provider, {
+          stdout: result.stdout,
+          stderr: result.stderr,
+          exitCode: result.exitCode,
+        }));
     receipt = completeReceipt(options, {
       ...base,
       status,
@@ -925,6 +958,7 @@ async function executeLane(
       failurePhase: "invocation",
       processStarted: true,
       apiSpend: options.apiSpend ?? "legacy",
+      terminalSuccess: status === "cancelled" ? undefined : terminalSuccess,
     });
     removeIfExists(options.outputPath);
     writeReceipt(options.receiptPath, receipt);
@@ -974,6 +1008,15 @@ async function executeLane(
         : error instanceof ProviderTerminalError
           ? "child-failed"
           : "malformed-output";
+    const terminalSuccess =
+      devinFinalExportCompleted(options) ||
+      hasTerminalSuccess(options.provider, {
+        stdout: result.stdout,
+        stderr: result.stderr,
+        exitCode: result.exitCode,
+        terminalEnvelope:
+          error instanceof ProviderTerminalError ? error.envelope : undefined,
+      });
     receipt = completeReceipt(options, {
       ...base,
       status,
@@ -992,6 +1035,7 @@ async function executeLane(
       failurePhase: "postprocess",
       processStarted: true,
       apiSpend: options.apiSpend ?? "legacy",
+      terminalSuccess,
     });
   }
 
