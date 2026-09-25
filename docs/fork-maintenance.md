@@ -49,7 +49,7 @@ Before landing an update, the task must:
 4. Confirm the current PR head and passing CI, then merge with a server-enforced expected-head guard. Do not arm an unverified merge request.
 5. Advance the incorporated source baseline only when all preceding changes have final decisions and the accepted changes are validated. Publish a unique release only when its package tree matches the tested candidate.
 
-If validation or a semantic decision remains unresolved, preserve the branch and evidence for the next run and notify the maintainer. The task reports meaningful releases and actionable failures. It leaves the user's installed release pin and model files unchanged, restores any temporary installation after tests, and does not merge the original contribution PRs in Eric's repository.
+If validation or a semantic decision remains unresolved, preserve the branch and evidence for the next run and notify the maintainer. The task reports meaningful releases and actionable failures. It leaves the user's installed marketplace source/ref and model files unchanged, restores any temporary installation after tests, and does not merge the original contribution PRs in Eric's repository.
 
 ## Publish a release
 
@@ -57,9 +57,15 @@ Publish a uniquely named tag only after the candidate is merged and its package 
 
 Starting at `v1.5.0`, this distribution uses its own `MAJOR.MINOR.PATCH` sequence: major for incompatible public behavior or configuration changes, minor for compatible features, and patch for compatible fixes. Cursor and Eric’s port have independent version numbers. Keep all published tags immutable, including `v1.4.1-arjit.*`. A maintenance-only repository change does not need a new plugin version.
 
-For every release, add a row to [release history](releases.md) with the distribution tag, incorporated Cursor version, exact source commit, and tag-pinned `UPSTREAM.md` link for adaptations and exclusions. Include the same baseline and exclusions link in GitHub release notes. Use the incorporated baseline, never the discovery or review cursor. Keep both plugin manifests and the Claude marketplace version in sync, and keep installation examples resolving GitHub’s latest published release. The Codex marketplace reads the package version from the plugin manifest.
+For every release, add a row to [release history](releases.md) with the distribution tag, incorporated Cursor version, exact source commit, and tag-pinned `UPSTREAM.md` link for adaptations and exclusions. Include the same baseline and exclusions link in GitHub release notes. Use the incorporated baseline, never the discovery or review cursor. Keep both plugin manifests and the Claude marketplace version in sync, and keep the default installation examples free of version pins. The Codex marketplace reads the package version from the plugin manifest.
 
-Mark a release as GitHub’s latest only after its existing merge, validation, and publication gates pass. Installation resolves that published release’s tag through GitHub CLI; it does not depend on `main`, a moving `stable` branch, or the highest tag returned by a Git sort. A new tag without a published release is not selected. Keep release tags immutable.
+### Keep main ready for users
+
+The repository’s default branch, `main`, is the public installation source. New installs can receive its current package before a GitHub release is published. Keep unfinished package changes on PR branches and complete the existing CI, independent review, and affected-host validation gates before merging.
+
+Bump the plugin version whenever packaged behavior changes, including shared skills, provider instructions, and runtime code. Keep the version fields in sync. Version numbers identify shipped package changes. Withholding a version bump does not protect new installs from changed files on `main`.
+
+Use GitHub releases to document tested checkpoints and preserve exact tags for reproducible installs and rollback. Tags do not gate normal installation. Documentation-only repository changes that leave the plugin package unchanged need no new plugin version. There is no separate stable branch or latest-release lookup to maintain.
 
 ## Recover an interrupted check
 
@@ -69,32 +75,38 @@ GitHub can delay scheduled runs or disable schedules in inactive public reposito
 
 ## Install or migrate
 
-Use the [first-install instructions](../README.md#install) for a new installation. The commands below upgrade an existing installation or migrate from another distribution. They require GitHub CLI (`gh`, installed and signed in) and resolve the latest published release before removing the old registration. A failed lookup stops the commands before removal. Preserve your model sheet and integration instructions.
+Use the [first-install instructions](../README.md#install) for a new installation. They follow this repository’s default branch, `main`, through the normal plugin marketplace. No GitHub CLI or release-tag lookup is required.
 
-For Codex, run in your terminal:
+### Update an installation already following main
+
+Use the parent app’s plugin management to refresh and apply updates. In Claude Code, run `/plugin marketplace update open-pstack` or use `claude plugin update pstack@open-pstack` in your terminal. You can enable automatic updates for this marketplace in `/plugin` under Marketplaces. Restart the session or run `/reload-plugins` afterward.
+
+In Codex, `codex plugin marketplace upgrade open-pstack` refreshes the marketplace catalog. Use Codex’s plugin management to apply available plugin updates, then start a new task. Refreshing a catalog is distinct from reloading an installed plugin in a running task.
+
+### Switch from a pinned tag or another distribution
+
+Re-register the marketplace without a ref. Preserve your model sheet and integration instructions. For Codex, run in your terminal:
 
 ```sh
-pstack_release="$(gh release view --repo arjitj2/open-pstack --json tagName --jq .tagName)" &&
-test -n "$pstack_release" &&
-codex plugin remove pstack@open-pstack &&
-codex plugin marketplace remove open-pstack &&
-codex plugin marketplace add arjitj2/open-pstack --ref "$pstack_release" &&
+codex plugin remove pstack@open-pstack
+codex plugin marketplace remove open-pstack
+codex plugin marketplace add arjitj2/open-pstack
 codex plugin add pstack@open-pstack
 ```
 
 For Claude Code, run in your terminal:
 
 ```sh
-pstack_release="$(gh release view --repo arjitj2/open-pstack --json tagName --jq .tagName)" &&
-test -n "$pstack_release" &&
-claude plugin uninstall pstack@open-pstack &&
-claude plugin marketplace remove open-pstack &&
-claude plugin marketplace add "arjitj2/open-pstack#$pstack_release" &&
+claude plugin uninstall pstack@open-pstack
+claude plugin marketplace remove open-pstack
+claude plugin marketplace add arjitj2/open-pstack
 claude plugin install pstack@open-pstack
 ```
 
-If registration or installation fails after removal, retry from the failed step with the same `$pstack_release`. If marketplace registration succeeded, retry only plugin installation. To choose a different tag, repeat the migration procedure.
+If a command fails, resolve the failure before continuing. After removal, retry from the failed registration or installation step. The examples use the default user scope; preserve project or local scope if that is how you installed Claude’s plugin.
 
-Then run `/reload-plugins` inside Claude Code or start a new session. Open a new Codex task to load the installed skills. The examples use the default user scope; if your Claude installation uses project or local scope, use that same scope when migrating. The marketplace stays `open-pstack`, and skills stay under `pstack:`. Installation does not rewrite your model sheet.
+Then run `/reload-plugins` inside Claude Code or start a new session. Open a new Codex task to load the installed skills. The marketplace stays `open-pstack`, and skills stay under `pstack:`. Installation does not rewrite your model sheet.
 
-These commands select the latest release at the time you run them and pin that tag. Rerun the upgrade instructions to move to a later release. To install or roll back to a specific version, replace the lookup line with `pstack_release='<release-tag>' &&`, using a tested tag from the [release history](releases.md). See [compatibility and release evidence](compatibility.md) before reporting a problem.
+### Pin a version or roll back
+
+Choose a tested tag from the [release history](releases.md). When re-registering, add `--ref <release-tag>` to the Codex marketplace command, or append `#<release-tag>` to the Claude marketplace source. A pinned installation stays on that ref until you change its registration. See [compatibility and release evidence](compatibility.md) before reporting a problem.

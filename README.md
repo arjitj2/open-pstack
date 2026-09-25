@@ -64,19 +64,15 @@ pstack does not ask you to trust an agent on day one. It helps the agent leave e
 
 Start with a current Claude Code or Codex installation. Install and sign in to the command-line tools for the external providers you choose; unused providers are optional. [Bun](https://bun.sh) runs Pstack's local routing tools. Setup checks access before saving your model choices.
 
-The commands below use [GitHub CLI](https://cli.github.com/) (`gh`, installed and signed in) to select the [latest published release](https://github.com/arjitj2/open-pstack/releases/latest) automatically. You do not need to choose or copy a tag. The installer pins the resolved release rather than following `main`. If the lookup fails, installation does not continue.
-
-These commands are for a first installation. To upgrade an existing installation, follow the [upgrade instructions](docs/fork-maintenance.md#install-or-migrate), which resolve the latest release again before replacing the marketplace registration. Installing a release does not automatically follow future tags.
+Install directly from this repository. Its default branch, `main`, contains changes validated and ready for users. You do not need GitHub CLI, a version tag, or a separate release channel. See [updates and migration](docs/fork-maintenance.md#install-or-migrate) if you already installed from a tag or another distribution.
 
 ### Claude Code
 
-Run these commands in your terminal:
+Run these commands inside Claude Code:
 
-```sh
-pstack_release="$(gh release view --repo arjitj2/open-pstack --json tagName --jq .tagName)" &&
-test -n "$pstack_release" &&
-claude plugin marketplace add "arjitj2/open-pstack#$pstack_release" &&
-claude plugin install pstack@open-pstack
+```text
+/plugin marketplace add arjitj2/open-pstack
+/plugin install pstack@open-pstack
 ```
 
 Then run `/reload-plugins` inside Claude Code, or start a new session.
@@ -86,9 +82,7 @@ Then run `/reload-plugins` inside Claude Code, or start a new session.
 Run these commands in your shell:
 
 ```shell
-pstack_release="$(gh release view --repo arjitj2/open-pstack --json tagName --jq .tagName)" &&
-test -n "$pstack_release" &&
-codex plugin marketplace add arjitj2/open-pstack --ref "$pstack_release" &&
+codex plugin marketplace add arjitj2/open-pstack
 codex plugin add pstack@open-pstack
 ```
 

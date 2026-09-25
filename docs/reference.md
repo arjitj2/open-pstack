@@ -14,13 +14,11 @@ This is not a verbatim copy. Skill bodies have been edited so every Cursor-speci
 
 ### Claude Code
 
-This repo ships as a Claude Code marketplace containing one plugin (`pstack`). Follow the [installation instructions](../README.md#install) to resolve the latest published release automatically with GitHub CLI. Run the following in your terminal:
+This repo ships as a Claude Code marketplace containing one plugin (`pstack`). Follow the [installation instructions](../README.md#install) to install from the ready-for-users `main` branch. Run the following inside Claude Code:
 
-```sh
-pstack_release="$(gh release view --repo arjitj2/open-pstack --json tagName --jq .tagName)" &&
-test -n "$pstack_release" &&
-claude plugin marketplace add "arjitj2/open-pstack#$pstack_release" &&
-claude plugin install pstack@open-pstack
+```text
+/plugin marketplace add arjitj2/open-pstack
+/plugin install pstack@open-pstack
 ```
 
 Run `/reload-plugins` inside Claude Code afterward, or start a new session.
@@ -32,9 +30,7 @@ The plugin auto-fires through a `SessionStart` hook on startup, `/clear`, and po
 The same plugin carries a `.codex-plugin/plugin.json` manifest and a root `.agents/plugins/marketplace.json`. Install it through the Codex marketplace:
 
 ```shell
-pstack_release="$(gh release view --repo arjitj2/open-pstack --json tagName --jq .tagName)" &&
-test -n "$pstack_release" &&
-codex plugin marketplace add arjitj2/open-pstack --ref "$pstack_release" &&
+codex plugin marketplace add arjitj2/open-pstack
 codex plugin add pstack@open-pstack
 ```
 

@@ -6,6 +6,8 @@ Track all durable work in this repository's GitHub Issues. Do not create a paral
 
 Cursor's `cursor/plugins/pstack` tree is the content upstream. Keep one shared skill tree for Claude Code and Codex; adapt harness primitives at the existing mapping boundaries instead of forking skills or adding compatibility layers. The parent harness freezes the model sheet for a run and owns every provider-routing decision. Children do not detect or reroute themselves.
 
+The default branch `main` is the public installation source and must remain ready for users. Keep unfinished package changes on PR branches. Validate changed behavior before merge, and bump the plugin version when packaged behavior changes, including shared skills and provider instructions. A version string is an update signal, not a barrier that hides unversioned changes from new installs. GitHub release tags document tested checkpoints and provide rollback; they are not an installation prerequisite.
+
 Before opening a pull request, run the Bun tests, strict typecheck, static invariants, and plugin validation.
 
 Nothing merges, tags, releases, or rolls out until the exact candidate is installed and the changed behavior passes a live test from the real user surface in every affected harness. Unit tests, validators, source inspection, and self-reports do not satisfy this gate. Record the installed version, surface, action, and observed result in the pull request template. A pull request without that evidence remains a draft.
