@@ -55,6 +55,11 @@ if (args[0] === "auth") {
 }
 const config = await Bun.file(args[args.indexOf("--config") + 1]).json();
 if (config.subagents_enabled !== false) throw new Error("recursive agents enabled");
+if (args.includes("--sandbox")) {
+  if (config.disabled_tools?.includes("exec")) throw new Error("writer exec disabled");
+} else if (!config.disabled_tools?.includes("exec")) {
+  throw new Error("denied exec still advertised to read-only agent");
+}
 const promptPath = args[args.indexOf("--prompt-file") + 1];
 await Bun.write(${JSON.stringify(join(scratch, "captured-prompt.txt"))}, await Bun.file(promptPath).text());
 if (args.includes("--sandbox") && (statSync(promptPath).mode & 0o777) !== 0o600) throw new Error("prompt not private");
@@ -133,6 +138,15 @@ describe("Devin external provider", () => {
         expect(existsSync(devinExportDirectory(input))).toBe(false);
       });
     }
+  }
+
+  for (const mode of ["read-only", "isolated-write"] as const) {
+    it(`completes ${mode} tasks with exec available only to writers`, async () => {
+      fakeDevin("DEVIN_RESULT");
+      const result = await runLane({ ...options, mode });
+      expect(result.exitCode).toBe(0);
+      expect(readFileSync(options.outputPath, "utf8")).toBe("DEVIN_RESULT");
+    });
   }
 
   it("adds writer tool constraints without modifying the assigned prompt", async () => {
