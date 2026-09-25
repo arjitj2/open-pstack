@@ -39,3 +39,9 @@ After OpenCode reported OpenAI OAuth and listed `openai/gpt-5.3-codex`, the oper
 The Codex-parent attempt settled with CLI exit zero and an error event; the runner correctly recorded `child-failed`. The Claude parent launched its runner in the background and ended its print session, cancelling the worker after the same error event. Its receipt records `cancelled`; this is not a completed success-path validation. Future Claude validation must keep the parent session alive until the worker settles.
 
 These observations establish an authenticated service rejection for the selected route, not general failure of OpenCode authentication. No alternate model or additional inference attempt was made. Successful read/write validation from both parents remains pending.
+
+## GPT-5.4 follow-up and model discovery mismatch
+
+The operator approved two further attempts using `openai/gpt-5.4`. Both authenticated parents kept their workers alive until completion. Both receipts recorded `child-failed`, CLI exit zero, and the service rejection that `gpt-5.4` is unsupported with a ChatGPT account. Neither created the requested output file. These runs confirm terminal-error handling from both parents, but do not establish successful worker execution.
+
+The local Codex account model cache, fetched at `2026-09-25T19:09:47.616223Z`, listed GPT-6, GPT-5.6, and GPT-5.5 model families. OpenCode 1.4.0 still listed only `gpt-5.2`, `gpt-5.3-codex`, `gpt-5.3-codex-spark`, `gpt-5.4`, and `gpt-5.4-mini` after `opencode models openai --refresh`. This is an observed discovery mismatch. The inspected OpenCode version also filters OAuth models with a fixed allowlist plus names containing `codex`. Further success-path validation needs a compatible OpenCode model-discovery/auth route; no third model was guessed or invoked.
