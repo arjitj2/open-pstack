@@ -1,6 +1,6 @@
 # Compatibility and release evidence
 
-The stable package is [v1.4.1-arjit.5](https://github.com/arjitj2/open-pstack/releases/tag/v1.4.1-arjit.5). Its Cursor content baseline is 0.15.5 at `12d587dfb20741cafc376c42c696c5f6e2a64487`. Later Cursor changes are recorded in [upstream status](../UPSTREAM.md). A reviewed or detected source commit is not necessarily incorporated in the stable package.
+The stable package is [v1.5.0](https://github.com/arjitj2/open-pstack/releases/tag/v1.5.0). Its Cursor content baseline is 0.15.5 at `12d587dfb20741cafc376c42c696c5f6e2a64487`. Later Cursor changes are recorded in [upstream status](../UPSTREAM.md). A reviewed or detected source commit is not necessarily incorporated in the stable package.
 
 | Parent | Native workers | External workers |
 | --- | --- | --- |
@@ -11,7 +11,15 @@ Only assigned providers need to be installed and authenticated. Run `setup-pstac
 
 External workers do not inherit the parent's MCP connections. Read-only Devin and Cursor workers cannot execute shell commands. See the [provider contract](../plugins/pstack/skills/poteto-mode/references/provider-dispatch.md) for permissions, supported efforts, model evidence, and limitations.
 
-## Evidence for the stable release
+## Version 1.5.0 packaging validation
+
+Version 1.5.0 starts the independent release sequence. Compared with `v1.4.1-arjit.5`, the packaged plugin changes only the version fields in its Claude and Codex manifests. All worker code and shared skills are byte-for-byte unchanged. The [release history](releases.md) records the incorporated Cursor baseline for each release.
+
+The exact candidate `39bb376eaa011ad218d04c2197c3dd1bb292f366` (plugin tree `3699d71e2c8d8447d98a792f4f81334fb6bf454a`) was installed through both real CLI plugin managers. `codex plugin list --json` and `claude plugin list --json` both reported enabled Pstack version `1.5.0`; all 185 installed package files matched the candidate. The candidate passed 428 Bun tests, four strict typechecks, static invariants, and Claude plugin validation. The captured Codex `.4` source pin, package, and global model files were restored, and the temporary Claude installation was removed.
+
+These checks cover the changed installation metadata. The unchanged worker behavior retains the `.5` evidence below; this release does not claim fresh model calls or broader provider compatibility.
+
+## Version 1.4.1-arjit.5 worker recovery validation
 
 [Release PR #13](https://github.com/arjitj2/open-pstack/pull/13) adds provider-complete quota adapters and saved recovery policies for unavailable routes, terminal backend failures, and explicit deadlines. The tested plugin tree is `800a08cbaa813a4fda42c4e3a0a84e92b30b4e24`, frozen at candidate `cd9d0ee5c4f18c097320b2e579fea1c363a04e98`. All 185 package files matched in both installed hosts. It passed 428 Bun tests, four strict typechecks, 26 maintenance tests, and static/plugin checks. Compile mutation checks rejected a provider without an adapter and an unmapped receipt status.
 

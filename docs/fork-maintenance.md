@@ -55,7 +55,9 @@ If validation or a semantic decision remains unresolved, preserve the branch and
 
 Publish a uniquely named tag only after the candidate is merged and its package matches the tested tree. Release notes name the Cursor content baseline, distribution changes, tested application versions, validation evidence, known limitations, and the previous tested pin. Review coverage and released content are separate claims.
 
-The distribution and Cursor have separate version numbers. Keep existing `v1.4.1-arjit.*` tags immutable. A maintenance-only repository change does not need a new plugin version.
+Starting at `v1.5.0`, this distribution uses its own `MAJOR.MINOR.PATCH` sequence: major for incompatible public behavior or configuration changes, minor for compatible features, and patch for compatible fixes. Cursor and Eric’s port have independent version numbers. Keep all published tags immutable, including `v1.4.1-arjit.*`. A maintenance-only repository change does not need a new plugin version.
+
+For every release, add a row to [release history](releases.md) with the distribution tag, incorporated Cursor version, exact source commit, and tag-pinned `UPSTREAM.md` link for adaptations and exclusions. Include the same baseline and exclusions link in GitHub release notes. Use the incorporated baseline, never the discovery or review cursor. Keep both plugin manifests and the Claude marketplace version in sync, and update current installation examples. The Codex marketplace reads the package version from the plugin manifest.
 
 ## Recover an interrupted check
 
@@ -65,14 +67,14 @@ GitHub can delay scheduled runs or disable schedules in inactive public reposito
 
 ## Install or migrate
 
-The tested stable release is `v1.4.1-arjit.5`. The marketplace remains `open-pstack`, and skills remain under `pstack:`. Remove an existing marketplace registration before switching its source. Preserve your model sheet and integration instructions.
+The tested stable release is `v1.5.0`. The marketplace remains `open-pstack`, and skills remain under `pstack:`. Remove an existing marketplace registration before switching its source. Preserve your model sheet and integration instructions.
 
 For Codex, run:
 
 ```sh
 codex plugin remove pstack@open-pstack
 codex plugin marketplace remove open-pstack
-codex plugin marketplace add https://github.com/arjitj2/open-pstack.git --ref v1.4.1-arjit.5
+codex plugin marketplace add https://github.com/arjitj2/open-pstack.git --ref v1.5.0
 codex plugin add pstack@open-pstack
 ```
 
@@ -81,11 +83,11 @@ For Claude Code, run inside Claude Code:
 ```text
 /plugin uninstall pstack@open-pstack
 /plugin marketplace remove open-pstack
-/plugin marketplace add arjitj2/open-pstack#v1.4.1-arjit.5
+/plugin marketplace add arjitj2/open-pstack#v1.5.0
 /plugin install pstack@open-pstack
 /reload-plugins
 ```
 
 On a first installation, skip the removal steps. Open a new Codex task to load the installed skills. Use `setup-pstack` when you want to change model assignments. Installation does not rewrite the model sheet.
 
-To roll back, keep this repository's marketplace URL and replace the tag with the previous tested release, `v1.4.1-arjit.4`. See [compatibility and release evidence](compatibility.md) before reporting a problem.
+To roll back, keep this repository's marketplace URL and replace the tag with the previous tested release, `v1.4.1-arjit.5`. See [compatibility and release evidence](compatibility.md) before reporting a problem.

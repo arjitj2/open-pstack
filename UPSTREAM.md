@@ -12,9 +12,11 @@ open-pstack tracks [Cursor's pstack](https://github.com/cursor/plugins/tree/main
 | Path | `pstack/` |
 | Commit | `12d587dfb20741cafc376c42c696c5f6e2a64487` |
 | Upstream version | `0.15.5` |
-| open-pstack version | `1.4.1-arjit.5` |
+| open-pstack version | `1.5.0` |
 
 The table records the tested distribution and its incorporated Cursor content, with the exclusions below. Detecting or reviewing newer Cursor commits does not advance this baseline. `README-UPSTREAM.md` preserves the upstream pstack README verbatim. `CHANGES.md` and `NOTICE.md` describe the adaptations and provenance.
+
+See [release history](docs/releases.md) for the incorporated Cursor version and commit of each distribution release. Our release numbers are independent of Cursor and Eric’s port.
 
 ## Upstream-only exclusions
 
