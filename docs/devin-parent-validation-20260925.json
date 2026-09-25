@@ -1,4 +1,6 @@
 {
+  "evidenceStage": "Historical initial candidate before main advanced to 1.6.0",
+  "supersededBy": "devin-merge-validation-20260925.json",
   "candidateCommit": "bb27ff77139ef83bf6bd86470518d9bcbf7b28ac",
   "pluginTree": "dc2d8a00f45118752e1e38433aed2dc7e1836874",
   "version": "1.5.1",
