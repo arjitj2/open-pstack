@@ -10,6 +10,8 @@ The default branch `main` is the public installation source and must remain read
 
 Before opening a pull request, run the Bun tests, strict typecheck, static invariants, and plugin validation.
 
+For changes to Open Pstack, invoke the project-local [verify-open-pstack skill](.agents/skills/verify-open-pstack/SKILL.md) before declaring the work complete, whether or not the user names it or uses poteto-mode. Read its feature map, run the recipes covering the affected behavior, and retain the evidence. Report blocked or unmapped paths as unverified; a CLI check does not replace installed-parent verification. For documentation or maintenance-only changes, use the maintenance evidence requirements below.
+
 Nothing merges, tags, releases, or rolls out until the exact candidate is installed and the changed behavior passes a live test from the real user surface in every affected harness. Unit tests, validators, source inspection, and self-reports do not satisfy this gate. Record the installed version, surface, action, and observed result in the pull request template. A pull request without that evidence remains a draft.
 
 For documentation or maintenance-only changes, prove that the packaged plugin tree is unchanged and exercise the changed CLI or GitHub workflow. There is no affected parent installation in that case. Record the actual maintenance evidence instead of repeating unchanged provider tests.
