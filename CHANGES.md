@@ -2,6 +2,10 @@
 
 This port applies the Cursor → Claude Code substitutions in skill bodies. Earlier drafts left them flagged; this revision resolves them. A later pass added a Codex build that shares the same skills; see [Codex port](#codex-port) below.
 
+## 1.5.1 — Devin read-only tool selection
+
+Disable the Devin `exec` tool in read-only workers so the model cannot select shell execution that the permission configuration denies. Writer workers retain sandboxed execution. The existing permission denies and final-response checks remain in place. This candidate awaits installed-parent validation.
+
 ## 1.5.0 — independent release numbering
 
 Adopt a standalone release sequence and record the incorporated Cursor version, commit, and release-specific exclusions in `docs/releases.md`. The README opening names Claude, Codex, Grok, Devin, and Cursor workers and distinguishes the two parent apps. Worker code and skills are unchanged from 1.4.1-arjit.5. The Cursor baseline remains 0.15.5 at `12d587dfb20741cafc376c42c696c5f6e2a64487`. Existing tags and installation pins remain valid.
