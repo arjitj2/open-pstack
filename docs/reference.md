@@ -14,13 +14,16 @@ This is not a verbatim copy. Skill bodies have been edited so every Cursor-speci
 
 ### Claude Code
 
-This repo ships as a Claude Code marketplace containing one plugin (`pstack`).
+This repo ships as a Claude Code marketplace containing one plugin (`pstack`). Follow the [installation instructions](../README.md#install) to resolve the latest published release automatically with GitHub CLI. Run the following in your terminal:
 
-```text
-/plugin marketplace add arjitj2/open-pstack#v1.5.0
-/plugin install pstack@open-pstack
-/reload-plugins
+```sh
+pstack_release="$(gh release view --repo arjitj2/open-pstack --json tagName --jq .tagName)" &&
+test -n "$pstack_release" &&
+claude plugin marketplace add "arjitj2/open-pstack#$pstack_release" &&
+claude plugin install pstack@open-pstack
 ```
+
+Run `/reload-plugins` inside Claude Code afterward, or start a new session.
 
 The plugin auto-fires through a `SessionStart` hook on startup, `/clear`, and post-compact. The hook injects a small mandate that routes non-trivial engineering work into `poteto-mode`; the full skill loads only when invoked. Dispatched subagents ignore the mandate, and explicit user instructions take precedence. To opt out, delete `hooks/hooks.json` from the installed copy at `~/.claude/plugins/cache/open-pstack/pstack/<version>/hooks/hooks.json`; a plugin update restores it.
 
@@ -29,7 +32,9 @@ The plugin auto-fires through a `SessionStart` hook on startup, `/clear`, and po
 The same plugin carries a `.codex-plugin/plugin.json` manifest and a root `.agents/plugins/marketplace.json`. Install it through the Codex marketplace:
 
 ```shell
-codex plugin marketplace add arjitj2/open-pstack --ref v1.5.0
+pstack_release="$(gh release view --repo arjitj2/open-pstack --json tagName --jq .tagName)" &&
+test -n "$pstack_release" &&
+codex plugin marketplace add arjitj2/open-pstack --ref "$pstack_release" &&
 codex plugin add pstack@open-pstack
 ```
 
