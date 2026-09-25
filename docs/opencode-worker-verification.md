@@ -28,6 +28,14 @@ Codex initially discovered its existing 1.5.0 cache despite a marketplace source
 
 ## Release gate still pending
 
-Neither an authenticated OpenCode worker launched from an installed Claude parent nor one launched from an installed Codex parent has been verified with this exact candidate. OpenCode still reported zero credentials on the follow-up check. Claude reported active first-party Pro authentication and Codex reported ChatGPT authentication. No paid worker inference was performed. The pull request remains a draft until both affected parent surfaces pass the repository's installed-candidate gate.
+Neither an authenticated OpenCode worker launched from an installed Claude parent nor one launched from an installed Codex parent has been verified with this exact candidate. OpenCode initially reported zero credentials; the subsequent authenticated attempts below supersede that observation. Claude reported active first-party Pro authentication and Codex reported ChatGPT authentication. No paid worker inference was performed. The pull request remains a draft until both affected parent surfaces pass the repository's installed-candidate gate.
 
 OpenCode permissions are an application boundary, not an OS sandbox. Its path checks are lexical; a trusted worktree is required because symlinks can point outside it. Configuration preflight and execution are separate processes; trusted startup configuration must remain unchanged between them. Initial support uses built-in providers and native authentication, requires explicit API-spend approval, and excludes ambient custom providers and external auth plugins.
+
+## Authenticated worker attempts
+
+After OpenCode reported OpenAI OAuth and listed `openai/gpt-5.3-codex`, the operator approved two small runs with that exact model, one per parent. Both parents launched the installed candidate with explicit spending approval. Each worker was asked to read a fixture and write its contents inside its assigned temporary Git root. Both received HTTP 400 with the service message that `gpt-5.3-codex` is not supported when using Codex with a ChatGPT account. Neither created the output fixture.
+
+The Codex-parent attempt settled with CLI exit zero and an error event; the runner correctly recorded `child-failed`. The Claude parent launched its runner in the background and ended its print session, cancelling the worker after the same error event. Its receipt records `cancelled`; this is not a completed success-path validation. Future Claude validation must keep the parent session alive until the worker settles.
+
+These observations establish an authenticated service rejection for the selected route, not general failure of OpenCode authentication. No alternate model or additional inference attempt was made. Successful read/write validation from both parents remains pending.
