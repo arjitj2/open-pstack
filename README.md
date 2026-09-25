@@ -16,11 +16,13 @@ See [release evidence and recovery limits](docs/compatibility.md), [why use this
 
 ## Why use this distribution
 
-- Match models to the work and the subscriptions you have. Setup considers task fit, confirmed access, capacity where known, and the effort level you choose.
-- Check the routes you will actually use. Setup verifies selected models through their native app or signed-in CLI. An unused provider does not block setup.
-- Combine Codex, Claude, Grok, Devin SWE-2 or SWE-1.6, and Cursor CLI workers. Keep one set of engineering skills across Codex and Claude Code.
-- Save backup chains instead of choosing a replacement during a failure. Recovery follows your saved policy, reports the actual provider and model, and respects your API-spend settings.
-- Follow Cursor's Pstack directly. Scheduled checks detect changes and prepare proposals. Adaptation, review, and real Codex and Claude Code checks come before a release.
+Choose based on where you run Pstack and how you want to use your model subscriptions:
+
+- **Cursor’s original Pstack** is Lauren Tan’s engineering workflow for Cursor. It assigns work to models available inside Cursor. Use it when Cursor is your parent app.
+- **Eric Litman’s Open Pstack** brings those workflows to Codex and Claude Code, with Claude, Codex, and Grok workers. It provides the foundation for this distribution.
+- **This distribution** adds Devin and Cursor CLI workers, subscription-aware model recommendations, setup that checks only the providers you select, and automatic recovery through your approved backup chains. It tracks Cursor directly and publishes its own tested releases, without waiting for Eric’s port to incorporate changes.
+
+Compared with Eric’s `1.4.1`, this release incorporates Cursor `0.15.5` rather than `0.15.1`. The [three-way comparison](docs/distribution.md) records the versions and source evidence. All three share the core Pstack workflows; the differences here are provider access, setup, recovery, and how updates reach you.
 
 Routing follows the role assignments you approve. Setup recommends a mix based on task fit and confirmed access. The saved policy controls which models run and when a backup can take over.
 
