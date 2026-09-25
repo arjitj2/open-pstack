@@ -66,13 +66,11 @@ if (delay > 0) await Bun.sleep(delay);
 if (process.env.FAKE_TIMEOUT === "1" && !args.includes("status") && !args.includes("models")) {
   await Bun.sleep(5_000);
 }
+if (isPreflight && process.env.FAKE_REMOVE_EXECUTABLE_AFTER_PREFLIGHT === "1") {
+  unlinkSync(process.argv[1]);
+}
 if (name === "claude" && args.includes("auth")) {
-  if (process.env.FAKE_REMOVE_EXECUTABLE_AFTER_PREFLIGHT === "1") {
-    unlinkSync(process.argv[1]);
-  }
-  console.log(process.env.FAKE_CLAUDE_AUTH_JSON ??
-    JSON.stringify({loggedIn:true,authMethod:"claude.ai",apiProvider:"firstParty",subscriptionType:"pro"}));
-  process.exit(0);
+  throw new Error("Unexpected Claude auth probe");
 }
 if (name === "codex" && args[0] === "login") {
   console.log(process.env.FAKE_CODEX_LOGIN_STATUS ?? "Logged in using ChatGPT");
@@ -337,7 +335,6 @@ beforeEach(() => {
   delete process.env.FAKE_QUOTA_RESULT;
   delete process.env.FAKE_QUOTA_TEXT;
   delete process.env.FAKE_QUOTA_WORDS_STDERR;
-  delete process.env.FAKE_CLAUDE_AUTH_JSON;
   delete process.env.FAKE_CODEX_LOGIN_STATUS;
   delete process.env.FAKE_CODEX_TURN_FAILED;
   delete process.env.FAKE_CODEX_TURN_FAILED_EXIT;
@@ -397,7 +394,6 @@ afterEach(() => {
   delete process.env.FAKE_QUOTA_RESULT;
   delete process.env.FAKE_QUOTA_TEXT;
   delete process.env.FAKE_QUOTA_WORDS_STDERR;
-  delete process.env.FAKE_CLAUDE_AUTH_JSON;
   delete process.env.FAKE_CODEX_LOGIN_STATUS;
   delete process.env.FAKE_CODEX_TURN_FAILED;
   delete process.env.FAKE_CODEX_TURN_FAILED_EXIT;
@@ -443,7 +439,7 @@ describe("runLane", () => {
         model: input.model,
         modelVerified: provider !== "codex",
         modelEvidence: provider === "codex" ? "pinned-argv" : "provider-report",
-        preflight: { status: "passed" },
+        preflight: { status: provider === "claude" ? "not-run" : "passed" },
       });
       if (provider === "claude") {
         expect(receipt(input.receiptPath).reportedModel).toBe("claude-fable-9-9");
@@ -671,7 +667,7 @@ describe("runLane", () => {
 
   it("does not spawn the model when preflight exhausts the wrapper deadline", async () => {
     const modelStarted = join(scratch, "deadline-model.started");
-    const input = { ...options("claude", "preflight-deadline"), timeoutMs: 300 };
+    const input = { ...options("codex", "preflight-deadline"), timeoutMs: 300 };
     const runner = Bun.spawn([process.execPath, ...runnerArgs(input)], {
       cwd: scratch,
       env: {
@@ -763,14 +759,14 @@ describe("runLane", () => {
     expect(existsSync(modelStarted)).toBe(false);
     expect(receipt(input.receiptPath)).toMatchObject({
       status: "timed-out",
-      preflight: { status: "timed-out" },
+      preflight: { status: "not-run", argv: [] },
     });
   });
 
   it("spends one explicit deadline across preflight and model execution", async () => {
     process.env.FAKE_PREFLIGHT_DELAY_MS = "3000";
     process.env.FAKE_MODEL_DELAY_MS = "6000";
-    const input = { ...options("claude"), timeoutMs: 8_000 };
+    const input = { ...options("codex"), timeoutMs: 8_000 };
     const result = await runLane(input);
     const recorded = receipt(input.receiptPath);
 
@@ -804,7 +800,7 @@ describe("runLane", () => {
         status: "timed-out",
         exitCode: 0,
         signal: null,
-        preflight: { status: "passed" },
+        preflight: { status: "not-run" },
       });
       expect(recorded.elapsedMs).toBeLessThan(8_000);
     } finally {
@@ -839,7 +835,7 @@ describe("runLane", () => {
         status: "timed-out",
         exitCode: 143,
         signal: null,
-        preflight: { status: "passed" },
+        preflight: { status: "not-run" },
       });
     } finally {
       if (existsSync(descendantPidPath)) {
@@ -876,7 +872,7 @@ describe("runLane", () => {
       status: "cancelled",
       exitCode: 0,
       signal: null,
-      preflight: { status: "passed" },
+      preflight: { status: "not-run" },
       error: { message: "launcher received SIGTERM after child exited" },
     });
 
@@ -901,7 +897,7 @@ describe("runLane", () => {
   });
 
   it("cancels a preflight with SIGINT and writes a terminal receipt", async () => {
-    const input = options("claude", "preflight-cancelled");
+    const input = options("codex", "preflight-cancelled");
     const started = join(scratch, "preflight-child.started");
     const terminated = join(scratch, "preflight-child.terminated");
     const isolatedRunner = join(scratch, "isolated-runner");
@@ -1096,7 +1092,7 @@ describe("runLane", () => {
     await Promise.all([sameStdout, sameStderr]);
     expect(readFileSync(unreadable.receiptPath, "utf8")).toBe(preservedReceipt);
 
-    const spawnFailure = options("claude", "spawn-failure");
+    const spawnFailure = options("codex", "spawn-failure");
     const modelStarted = join(scratch, "spawn-failure-model.started");
     const spawnRunner = Bun.spawn([process.execPath, ...runnerArgs(spawnFailure)], {
       cwd: scratch,
@@ -1588,7 +1584,7 @@ describe("usage exhaustion and billing guard", () => {
     expect(result.receipt.apiSpend).toBe("legacy");
   });
 
-  it.skipIf(process.platform !== "darwin")("blocks Claude preflight network without restricting the task", async () => {
+  it("starts only the Claude task and leaves its network available", async () => {
     const requests: string[] = [];
     const server = Bun.serve({ hostname: "127.0.0.1", port: 0, fetch(request) {
       requests.push(new URL(request.url).pathname);
@@ -1601,18 +1597,18 @@ describe("usage exhaustion and billing guard", () => {
       const result = await runLane(input);
       expect(result.receipt.status).toBe("complete");
       expect(requests).toEqual(["/model"]);
-      expect(readFileSync(process.env.FAKE_NETWORK_LOG_PATH, "utf8")).toBe("preflight:false\nmodel:true\n");
-      expect(result.receipt.preflight.argv).toEqual([
-        "/usr/bin/sandbox-exec", "-p", "(version 1)(allow default)(deny network-outbound)",
-        join(bin, "claude"), "--setting-sources", "", "auth", "status", "--json",
-      ]);
+      expect(readFileSync(process.env.FAKE_NETWORK_LOG_PATH, "utf8")).toBe("model:true\n");
+      expect(result.receipt.preflight).toEqual({
+        argv: [], status: "not-run",
+        evidence: "authentication deferred to invocation; billing route unverified",
+      });
       expect(result.receipt.argv[0]).toBe(join(bin, "claude"));
     } finally {
       await server.stop(true);
     }
   });
 
-  it.skipIf(process.platform !== "darwin")("fails closed when macOS refuses a nested preflight sandbox", async () => {
+  it.skipIf(process.platform !== "darwin")("runs Claude inside an existing macOS sandbox without nesting another", async () => {
     const input = options("claude", "nested-preflight");
     const modelStarted = join(scratch, "model-started");
     const child = Bun.spawn([
@@ -1620,13 +1616,12 @@ describe("usage exhaustion and billing guard", () => {
       process.execPath, ...runnerArgs(input),
     ], { env: { ...process.env, FAKE_MODEL_STARTED_PATH: modelStarted }, stdout: "pipe", stderr: "pipe" });
     const [exitCode] = await Promise.all([exitWithin(child, 5000), new Response(child.stdout).text(), new Response(child.stderr).text()]);
-    expect(exitCode).not.toBe(0);
+    expect(exitCode).toBe(0);
     const result = receipt(input.receiptPath);
-    expect(result.failurePhase).toBe("preflight");
-    expect(result.processStarted).toBe(false);
-    expect(result.preflight.argv[0]).toBe("/usr/bin/sandbox-exec");
-    expect(result.error?.evidence).toContain("sandbox_apply");
-    expect(existsSync(modelStarted)).toBe(false);
+    expect(result.status).toBe("complete");
+    expect(result.processStarted).toBe(true);
+    expect(result.preflight.argv).toEqual([]);
+    expect(existsSync(modelStarted)).toBe(true);
   });
 
   it("blocks a known ambient API credential under subscription-only policy before any process", async () => {
@@ -1672,23 +1667,18 @@ describe("usage exhaustion and billing guard", () => {
     }
   });
 
-  it("requires first-party claude.ai auth under deny, not just a login", async () => {
-    const input = { ...options("claude", "deny-claude-subscription"), apiSpend: "deny" as const };
-    expect((await runLane(input)).receipt.status).toBe("complete");
-    for (const [index, auth] of [
-      { loggedIn: true, authMethod: "apiKey", apiProvider: "firstParty" },
-      { loggedIn: true, authMethod: "claude.ai", apiProvider: "bedrock" },
-      { loggedIn: true, authMethod: "apiKeyHelper", apiProvider: "firstParty" },
-      { loggedIn: true },
-    ].entries()) {
-      process.env.FAKE_CLAUDE_AUTH_JSON = JSON.stringify(auth);
-      const blocked = { ...options("claude", `deny-claude-auth-${index}`), apiSpend: "deny" as const };
-      const result = await runLane(blocked);
-      expect(result.receipt.status, JSON.stringify(auth)).toBe("billing-policy-blocked");
-      expect(result.receipt.processStarted).toBe(false);
-      expect(result.receipt.preflight.status).toBe("passed");
-      delete process.env.FAKE_CLAUDE_AUTH_JSON;
-    }
+  it("reports Claude authentication errors from invocation without claiming an auth preflight", async () => {
+    process.env.FAKE_CLAUDE_API_ERROR = "1";
+    process.env.FAKE_CLAUDE_API_ERROR_STATUS = "401";
+    process.env.FAKE_CLAUDE_RESULT_TEXT = "Not logged in. Please run /login";
+    const input = { ...options("claude", "claude-auth-error"), apiSpend: "deny" as const };
+    const result = await runLane(input);
+    expect(result.receipt).toMatchObject({
+      status: "child-failed", failurePhase: "invocation", processStarted: true,
+      preflight: { status: "not-run", argv: [] },
+    });
+    expect(result.receipt.error?.evidence).toContain("Please run /login");
+    expect(existsSync(input.outputPath)).toBe(false);
   });
 
   it("requires ChatGPT auth for codex under deny", async () => {
