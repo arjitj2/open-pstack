@@ -22,7 +22,7 @@ Choose based on where you run Pstack and how you want to use your model subscrip
 - **Eric Litman’s Open Pstack** brings those workflows to Codex and Claude Code, with Claude, Codex, and Grok workers. It provides the foundation for this distribution.
 - **This distribution** adds Devin and Cursor CLI workers, subscription-aware model recommendations, setup that checks only the providers you select, and automatic recovery through your approved backup chains. It tracks Cursor directly and publishes its own tested releases, without waiting for Eric’s port to incorporate changes.
 
-Compared with Eric’s `1.4.1`, this release incorporates Cursor `0.15.5` rather than `0.15.1`. The [three-way comparison](docs/distribution.md) records the versions and source evidence. All three share the core Pstack workflows; the differences here are provider access, setup, recovery, and how updates reach you.
+The [three-way comparison](docs/distribution.md) records the compared releases, their Cursor content baselines, and source evidence. All three share the core Pstack workflows; the differences here are provider access, setup, recovery, and how updates reach you.
 
 Routing follows the role assignments you approve. Setup recommends a mix based on task fit and confirmed access. The saved policy controls which models run and when a backup can take over.
 
@@ -66,12 +66,14 @@ pstack does not ask you to trust an agent on day one. It helps the agent leave e
 
 Start with a current Claude Code or Codex installation. Install and sign in to the command-line tools for the external providers you choose; unused providers are optional. [Bun](https://bun.sh) runs Pstack's local routing tools. Setup checks access before saving your model choices.
 
+Open the [latest release](https://github.com/arjitj2/open-pstack/releases/latest) and copy its tag. Replace `<release-tag>` in the commands below with that tag, including its leading `v`. Pinning a release keeps your installation on a tested package.
+
 ### Claude Code
 
 Run these commands inside Claude Code:
 
 ```text
-/plugin marketplace add arjitj2/open-pstack#v1.5.0
+/plugin marketplace add arjitj2/open-pstack#<release-tag>
 /plugin install pstack@open-pstack
 /reload-plugins
 ```
@@ -81,7 +83,7 @@ Run these commands inside Claude Code:
 Run these commands in your shell:
 
 ```shell
-codex plugin marketplace add arjitj2/open-pstack --ref v1.5.0
+codex plugin marketplace add arjitj2/open-pstack --ref <release-tag>
 codex plugin add pstack@open-pstack
 ```
 
@@ -164,12 +166,6 @@ This release includes the creation and maintenance workflows, but no automatic f
 
 Plugin skills include `pstack:` in their name. In Claude Code, invoke `/pstack:architect`. In Codex, select `pstack:architect` from the skill picker or mention `$pstack:architect`. See the [technical reference](docs/reference.md) for the full list.
 
-## Optional Devin workers
-
-Codex or Claude Code can delegate selected roles to SWE-2 or SWE-1.6 through an authenticated [Devin CLI](https://docs.devin.ai/cli). Ask `setup-pstack` to use `devin:swe-2@high` (medium/high/max) or `devin:swe-1.6@default` for named roles. Devin remains an external worker; the default three-model panel stays unchanged.
-
-This adapter extracts the final response from a private conversation export and pins the CLI model UID. It does not report provider-verified model identity, tokens, or cost. Read-only workers cannot execute shell commands. See the [Devin dispatch contract](plugins/pstack/skills/poteto-mode/references/provider-dispatch.md#optional-devin-models) for permissions and live verification requirements.
-
 ## Models and token use
 
 Some pstack workflows use one model. Skills such as `architect`, `arena`, and `interrogate` can run several models in parallel. Each model run uses the access configured for its native app or external CLI: included subscription capacity or explicitly approved API spending.
@@ -188,13 +184,13 @@ This repository also keeps:
 - [the change record](CHANGES.md) for every adaptation; and
 - [the attribution record](NOTICE.md) for pstack and the imported Cursor Team Kit skills.
 
-## Staying close to Lauren's pstack
+## How releases track Cursor’s Pstack
 
-The stable release `v1.5.0` incorporates pstack 0.15.5 at Cursor commit [`12d587dfb20741cafc376c42c696c5f6e2a64487`](https://github.com/cursor/plugins/commit/12d587dfb20741cafc376c42c696c5f6e2a64487).
+This distribution has its own release numbers. Each release records the Cursor Pstack version and exact source commit it incorporates, along with adaptations and exclusions. Find those details in the [release history](docs/releases.md), [release notes](https://github.com/arjitj2/open-pstack/releases), and [upstream sync record](UPSTREAM.md).
 
-The two projects have separate version numbers. The pstack version identifies Lauren's upstream content. The Open Pstack version identifies the Claude Code and Codex package built from it.
+Scheduled checks detect changes in Cursor’s original Pstack and prepare proposals. Adoption work reviews those changes, adapts them to the shared Codex and Claude Code skill tree, and validates affected behavior in the real parent apps before release. Pending changes remain visible until they are adopted, adapted, or excluded with a reason. Detection does not imply immediate inclusion.
 
-In this repository, “upstream” means Lauren's original pstack. Open Pstack does not promise instant updates. It records the exact version it follows, reviews new changes in order, and adapts them for the shared Codex and Claude Code workflows. This distribution also maintains its own provider discovery, model routing, and recovery features, with independent release decisions. Useful fixes from other ports are reviewed separately. Pending Cursor changes remain visible until they are adopted, adapted, or excluded with a reason.
+Provider discovery, model routing, and recovery evolve independently in this distribution. Useful fixes from Eric’s port and other sources are reviewed separately. See the [maintenance policy](docs/fork-maintenance.md) for the process and release gates.
 
 ## Contributing
 
