@@ -585,6 +585,7 @@ describe("cursor terminal quota classification", () => {
 
 
 interface ProviderContract {
+  readonly quotaProof?: "none";
   readonly quota: readonly ProviderProcessOutcome[];
   readonly nonquota: readonly ProviderProcessOutcome[];
   readonly terminalSuccess: readonly ProviderProcessOutcome[];
@@ -685,6 +686,16 @@ const PROVIDER_CONTRACTS: Readonly<Record<Provider, ProviderContract>> = {
       }),
     ],
   },
+  antigravity: {
+    quotaProof: "none",
+    quota: [],
+    nonquota: [
+      outcome({ stdout: JSON.stringify({ event: "result", result: { status: "ERROR", message: "quota exceeded" } }) }),
+      outcome({ stderr: "HTTP 429 RESOURCE_EXHAUSTED" }),
+      outcome({ stderr: "MODEL_CAPACITY_EXHAUSTED" }),
+    ],
+    terminalSuccess: [outcome({ stdout: JSON.stringify({ event: "result", result: { status: "SUCCESS", response: "done" } }) })],
+  },
 };
 
 describe("terminal success detection", () => {
@@ -704,6 +715,7 @@ describe("terminal success detection", () => {
       ["codex", outcome({ stdout: JSON.stringify({ type: "turn.completed", usage: {} }) })],
       ["devin", outcome({ terminalEnvelope: { type: "result", subtype: "success", is_error: false } })],
       ["cursor", outcome({ stdout: JSON.stringify({ type: "result", subtype: "success", is_error: false, result: "done" }) })],
+      ["antigravity", outcome({ stdout: JSON.stringify({ event: "result", result: { status: "SUCCESS", response: "done" } }) })],
     ] as const) {
       expect(hasTerminalSuccess(provider, input), provider).toBe(true);
     }
@@ -714,7 +726,8 @@ describe("provider quota adapter registry", () => {
   for (const provider of PROVIDERS) {
     it(`${provider} implements the quota classification contract`, () => {
       const contract = PROVIDER_CONTRACTS[provider];
-      expect(contract.quota.length).toBeGreaterThan(0);
+      if (contract.quotaProof === "none") expect(contract.quota).toHaveLength(0);
+      else expect(contract.quota.length).toBeGreaterThan(0);
       expect(contract.nonquota.length).toBeGreaterThan(0);
       expect(contract.terminalSuccess.length).toBeGreaterThan(0);
       for (const input of contract.quota) {

@@ -8,6 +8,7 @@ import {
   isRollingClaudeAlias,
 } from "./model-aliases.ts";
 import { ProviderTerminalError } from "./provider-failure.ts";
+import { antigravityEvents, antigravitySuccessfulResult } from "./antigravity.ts";
 
 type JsonObject = Record<string, unknown>;
 
@@ -203,6 +204,46 @@ function parseCursor(stdout: string): ParsedOutput {
   };
 }
 
+function parseAntigravity(stdout: string): ParsedOutput {
+  const events = antigravityEvents(stdout);
+  const first = events[0];
+  const last = events.at(-1);
+  const init = first?.event === "init" ? object(first.init) : null;
+  const result = last?.event === "result" ? object(last.result) : null;
+  if (init === null || nullableString(first?.conversation_id) === null) {
+    throw new Error("antigravity stream did not begin with init");
+  }
+  if (events.filter((event) => event.event === "init").length !== 1 ||
+      events.filter((event) => event.event === "result").length !== 1 || result === null) {
+    throw new Error("antigravity stream did not end with one result");
+  }
+  if (events.some((event) => event.event === "error") || result.num_turns !== 1) {
+    throw new Error("antigravity stream did not contain one completed turn");
+  }
+  if (result.conversation_id !== first?.conversation_id) {
+    throw new Error("antigravity conversation id changed");
+  }
+  if (!antigravitySuccessfulResult(result)) {
+    throw new ProviderTerminalError("antigravity", "antigravity did not report a successful result", result);
+  }
+  const usage = object(result.usage);
+  return {
+    text: (result.response as string).trim(),
+    reportedModel: nullableString(init.model),
+    sessionId: first.conversation_id as string,
+    usage: normalizedUsage(usage === null ? null : {
+      input_tokens: usage.input_tokens,
+      output_tokens: usage.output_tokens,
+      thinking_tokens: usage.thinking_tokens,
+      cache_read_tokens: usage.cache_read_tokens,
+      total_tokens: usage.total_tokens,
+      reasoning_tokens: usage.thinking_tokens,
+      cached_input_tokens: usage.cache_read_tokens,
+    }),
+    costUsd: null,
+  };
+}
+
 export function parseProviderOutput(
   provider: Provider,
   stdout: string,
@@ -210,6 +251,8 @@ export function parseProviderOutput(
   requestedModel: string
 ): ParsedOutput {
   switch (provider) {
+    case "antigravity":
+      return parseAntigravity(stdout);
     case "devin": {
       if (/^warning: rejected a tool call that requires confirmation\./im.test(stderr)) {
         throw new Error("devin could not approve a tool in non-interactive mode");
@@ -250,7 +293,7 @@ export function reportedModelMatches(
   reported: string | null
 ): boolean {
   if (reported === null) return false;
-  if (provider === "cursor") return reported === requested;
+  if (provider === "cursor" || provider === "antigravity") return reported === requested;
   if (provider === "claude" && isRollingClaudeAlias(requested)) {
     return concreteModelMatchesRollingAlias(requested, reported);
   }

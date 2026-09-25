@@ -1,4 +1,5 @@
 import type { Provider } from "./types.ts";
+import { antigravityEvents, antigravitySuccessfulResult } from "./antigravity.ts";
 
 type JsonObject = Record<string, unknown>;
 
@@ -465,12 +466,25 @@ const cursorAdapter: QuotaAdapter = {
   },
 };
 
+const antigravityAdapter: QuotaAdapter = {
+  classify() { return UNKNOWN; },
+  succeeded(outcome) {
+    if (outcome.terminalEnvelope !== undefined) return antigravitySuccessfulResult(outcome.terminalEnvelope);
+    try {
+      const events = antigravityEvents(outcome.stdout);
+      const final = events.at(-1);
+      return final?.event === "result" && antigravitySuccessfulResult(final.result);
+    } catch { return false; }
+  },
+};
+
 const QUOTA_ADAPTERS: Readonly<Record<Provider, QuotaAdapter>> = {
   claude: claudeAdapter,
   codex: codexAdapter,
   grok: grokAdapter,
   devin: devinAdapter,
   cursor: cursorAdapter,
+  antigravity: antigravityAdapter,
 };
 
 export class QuotaAdapterNotImplementedError extends Error {
@@ -542,6 +556,7 @@ const API_CREDENTIAL_ENV: Readonly<Record<Provider, readonly string[]>> = {
   grok: ["XAI_API_KEY", "GROK_CODE_XAI_API_KEY"],
   devin: ["DEVIN_API_KEY"],
   cursor: ["CURSOR_API_KEY"],
+  antigravity: ["GEMINI_API_KEY"],
 };
 
 // Provider-selection and gateway switches: count only when set to a truthy
@@ -561,6 +576,7 @@ const API_ROUTE_ENV: Readonly<Record<Provider, readonly string[]>> = {
   grok: [],
   devin: ["DEVIN_API_URL"],
   cursor: ["CURSOR_API_ENDPOINT"],
+  antigravity: ["GOOGLE_GEMINI_BASE_URL", "AGY_ADC_AUTH"],
 };
 
 function truthy(value: string | undefined): boolean {
@@ -578,6 +594,11 @@ export function apiCredentialTakeover(
   }
   for (const name of API_ROUTE_ENV[provider]) {
     if (truthy(env[name])) return name;
+  }
+  if (provider === "antigravity") {
+    for (const [name, value] of Object.entries(env)) {
+      if (name.startsWith("AGY_GATEWAY_") && truthy(value)) return name;
+    }
   }
   return null;
 }
@@ -654,6 +675,7 @@ export function subscriptionAuthEvidence(
       };
     case "devin":
     case "cursor":
+    case "antigravity":
       return null;
   }
 }
