@@ -22,7 +22,7 @@ Choose based on where you run Pstack and how you want to use your model subscrip
 - **Eric Litman’s Open Pstack** brings those workflows to Codex and Claude Code, with Claude, Codex, and Grok workers. It provides the foundation for this distribution.
 - **This distribution** adds Devin and Cursor CLI workers, subscription-aware model recommendations, setup that checks only the providers you select, and automatic recovery through your approved backup chains. It tracks Cursor directly and publishes its own tested releases, without waiting for Eric’s port to incorporate changes.
 
-The [three-way comparison](docs/distribution.md) records the compared releases, their Cursor content baselines, and source evidence. All three share the core Pstack workflows; the differences here are provider access, setup, recovery, and how updates reach you.
+Read [why this distribution exists](docs/distribution.md) for its relationship to Cursor’s original and Eric’s port. The [release history](docs/releases.md) records the Cursor content incorporated in each release.
 
 Routing follows the role assignments you approve. Setup recommends a mix based on task fit and confirmed access. The saved policy controls which models run and when a backup can take over.
 
