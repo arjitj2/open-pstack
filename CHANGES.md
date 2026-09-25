@@ -2,9 +2,13 @@
 
 This port applies the Cursor → Claude Code substitutions in skill bodies. Earlier drafts left them flagged; this revision resolves them. A later pass added a Codex build that shares the same skills; see [Codex port](#codex-port) below.
 
-## 1.5.1 — Devin read-only tool selection
+## 1.6.1 — Devin read-only tool selection
 
-Disable the Devin `exec` tool in read-only workers so the model cannot select shell execution that the permission configuration denies. Writer workers retain sandboxed execution. The existing permission denies and final-response checks remain in place. The exact candidate passed live validation through Codex and Claude Code.
+Disable the Devin `exec` tool in read-only workers so the model cannot select shell execution that the permission configuration denies. Writer workers retain sandboxed execution. The existing permission denies and final-response checks remain in place.
+
+## 1.6.0 — optional Antigravity workers
+
+Adds exact `antigravity:<agy-model-slug>@default` routes from both parent apps without changing the default panel. The runner uses one stream-json turn, an exclusive temporary custom agent, a bounded file-tool allowlist, and a strict final-result audit. Read-only lanes launch from a private directory; file-only writers launch in their assigned dedicated worktree and leave test execution to the parent. An explicit `apiSpend` choice is required. Denial blocks known environment billing routes and unverified provider overrides in Antigravity settings. Quota diagnostics remain unclassified until canonical terminal evidence is captured. The reported init model echoes the requested override, so receipts use pinned-argv evidence rather than claiming verified backend identity.
 
 ## 1.5.0 — independent release numbering
 

@@ -1,15 +1,25 @@
 # Compatibility and release evidence
 
-The stable package is [v1.5.0](https://github.com/arjitj2/open-pstack/releases/tag/v1.5.0). Its Cursor content baseline is 0.15.5 at `12d587dfb20741cafc376c42c696c5f6e2a64487`. Later Cursor changes are recorded in [upstream status](../UPSTREAM.md). A reviewed or detected source commit is not necessarily incorporated in the stable package.
+The latest tagged release is [v1.5.0](https://github.com/arjitj2/open-pstack/releases/tag/v1.5.0). Its Cursor content baseline is 0.15.5 at `12d587dfb20741cafc376c42c696c5f6e2a64487`. Later Cursor changes are recorded in [upstream status](../UPSTREAM.md). A reviewed or detected source commit is not necessarily incorporated in the stable package.
 
 | Parent | Native workers | External workers |
 | --- | --- | --- |
-| Codex | Assigned Codex models or inherited parent | Claude, Grok, Devin, Cursor CLI |
-| Claude Code | Assigned Claude models or inherited parent | Codex, Grok, Devin, Cursor CLI |
+| Codex | Assigned Codex models or inherited parent | Claude, Grok, Devin, Cursor CLI, Antigravity CLI |
+| Claude Code | Assigned Claude models or inherited parent | Codex, Grok, Devin, Cursor CLI, Antigravity CLI |
 
 Only assigned providers need to be installed and authenticated. Run `setup-pstack` in the parent you use. Successful setup in one parent does not prove the other parent's routes work. Why and Reflect inherit the parent so they retain its connected tools.
 
 External workers do not inherit the parent's MCP connections. Read-only Devin and Cursor workers cannot execute shell commands. See the [provider contract](../plugins/pstack/skills/poteto-mode/references/provider-dispatch.md) for permissions, supported efforts, model evidence, and limitations.
+
+## Antigravity workers
+
+Version 1.6.0 adds optional Antigravity workers through `agy` from either parent. Run `agy models` and select an exact available `antigravity:<slug>@default` descriptor. Reasoning variants belong in the slug; `auto` and a separate effort setting are unsupported. Setup requires an explicit API-spend choice for Antigravity, including on older model sheets. Unassigned providers remain optional.
+
+Read-only workers can inspect files. Writers can inspect and edit files in their assigned dedicated worktree, but neither mode exposes shell, web, MCP, or subagent tools. The parent runs tests. Writers temporarily create an exclusive custom-agent definition inside that worktree and clean up owned files afterward; read-only workers keep theirs outside the checkout. Use trusted workspaces because project hooks and CLI history may still run or persist.
+
+Under `apiSpend: deny`, the runner rejects known API/gateway environment routes and unreadable, malformed, or provider-overridden Antigravity settings. These checks do not certify account-managed overage settings. Model evidence is `pinned-argv`, because the CLI echoes the requested slug without independently verifying the backend. No canonical Antigravity quota signal is proven, so quota-only fallback policies do not advance on quota-sounding text.
+
+The exact 1.6.0 candidate passed live read-only and file-write/readback runs from installed Codex and session-loaded Claude Code. Both hosts used `gemini-3.1-pro-high@default` with API spending denied; receipts, file contents, and temporary-file cleanup passed. The package passed 444 Bun tests and strict, static, and plugin checks. This validates the tested route, not every Antigravity model or subscription. See the [candidate identity and validation record](antigravity-validation-20260925.md) for the completed tests, failed attempts, and the untested interactive setup-save flow.
 
 ## Version 1.5.0 packaging validation
 

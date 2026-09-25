@@ -12,6 +12,7 @@ import {
 import { dirname, resolve } from "node:path";
 import { invocationCommand, preflightCommand, type CommandSpec } from "./commands.ts";
 import { cursorConfigDirectory, cursorConfig, cursorHasApiKey, cursorUserConfigPath, validateCursorModel } from "./cursor.ts";
+import { antigravityLaneFiles, antigravitySettingsPath, antigravitySettingsTakeover, antigravityStdin, auditAntigravityStream, createAntigravityLaneFiles, validateAntigravityModel, type AntigravityCreatedFiles } from "./antigravity.ts";
 import { versionedClaudeAlias } from "./model-aliases.ts";
 import { parseProviderOutput, reportedModelMatches } from "./parse-output.ts";
 import {
@@ -237,9 +238,9 @@ async function runProcess(
   cancellation: RunCancellation
 ): Promise<ProcessResult> {
   const child = Bun.spawn([executable, ...spec.args], {
-    cwd,
+    cwd: spec.cwd ?? cwd,
     env,
-    stdin: spec.stdin === "prompt" ? "pipe" : "ignore",
+    stdin: spec.stdin === "none" ? "ignore" : "pipe",
     stdout: "pipe",
     stderr: "pipe",
   });
@@ -269,7 +270,7 @@ async function runProcess(
       arm();
     });
   try {
-    if (spec.stdin === "prompt") {
+    if (spec.stdin !== "none") {
       const stdin = child.stdin;
       if (stdin === undefined) throw new Error("child stdin pipe was not created");
       stdin.write(prompt);
@@ -394,11 +395,14 @@ function preflightPassed(provider: Provider, model: string, result: ProcessResul
       return /^Logged in\b/im.test(combined);
     case "grok":
       return /logged in/i.test(combined) && combined.includes(model);
+    case "antigravity":
+      return combined.split(/\r?\n/).some((line) => line.trim().split(/\s+/)[0] === model);
   }
 }
 
 function successfulPreflightEvidence(provider: Provider, model: string, apiKeyAuth: boolean = false): string {
   if (apiKeyAuth) return "CURSOR_API_KEY supplied; authentication deferred to model execution";
+  if (provider === "antigravity") return `model ${model} listed; authentication deferred to execution`;
   return provider === "grok"
     ? `authenticated; model ${model} available`
     : "authenticated";
@@ -453,7 +457,7 @@ function preflightFailureStatus(
 ): ReceiptStatus {
   const status = unavailableStatus(value);
   if (status !== "child-failed") return status;
-  return provider === "grok" && !value.includes(model)
+  return (provider === "grok" || provider === "antigravity") && !value.includes(model)
     ? "unavailable-model"
     : "unauthenticated";
 }
@@ -504,6 +508,11 @@ function modelProof(
   readonly modelVerified: boolean;
   readonly modelEvidence: "provider-report" | "pinned-argv" | null;
 } {
+  // Antigravity init.model echoes the requested CLI override; it is not an
+  // independent report of which backend handled the turn.
+  if (provider === "antigravity" && reported === requested) {
+    return { reportedModel: reported, modelVerified: false, modelEvidence: "pinned-argv" };
+  }
   if (reportedModelMatches(provider, requested, reported)) {
     return {
       reportedModel: reported,
@@ -547,6 +556,10 @@ function completeReceipt(
 export function validateOptions(options: RunnerOptions): void {
   assertQuotaAdapter(options.provider);
   if (options.provider === "cursor") validateCursorModel(options.model, options.effort);
+  if (options.provider === "antigravity") {
+    validateAntigravityModel(options.model, options.effort);
+    if (options.apiSpend === null) throw new UsageError("Antigravity requires explicit --api-spend deny or approved");
+  }
   if (options.parent === options.provider) {
     throw new UsageError(
       `provider ${options.provider} is native to parent ${options.parent}; use the parent subagent primitive`
@@ -555,8 +568,8 @@ export function validateOptions(options: RunnerOptions): void {
   if (options.model.trim().length === 0) throw new UsageError("model must not be empty");
   if (options.provider === "devin") {
     devinModel(options.model, options.effort);
-  } else if (options.provider !== "cursor" && options.effort === "default") {
-    throw new UsageError("default effort is supported only for Cursor or Devin SWE-1.6");
+  } else if (options.provider !== "cursor" && options.provider !== "antigravity" && options.effort === "default") {
+    throw new UsageError("default effort is supported only for Cursor, Antigravity, or Devin SWE-1.6");
   }
   const staleAlias = options.provider === "claude"
     ? versionedClaudeAlias(options.model)
@@ -600,7 +613,8 @@ async function executeLane(
   deadlineAt: number | null,
   invocation: CommandSpec,
   preflight: CommandSpec,
-  progress: LaneProgress
+  progress: LaneProgress,
+  antigravityCreated: AntigravityCreatedFiles | null
 ): Promise<RunResult> {
   const startedAt = new Date(started).toISOString();
   const prompt = readFileSync(options.promptPath, "utf8");
@@ -609,7 +623,8 @@ async function executeLane(
   if (options.provider === "cursor") env.CURSOR_CONFIG_DIR = cursorConfigDirectory(options);
 
   const takeover = options.apiSpend === "deny"
-    ? apiCredentialTakeover(options.provider, env)
+    ? apiCredentialTakeover(options.provider, env) ??
+      (options.provider === "antigravity" ? antigravitySettingsTakeover(antigravitySettingsPath()) : null)
     : null;
   if (takeover !== null) {
     const completed = Date.now();
@@ -904,7 +919,7 @@ async function executeLane(
     invocation,
     options.cwd,
     env,
-    prompt,
+    options.provider === "antigravity" ? antigravityStdin(prompt, options.cwd, options.mode) : prompt,
     deadlineAt,
     cancellation
   );
@@ -972,6 +987,10 @@ async function executeLane(
       result.stderr,
       options.model
     );
+    if (options.provider === "antigravity") {
+      auditAntigravityStream(result.stdout, antigravityLaneFiles(options), options.mode, options.model);
+      antigravityCreated?.assertUnchanged();
+    }
     const proof = modelProof(
       options.provider,
       options.model,
@@ -1065,6 +1084,7 @@ export async function runLane(
   let createdCursorConfig = false;
   let devinConfigCreated = false;
   let devinExportCreated = false;
+  let antigravityCreated: AntigravityCreatedFiles | null = null;
   try {
     reserveOutputs(options);
     try {
@@ -1088,6 +1108,7 @@ export async function runLane(
         createdCursorConfig = true;
         writeFileSync(`${directory}/cli-config.json`, JSON.stringify(cursorConfig(options.mode, cursorUserConfigPath(process.env, undefined, options.cwd))), { flag: "wx", mode: 0o600 });
       }
+      if (options.provider === "antigravity") antigravityCreated = createAntigravityLaneFiles(options);
       return await executeLane(
         options,
         cancellation,
@@ -1095,7 +1116,8 @@ export async function runLane(
         deadlineAt,
         invocation,
         preflight,
-        progress
+        progress,
+        antigravityCreated
       );
     } catch (error) {
       const completed = Date.now();
@@ -1146,6 +1168,7 @@ export async function runLane(
       if (devinConfigCreated) removeIfExists(devinConfigPath(options));
       if (devinExportCreated) rmSync(devinExportDirectory(options), { recursive: true, force: true });
       if (createdCursorConfig) rmSync(cursorConfigDirectory(options), { recursive: true, force: true });
+      antigravityCreated?.cleanup();
     } finally {
       cancellation.dispose();
     }
