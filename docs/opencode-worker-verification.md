@@ -1,8 +1,8 @@
 # OpenCode worker verification
 
-Candidate: pstack 1.6.0. Tested CLI: OpenCode 1.18.32. Date: 2026-09-25.
+Candidate: pstack 1.7.0. Tested CLI: OpenCode 1.18.32. Date: 2026-09-25.
 
-Verified plugin tree: `a3cdc65691f5caa0e83620d5497899adc86ae15b` (`plugins/pstack`). All 187 tracked plugin files were compared before and after the parent runs. Both installations contained these exact bytes.
+Verified plugin tree: `0954134834bfa7a818916f9cf56ff01aeebb4af8` (`plugins/pstack`). All 189 tracked plugin files were compared before and after the parent runs. Both installations contained these exact bytes.
 
 ## Authenticated parent results
 
@@ -10,12 +10,12 @@ Each parent discovered the candidate skill, read its provider-dispatch instructi
 
 | Parent surface | Candidate loading | Observed result |
 | --- | --- | --- |
-| Claude Code print session | Supported session-local `--plugin-dir`; startup event identified pstack 1.6.0 and exposed its skills | `complete`, exact file and answer matches, 15.258 seconds |
-| Codex CLI exec session | Supported marketplace installation in a dedicated test profile; fresh session discovered the installed 1.6.0 skill | `complete`, exact file and answer matches, 16.717 seconds |
+| Claude Code print session | Supported session-local `--plugin-dir`; startup event identified pstack 1.7.0 and exposed its skills | `complete`, exact file and answer matches, 15.738 seconds |
+| Codex CLI exec session | Supported marketplace installation in a dedicated test profile; fresh session discovered the installed 1.7.0 skill | `complete`, exact file and answer matches, 12.837 seconds |
 
 Both receipts pin `openai/gpt-6-sol`, record `pinned-argv` model evidence, and report zero provider cost. The event stream does not independently report model identity. No runner timeout or alternate-model fallback was used. Claude remained alive until its worker settled. Personal plugin installations and model sheets were unchanged.
 
-Local receipts and parent transcripts are retained under `/Users/arjitjaiswal/open-pstack-verification-opencode-11832/`. The dedicated Codex profile's temporary authentication link was removed after verification.
+Local receipts and parent transcripts are retained under `/Users/arjitjaiswal/open-pstack-verification-opencode-170/`. The dedicated Codex profile's temporary authentication link was removed after verification.
 
 ## Permission and protocol checks
 
@@ -31,7 +31,7 @@ A loopback inference fixture exercised the real CLI's tools and event stream. Th
 | Attempt a direct write outside the writer worktree | No file created. |
 | Inspect offered tools | Shell and recursive dispatch absent. |
 
-All four transcripts completed. Earlier hostile-config checks established that project configuration was excluded and incompatible managed permissions or enabled MCP entries were rejected before inference. Tests cover version rejection, model selection, billing denial, configuration rejection, cancellation, explicit deadlines, malformed streams, and final-response extraction. The final candidate passed 469 Bun tests, strict typechecks, static invariants, and plugin validation.
+All four transcripts completed. Earlier hostile-config checks established that project configuration was excluded and incompatible managed permissions or enabled MCP entries were rejected before inference. Tests cover version rejection, model selection, billing denial, configuration rejection, cancellation, explicit deadlines, malformed streams, and final-response extraction. The final candidate passed 489 Bun tests, strict typechecks, static invariants, and plugin validation.
 
 ## Upgrade requirement and earlier failures
 
@@ -40,3 +40,7 @@ OpenCode 1.4.0 advertised models that the account rejected. Four explicitly appr
 OpenCode [1.18.29 fixed GPT-6 OAuth model discovery](https://github.com/anomalyco/opencode/releases/tag/v1.18.29). Upgrading to 1.18.32 preserved the OAuth login, exposed current models, and enabled the successful checks above. The runner now requires stable OpenCode 1.18.29 or newer and gives an upgrade message before configuration inspection or inference. This version check retains the shared cancellation/deadline behavior; billing denial still prevents any CLI startup.
 
 OpenCode permissions are application checks, not an OS sandbox. Its lexical paths can follow symlinks outside a worktree. Use trusted worktrees and startup configuration. Preflight and execution are separate processes; configuration must remain unchanged between them. Initial support uses built-in providers and native authentication, requires explicit spending approval, and excludes ambient custom providers and external auth plugins.
+
+## Review corrections
+
+The final 1.7.0 candidate includes main’s Antigravity support and Devin read-only fix. Copilot’s two findings were reproduced before fixing them. Effective-config validation now also requires `compaction.prune === false`, and the standalone plan checker accepts exact OpenCode descriptors including nested paths and Bedrock colons. Invalid descriptor forms still fail. Both authenticated parent checks above were repeated after these fixes against the recorded plugin tree.
