@@ -50,6 +50,7 @@ export function devinConfig(options: RunnerOptions) {
   return {
     shell: { setup_complete: true },
     subagents_enabled: false,
+    disabled_tools: options.mode === "read-only" ? ["exec"] : [],
     auto_update: false,
     notify: "never",
     read_config_from: {
