@@ -6,4 +6,4 @@ Daily GitHub Actions checks detect Cursor changes. The maintainer aims to review
 
 For future stable releases, release notes must include the exact source baseline, validation evidence, known limitations, and a previous tested pin for rollback. The [compatibility page](docs/compatibility.md) and [migration guide](docs/fork-maintenance.md#install-or-migrate) provide those details for the current release. Pending updates are visible before release. A quiet upstream does not itself indicate a maintenance problem.
 
-Use a pinned stable release for ordinary work. To help test an unreleased candidate, use a separate installation or a disposable workspace and preserve your current model configuration. Never include authentication tokens or unredacted conversation exports in a public report.
+See the [install-source policy](docs/fork-maintenance.md#keep-main-ready-for-users) for normal installs and fixed checkpoints. To help test an unreleased candidate, use a separate installation or a disposable workspace and preserve your current model configuration. Never include authentication tokens or unredacted conversation exports in a public report.

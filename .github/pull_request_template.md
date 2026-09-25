@@ -14,4 +14,8 @@ Closes #
 Live evidence:
 
 
+## Documentation impact
+
+Owner doc updated at <path>, or `none, <reason>` when there is no user-facing change. See the [documentation ownership map](../AGENTS.md#documentation-ownership).
+
 Use installed-host evidence for plugin changes and actual CLI or workflow evidence for maintenance-only changes. A pull request without applicable live evidence remains a draft. Do not merge, tag, release, or roll it out.

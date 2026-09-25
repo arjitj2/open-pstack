@@ -27,7 +27,7 @@ See [release history](docs/releases.md) for the incorporated Cursor version and 
 
 ## Pending source changes
 
-The [maintenance issue](https://github.com/arjitj2/open-pstack/issues/1) and direct Cursor proposal PRs show outstanding changes. The committed [decision ledger](maintenance/upstream-ledger.json) distinguishes adopted, adapted, excluded, and pending commits. Each final disposition needs a reason and evidence. Pending rows stay visible after the review cursor advances. The seven commits through `12d587df` have passed installed-parent validation. Their decisions and evidence are documented in [docs/cursor-adoption-20260924.md](docs/cursor-adoption-20260924.md).
+The [maintenance issue](https://github.com/arjitj2/open-pstack/issues/1) and direct Cursor proposal PRs show outstanding changes. The committed [decision ledger](maintenance/upstream-ledger.json) distinguishes adopted, adapted, excluded, and pending commits. Each final disposition needs a reason and evidence. Pending rows stay visible after the review cursor advances. The committed changes through `12d587df` have passed installed-parent validation. Their decisions and evidence are documented in [docs/cursor-adoption-20260924.md](docs/cursor-adoption-20260924.md).
 
 ## Check for changes
 

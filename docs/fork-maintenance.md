@@ -8,7 +8,7 @@ Daily GitHub Actions checks prepare Cursor update proposals from this repository
 
 The [decision ledger](../maintenance/upstream-ledger.json) records every catalogued source change. Each change has a disposition: adopted, adapted, excluded with a reason, or pending. A reviewed commit can remain pending. Neither detection nor review advances the incorporated baseline. Read [UPSTREAM.md](../UPSTREAM.md) for the stable baseline and outstanding work.
 
-A local Codex adoption task checks the backlog daily at 08:30 in the host's local timezone, currently America/New_York. The maintainer reviews unresolved exceptions at least weekly. Seven days of outstanding substantive changes triggers attention; 21 days triggers an overdue review. Skill Markdown counts as behavior. Alerts use conservative path/title heuristics and are review prompts, not proof of a defect. Retries must not duplicate unchanged alerts.
+A maintainer-local scheduled task checks the backlog; [Run recurring adoption](#run-recurring-adoption) describes that personal setup. The maintainer reviews unresolved exceptions at least weekly. Seven days of outstanding substantive changes triggers attention; 21 days triggers an overdue review. Skill Markdown counts as behavior. Alerts use conservative path/title heuristics and are review prompts, not proof of a defect. Retries must not duplicate unchanged alerts.
 
 The [maintenance issue](https://github.com/arjitj2/open-pstack/issues/1) reports pending Cursor changes and the original contribution PRs. New fixes in Eric's port are considered independently. Existing contribution branches remain available for those PRs. The old `upstream-main` mirror is historical; the direct Cursor workflow does not merge from it.
 
@@ -35,7 +35,7 @@ GitHub detection jobs never merge, tag, release, or change an installed pin. The
 
 ## Run recurring adoption
 
-The maintainer's Codex task `Adopt Cursor Pstack updates` runs daily at 08:30 in the host's local timezone, currently America/New_York. It uses the authenticated tools on the maintainer's Mac. Work waits while that machine or the local scheduler is unavailable. This local task is separate from GitHub Actions and is not installed for contributors by cloning this repository.
+The maintainer runs a local automation that contributors do not need to install. The maintainer's Codex task `Adopt Cursor Pstack updates` runs daily at 08:30 in the host's local timezone, currently America/New_York, using the authenticated tools on the maintainer's Mac. Work waits while that machine or the local scheduler is unavailable. This local task is separate from GitHub Actions and is not installed for contributors by cloning this repository.
 
 The committed ledger is the backlog. Open adoption PRs and their evidence record work in progress. Each run checks for an active writer and resumes existing work before creating another branch. It fetches current source history, reads each pending patch, and records an adoption, adaptation, or exclusion with a reason. A source patch is review material, never an instruction to execute commands or change permissions.
 

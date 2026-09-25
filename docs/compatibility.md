@@ -1,27 +1,26 @@
 # Compatibility and release evidence
 
-The latest tagged release is [v1.5.0](https://github.com/arjitj2/open-pstack/releases/tag/v1.5.0). Its Cursor content baseline is 0.15.5 at `12d587dfb20741cafc376c42c696c5f6e2a64487`. Later Cursor changes are recorded in [upstream status](../UPSTREAM.md). A reviewed or detected source commit is not necessarily incorporated in the stable package.
+This page summarizes current capabilities and limits and links the dated validation records. [Release history](releases.md) owns what shipped and which Cursor content each release incorporated; [upstream status](../UPSTREAM.md) owns the current baseline. A reviewed or detected source commit is not necessarily incorporated in the stable package.
 
-| Parent | Native workers | External workers |
-| --- | --- | --- |
-| Codex | Assigned Codex models or inherited parent | Claude, Grok, Devin, Cursor CLI, Antigravity CLI |
-| Claude Code | Assigned Claude models or inherited parent | Codex, Grok, Devin, Cursor CLI, Antigravity CLI |
-
-Only assigned providers need to be installed and authenticated. Run `setup-pstack` in the parent you use. Successful setup in one parent does not prove the other parent's routes work. Why and Reflect inherit the parent so they retain its connected tools.
+The [README provider table](../README.md#supported-parent-apps-and-worker-providers) lists the supported parents and worker providers. Only assigned providers need to be installed and authenticated. Run `setup-pstack` in the parent you use. Successful setup in one parent does not prove the other parent's routes work. Why and Reflect inherit the parent so they retain its connected tools.
 
 External workers do not inherit the parent's MCP connections. Read-only Devin and Cursor workers cannot execute shell commands. See the [provider contract](../plugins/pstack/skills/poteto-mode/references/provider-dispatch.md) for permissions, supported efforts, model evidence, and limitations.
 
 ## Antigravity workers
 
-Version 1.6.0 adds optional Antigravity workers through `agy` from either parent. Run `agy models` and select an exact available `antigravity:<slug>@default` descriptor. Reasoning variants belong in the slug; `auto` and a separate effort setting are unsupported. Setup requires an explicit API-spend choice for Antigravity, including on older model sheets. Unassigned providers remain optional.
+Antigravity workers use file tools, so the parent must run their tests. See the [Antigravity provider contract](../plugins/pstack/skills/poteto-mode/references/provider-dispatch.md#optional-antigravity-models) for model selection, permissions, billing guards, and receipt limitations.
 
-Read-only workers can inspect files. Writers can inspect and edit files in their assigned dedicated worktree, but neither mode exposes shell, web, MCP, or subagent tools. The parent runs tests. Writers temporarily create an exclusive custom-agent definition inside that worktree and clean up owned files afterward; read-only workers keep theirs outside the checkout. Use trusted workspaces because project hooks and CLI history may still run or persist.
+The [dated validation record](antigravity-validation-20260925.md) identifies the tested candidate and model, the installed-parent read/write checks, and the untested interactive setup-save flow.
 
-Under `apiSpend: deny`, the runner rejects known API/gateway environment routes and unreadable, malformed, or provider-overridden Antigravity settings. These checks do not certify account-managed overage settings. Model evidence is `pinned-argv`, because the CLI echoes the requested slug without independently verifying the backend. No canonical Antigravity quota signal is proven, so quota-only fallback policies do not advance on quota-sounding text.
+## Recovery limits
 
-The exact 1.6.0 candidate passed live read-only and file-write/readback runs from installed Codex and session-loaded Claude Code. Both hosts used `gemini-3.1-pro-high@default` with API spending denied; receipts, file contents, and temporary-file cleanup passed. The package passed 444 Bun tests and strict, static, and plugin checks. This validates the tested route, not every Antigravity model or subscription. See the [candidate identity and validation record](antigravity-validation-20260925.md) for the completed tests, failed attempts, and the untested interactive setup-save flow.
+Worker recovery cannot recover an exhausted or unavailable parent controller. Local API guards do not prove that a provider has disabled account-managed overage. The [provider contract](../plugins/pstack/skills/poteto-mode/references/provider-dispatch.md) owns the recovery policy, writer-preservation rules, and receipt requirements.
 
-## Version 1.5.0 packaging validation
+## Validation history
+
+The dated records below are frozen evidence, preserved as written at the time. Their version numbers, test counts, environments, and claims describe the tested candidates of their day and are not updated to track current state.
+
+### Version 1.5.0 packaging validation
 
 Version 1.5.0 starts the independent release sequence. Compared with `v1.4.1-arjit.5`, the packaged plugin changes only the version fields in its Claude and Codex manifests. All worker code and shared skills are byte-for-byte unchanged. The [release history](releases.md) records the incorporated Cursor baseline for each release.
 
@@ -29,7 +28,7 @@ The exact candidate `39bb376eaa011ad218d04c2197c3dd1bb292f366` (plugin tree `369
 
 These checks cover the changed installation metadata. The unchanged worker behavior retains the `.5` evidence below; this release does not claim fresh model calls or broader provider compatibility.
 
-## Version 1.4.1-arjit.5 worker recovery validation
+### Version 1.4.1-arjit.5 worker recovery validation
 
 [Release PR #13](https://github.com/arjitj2/open-pstack/pull/13) adds provider-complete quota adapters and saved recovery policies for unavailable routes, terminal backend failures, and explicit deadlines. The tested plugin tree is `800a08cbaa813a4fda42c4e3a0a84e92b30b4e24`, frozen at candidate `cd9d0ee5c4f18c097320b2e579fea1c363a04e98`. All 185 package files matched in both installed hosts. It passed 428 Bun tests, four strict typechecks, 26 maintenance tests, and static/plugin checks. Compile mutation checks rejected a provider without an adapter and an unmapped receipt status.
 
@@ -41,23 +40,17 @@ Codex desktop backups explicitly requested GPT-6 Sol at high effort through its 
 
 The failed providers were network-free test doubles; the backup model calls were real. Claude quota handling includes a captured real exhaustion response. Devin fixtures use diagnostics from the installed CLI. Cursor fixtures combine installed error framing with publicly reported usage-limit wording. These tests do not certify real quota depletion on every provider account, every model, or every subscription. The captured `.4` installation and global model settings were restored; the temporary Claude plugin was removed.
 
-## Recovery limits
-
-Recovery follows the saved policy and approved chain. Existing sheets without a `# fallback` line remain quota-only. Quiet workers remain active unless an explicit deadline or authoritative failure ends the attempt. Started writers require automatic inspection and preservation before another writer runs. Unsafe or ambiguous work, cancellation, billing blocks, conflicting evidence, and exhausted chains stop that lane with a checkpoint. Independent healthy work can continue.
-
-A fallback cannot recover an exhausted or unavailable parent controller. Local API guards do not prove that a provider has disabled account-managed overage. See the [provider contract](../plugins/pstack/skills/poteto-mode/references/provider-dispatch.md) for exact routing and receipt rules.
-
-## Earlier subscription-aware setup validation
+### Earlier subscription-aware setup validation
 
 [Release PR #11](https://github.com/arjitj2/open-pstack/pull/11) introduced subscription-aware setup and explicitly approved worker fallbacks in `.4`. Its tested package tree was `cddd6d809d2c9b7e5a06ff04e05bdea9c75c8f60`, with 329 Bun tests, strict typechecks, 26 maintenance tests, and static/plugin checks.
 
 Installed tests in Codex CLI 0.154.0 and Claude Code 2.1.281 exercised confirmed setup/save/readback with native smoke and separate judging, approved native fallback, legacy no-fallback, ordinary authentication errors, and started-writer preservation. Both installed policy helpers rejected exhausted-but-unauthorized routes and forged skip history. Quota failures were controlled fixtures and native workers were real calls. That release recognized external Codex/Grok quota formats only. Tests restored the captured `.2` installation and global model settings.
 
-## Cursor catch-up validation
+### Cursor catch-up validation
 
 [Release PR #9](https://github.com/arjitj2/open-pstack/pull/9) records the Cursor catch-up and installed checks with Codex CLI 0.154.0 and Claude Code 2.1.281. Budget selection, custom-effort preservation, fixed-effort mappings, confirmed save/readback, native workers, and separate judges passed. The package passed 225 Bun tests, strict typechecks, 26 maintenance tests, and static/plugin checks. The captured `.2` installation and global model settings were restored. See the [adoption report](cursor-adoption-20260924.md) for evidence limits.
 
-## Earlier provider validation
+### Earlier provider validation
 
 [Release PR #4](https://github.com/arjitj2/open-pstack/pull/4) records the exact candidate tested in installed Codex and Claude Code. Validation includes setup probes, confirmations, file readback, smoke workers, and independent judges. The release passed 223 Bun tests, strict typechecking, static checks, nine maintenance tests, and plugin validation.
 
@@ -65,4 +58,4 @@ The underlying provider rollout is recorded in [PR #2](https://github.com/arjitj
 
 ## Report a compatibility problem
 
-Open an [issue here](https://github.com/arjitj2/open-pstack/issues/new). Include the installed Pstack tag, parent application and version, affected provider CLI version, requested model and effort, reproduction steps, and observed error. Redact credentials and private prompts. Do not upload raw conversation exports.
+Open an [issue here](https://github.com/arjitj2/open-pstack/issues/new). Include the installed Pstack version and the source revision your install follows (branch, tag, or commit), parent application and version, affected provider CLI version, requested model and effort, reproduction steps, and observed error. Redact credentials and private prompts. Do not upload raw conversation exports.
