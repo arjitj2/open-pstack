@@ -1,6 +1,6 @@
 # Devin read-only execution investigation
 
-Tracks [issue 30](https://github.com/arjitj2/open-pstack/issues/30). Candidate version 1.5.1 passed installed-parent validation. It remains unmerged and unreleased.
+Tracks [issue 30](https://github.com/arjitj2/open-pstack/issues/30). The final candidate is version 1.6.1. Earlier 1.5.1 evidence below records the initial investigation.
 
 ## Reproduced behavior
 
@@ -52,3 +52,13 @@ The first Claude attempt could not authenticate because its OAuth session had ex
 The temporary Codex plugin and marketplace registration were removed after validation. Hash checks confirmed the normal installed package and saved model files were unchanged. Claude's candidate was session-local. No merge, tag, or release was performed. [Sanitized parent evidence](devin-parent-validation-20260925.json) records the successful attempts and package identity.
 
 Sanitized runner outcomes are recorded in [devin-read-only-20260925.json](devin-read-only-20260925.json).
+
+## Final candidate after main advanced
+
+Main added Antigravity in version 1.6.0 before this fix landed. The conflicts were resolved without changing Antigravity behavior, and the patch version advanced to 1.6.1. The exact combined candidate was tested again.
+
+All 187 package files matched candidate `1eca50a` before and after execution in both parents. Claude Code 2.1.282 loaded the session-local plugin, invoked How, and completed the original exploration in 161.984 seconds. Codex CLI 0.154.0 read the separately installed candidate's How skill and completed it in 145.737 seconds. Both actual receipts show `complete`, exit zero, read-only `devin:swe-2@high`, API spending denied, and no timeout. Both parents inspected the receipt and output before finishing. The Codex catalog limitation noted above still applies; its explicitly selected installed runner is the tested entry point.
+
+The final candidate passed 446 Bun tests, strict typechecking, static invariants, plugin validation, and 26 maintenance tests. An independent reviewer also passed 36 focused tests and a live directory-discovery task against the combined candidate. The temporary Codex plugin and marketplace registration were removed. Hashes confirmed the saved model files were unchanged. The normal installation advanced from 1.5.0 to 1.6.0 during this verification window, and its old cache was removed. The newer installation was left in place; this final pass does not claim that separate normal installation stayed unchanged.
+
+[Final candidate evidence](devin-merge-validation-20260925.json) records the complete package tree and successful receipt fields. The later evidence-only commit does not change the tested plugin tree.

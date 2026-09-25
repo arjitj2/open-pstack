@@ -1,0 +1,46 @@
+{
+  "candidateCommit": "1eca50afb688e96c80a801d4c4e5c62e1bb44344",
+  "pluginTree": "d908b02a7b591e91e5e056906b81d11296e24277",
+  "version": "1.6.1",
+  "packageFilesMatched": 187,
+  "runs": [
+    {
+      "parent": "claude",
+      "provider": "devin",
+      "model": "swe-2",
+      "effort": "high",
+      "mode": "read-only",
+      "startedAt": "2026-09-25T19:16:23.841Z",
+      "completedAt": "2026-09-25T19:19:05.825Z",
+      "elapsedMs": 161984,
+      "status": "complete",
+      "exitCode": 0,
+      "apiSpend": "deny",
+      "timeoutMs": null,
+      "modelEvidence": "pinned-argv",
+      "outputCharacters": 15777,
+      "outputSha256": "f4e6acc4985c328b662332510f4488b90f87bdeda75a0fc10a7458a01c3268ef"
+    },
+    {
+      "parent": "codex",
+      "provider": "devin",
+      "model": "swe-2",
+      "effort": "high",
+      "mode": "read-only",
+      "startedAt": "2026-09-25T19:16:40.846Z",
+      "completedAt": "2026-09-25T19:19:06.583Z",
+      "elapsedMs": 145737,
+      "status": "complete",
+      "exitCode": 0,
+      "apiSpend": "deny",
+      "timeoutMs": null,
+      "modelEvidence": "pinned-argv",
+      "outputCharacters": 15241,
+      "outputSha256": "596db7ecfe19476826d25f0c0f1425cdca307ccb7f028a02272384b8a8ded0ec"
+    }
+  ],
+  "personalModelFilesUnchanged": true,
+  "temporaryCodexRegistrationRemoved": true,
+  "normalPluginAtCleanup": "1.6.0",
+  "normalPluginPreservationNote": "The normal installation advanced from 1.5.0 to 1.6.0 during the verification window; its old cache was removed. This run leaves the newer normal installation in place and does not claim package equality for that separate installation."
+}
