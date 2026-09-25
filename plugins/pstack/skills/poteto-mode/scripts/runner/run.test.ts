@@ -33,6 +33,14 @@ const isPreflight =
   (name === "devin" && args[0] === "auth") ||
   (name === "cursor-agent" && (args[0] === "status" || args[0] === "--version"));
 const stage = isPreflight ? "preflight" : "model";
+if (process.env.FAKE_NETWORK_TEST_URL) {
+  let connected = false;
+  try {
+    await fetch(process.env.FAKE_NETWORK_TEST_URL + "/" + stage);
+    connected = true;
+  } catch {}
+  appendFileSync(process.env.FAKE_NETWORK_LOG_PATH, stage + ":" + connected + "\\n");
+}
 const startedPath = isPreflight
   ? process.env.FAKE_PREFLIGHT_STARTED_PATH
   : process.env.FAKE_MODEL_STARTED_PATH;
@@ -301,6 +309,8 @@ beforeEach(() => {
   for (const name of ["claude", "codex", "grok", "devin", "cursor-agent"]) makeExecutable(name);
   previousPath = process.env.PATH;
   process.env.PATH = `${bin}:${dirname(process.execPath)}:${previousPath ?? ""}`;
+  delete process.env.FAKE_NETWORK_TEST_URL;
+  delete process.env.FAKE_NETWORK_LOG_PATH;
   delete process.env.FAKE_TIMEOUT;
   delete process.env.FAKE_INVALID_MODEL;
   delete process.env.FAKE_CANCEL;
@@ -359,6 +369,8 @@ beforeEach(() => {
 
 afterEach(() => {
   process.env.PATH = previousPath;
+  delete process.env.FAKE_NETWORK_TEST_URL;
+  delete process.env.FAKE_NETWORK_LOG_PATH;
   delete process.env.FAKE_TIMEOUT;
   delete process.env.FAKE_INVALID_MODEL;
   delete process.env.FAKE_CANCEL;
@@ -1574,6 +1586,47 @@ describe("usage exhaustion and billing guard", () => {
     const input = options("codex", "legacy-spend");
     const result = await runLane(input);
     expect(result.receipt.apiSpend).toBe("legacy");
+  });
+
+  it.skipIf(process.platform !== "darwin")("blocks Claude preflight network without restricting the task", async () => {
+    const requests: string[] = [];
+    const server = Bun.serve({ hostname: "127.0.0.1", port: 0, fetch(request) {
+      requests.push(new URL(request.url).pathname);
+      return new Response("fixture");
+    } });
+    process.env.FAKE_NETWORK_TEST_URL = `http://127.0.0.1:${server.port}`;
+    process.env.FAKE_NETWORK_LOG_PATH = join(scratch, "network.log");
+    try {
+      const input = { ...options("claude", "offline-preflight"), apiSpend: "deny" as const };
+      const result = await runLane(input);
+      expect(result.receipt.status).toBe("complete");
+      expect(requests).toEqual(["/model"]);
+      expect(readFileSync(process.env.FAKE_NETWORK_LOG_PATH, "utf8")).toBe("preflight:false\nmodel:true\n");
+      expect(result.receipt.preflight.argv).toEqual([
+        "/usr/bin/sandbox-exec", "-p", "(version 1)(allow default)(deny network-outbound)",
+        join(bin, "claude"), "--setting-sources", "", "auth", "status", "--json",
+      ]);
+      expect(result.receipt.argv[0]).toBe(join(bin, "claude"));
+    } finally {
+      await server.stop(true);
+    }
+  });
+
+  it.skipIf(process.platform !== "darwin")("fails closed when macOS refuses a nested preflight sandbox", async () => {
+    const input = options("claude", "nested-preflight");
+    const modelStarted = join(scratch, "model-started");
+    const child = Bun.spawn([
+      "/usr/bin/sandbox-exec", "-p", "(version 1)(allow default)",
+      process.execPath, ...runnerArgs(input),
+    ], { env: { ...process.env, FAKE_MODEL_STARTED_PATH: modelStarted }, stdout: "pipe", stderr: "pipe" });
+    const [exitCode] = await Promise.all([exitWithin(child, 5000), new Response(child.stdout).text(), new Response(child.stderr).text()]);
+    expect(exitCode).not.toBe(0);
+    const result = receipt(input.receiptPath);
+    expect(result.failurePhase).toBe("preflight");
+    expect(result.processStarted).toBe(false);
+    expect(result.preflight.argv[0]).toBe("/usr/bin/sandbox-exec");
+    expect(result.error?.evidence).toContain("sandbox_apply");
+    expect(existsSync(modelStarted)).toBe(false);
   });
 
   it("blocks a known ambient API credential under subscription-only policy before any process", async () => {

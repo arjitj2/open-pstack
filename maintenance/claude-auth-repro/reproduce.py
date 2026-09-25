@@ -25,6 +25,9 @@ def arguments():
     parser.add_argument('--store', choices=['valid', 'empty', 'zeroed', 'absent'], default='valid')
     parser.add_argument('--route', choices=['subscription', 'api'], default='subscription')
     parser.add_argument('--print-control', action='store_true')
+    parser.add_argument('--cold-config', action='store_true')
+    parser.add_argument('--offline-preflight', action='store_true')
+    parser.add_argument('--follow-print', action='store_true')
     args = parser.parse_args()
     if sys.platform != 'darwin':
         parser.error('This fixture requires the macOS sandbox-exec boundary.')
@@ -84,7 +87,8 @@ def main():
         }}))
     (config / '.claude.json').write_text(json.dumps({
         'hasCompletedOnboarding': True,
-        'migrationVersion': 14,
+        'migrationVersion': 0 if args.cold_config else 14,
+        **({'fixturePadding': 'x' * 1024 * 1024} if args.cold_config else {}),
         'oauthAccount': {
             'accountUuid': '00000000-0000-4000-8000-000000000001',
             'organizationUuid': '00000000-0000-4000-8000-000000000002',
@@ -200,6 +204,10 @@ def main():
     command = [str(args.claude), '--debug-file', str(root / 'debug.log'), '--setting-sources', '']
     command += (['-p', '--max-turns', '1', '--tools', '', '--strict-mcp-config', 'fixture local-only test']
                 if args.print_control else ['auth', 'status', '--json'])
+    preflight_profile = '\n'.join(
+        line for line in profile.splitlines()
+        if not (args.offline_preflight and line.startswith('(allow network-outbound'))
+    )
     process = None
     try:
         canary = root / 'Keychains' / 'canary'
@@ -215,10 +223,32 @@ def main():
                                env=env, cwd=root, capture_output=True)
         if probe.returncode == 0 or b'fixture canary' in probe.stdout:
             raise RuntimeError('Sandbox failed to deny the fixture Keychains canary')
-        process = subprocess.Popen(['/usr/bin/sandbox-exec', '-p', profile, *command],
+        process = subprocess.Popen(['/usr/bin/sandbox-exec', '-p', preflight_profile, *command],
                                    env=env, cwd=root, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         stdout, stderr = process.communicate()
         event('process_exit', code=process.returncode)
+        after_preflight = json.loads(store.read_text() or '{}') if store.exists() else {}
+        after_preflight = after_preflight.get('claudeAiOauth', {})
+        preflight_preserved_tokens = (after_preflight.get('accessToken') == 'fixture-access-old'
+                                      and after_preflight.get('refreshToken') == 'fixture-refresh-old')
+        continuation = None
+        if args.follow_print:
+            event('follow_print_start')
+            following = subprocess.run(
+                ['/usr/bin/sandbox-exec', '-p', profile, str(args.claude),
+                 '--debug-file', str(root / 'follow-debug.log'), '--setting-sources', '',
+                 '-p', '--strict-mcp-config', '--tools', '', '--no-session-persistence',
+                 'fixture local-only test'], env=env, cwd=root, capture_output=True, text=True)
+            event('follow_print_exit', code=following.returncode)
+            final_store = json.loads(store.read_text() or '{}').get('claudeAiOauth', {})
+            check = subprocess.run(
+                ['/usr/bin/sandbox-exec', '-p', preflight_profile, str(args.claude),
+                 '--setting-sources', '', 'auth', 'status', '--json'],
+                env=env, cwd=root, capture_output=True, text=True)
+            event('status_after_task', code=check.returncode)
+            continuation = {'accessPresent': bool(final_store.get('accessToken')),
+                            'refreshPresent': bool(final_store.get('refreshToken')),
+                            'auth': json.loads(check.stdout)}
         saved_in = []
         for name, path in [('mock', store), ('fallback', config / '.credentials.json')]:
             stored = json.loads(path.read_text() or '{}') if path.exists() else {}
@@ -229,6 +259,9 @@ def main():
             'binary': str(args.claude), 'binarySha256': hashlib.sha256(args.claude.read_bytes()).hexdigest(),
             'delay': args.delay, 'expiresIn': args.expires_in, 'storeState': args.store,
             'route': args.route, 'printControl': args.print_control, 'fixtureRoot': str(root),
+            'coldConfig': args.cold_config, 'configPaddingBytes': 1024 * 1024 if args.cold_config else 0,
+            'offlinePreflight': args.offline_preflight, 'preflightPreservedTokens': preflight_preserved_tokens,
+            'continuation': continuation,
             'storage': 'mock-file', 'keychainCanaryDenied': True, 'newSaved': bool(saved_in), 'savedIn': saved_in,
             'events': events, 'stdout': stdout, 'stderr': stderr,
             'storageEvents': (root / 'storage-events.jsonl').read_text()
