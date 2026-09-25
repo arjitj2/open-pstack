@@ -3,7 +3,7 @@ import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, wr
 import { execFileSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { openCodeAgent, openCodeConfig, openCodeDirectory, openCodeEnvironment, openCodePreflightPassed, parseOpenCodeTranscript, validateOpenCodeModel } from "./opencode.ts";
+import { openCodeAgent, openCodeConfig, openCodeDirectory, openCodeEnvironment, openCodePreflightPassed, parseOpenCodeTranscript, openCodeVersionError, validateOpenCodeModel } from "./opencode.ts";
 import { runLane } from "./run.ts";
 import { classifyProcessOutcome, hasTerminalSuccess } from "./provider-failure.ts";
 import { invocationCommand } from "./commands.ts";
@@ -64,6 +64,11 @@ const fake = `#!/usr/bin/env bun
 import { readFileSync, writeFileSync, statSync } from "node:fs";
 const fixture = JSON.parse(readFileSync("fixture.json", "utf8"));
 const args = process.argv.slice(2);
+if (args[0] === "--version") {
+  writeFileSync("version.json", JSON.stringify(args));
+  if (fixture.versionDelay) await Bun.sleep(fixture.versionDelay);
+  console.log(fixture.version ?? "1.18.32"); process.exit(fixture.versionExit ?? 0);
+}
 const configPath = process.env.OPENCODE_CONFIG;
 const config = JSON.parse(readFileSync(configPath, "utf8"));
 if (args.includes("debug")) {
@@ -97,6 +102,30 @@ afterEach(() => {
 });
 
 describe("OpenCode optional worker", () => {
+  it("accepts the minimum, current, and newer stable OpenCode versions", () => {
+    for (const version of ["1.18.29", "1.18.32\n", "1.19.0", "2.0.0"]) expect(openCodeVersionError(version)).toBeNull();
+  });
+  for (const version of ["1.4.0", "1.18.28", "0.99.99", "", "unknown", "1.18.32-beta", "1.18.32\nnoise"]) it(`blocks unsupported version ${JSON.stringify(version)} before config or inference`, async () => {
+    fixture({version, stdout:success});
+    const opts = options();
+    const receipt = (await runLane(opts)).receipt;
+    expect(receipt).toMatchObject({status:"unavailable-cli",processStarted:false,preflight:{status:"failed"}});
+    expect(receipt.preflight.argv.at(-1)).toBe("--version");
+    expect(receipt.error?.message).toContain("1.18.29");
+    expect(existsSync(join(scratch,"preflight.json"))).toBe(false);
+    expect(existsSync(join(scratch,"invoked.json"))).toBe(false);
+    expect(existsSync(openCodeDirectory(opts))).toBe(false);
+  });
+  it("shares the explicit deadline with the version preflight", async () => {
+    fixture({versionDelay:5000});
+    const opts = options({timeoutMs:300});
+    const receipt = (await runLane(opts)).receipt;
+    expect(receipt).toMatchObject({status:"timed-out",processStarted:false});
+    expect(receipt.preflight.argv.at(-1)).toBe("--version");
+    expect(existsSync(join(scratch,"preflight.json"))).toBe(false);
+    expect(existsSync(openCodeDirectory(opts))).toBe(false);
+  });
+
   it("supports exact nested model IDs and rejects implicit selection or effort", () => {
     validateOpenCodeModel("provider/vendor/model-1.2", "default");
     validateOpenCodeModel("amazon-bedrock/us.anthropic.claude-opus-4-5-20251101-v1:0", "default");
@@ -122,6 +151,7 @@ describe("OpenCode optional worker", () => {
     const opts = options({apiSpend});
     expect((await runLane(opts)).receipt).toMatchObject({status:"billing-policy-blocked",processStarted:false,preflight:{status:"not-run"}});
     expect(existsSync(join(scratch,"preflight.json"))).toBe(false);
+    expect(existsSync(join(scratch,"version.json"))).toBe(false);
     expect(existsSync(openCodeDirectory(opts))).toBe(false);
   });
   for (const poison of [{poison:true},{mcp:true},{preflightSecret:true}]) it(`rejects unsafe effective configuration ${JSON.stringify(poison)}`, async () => {

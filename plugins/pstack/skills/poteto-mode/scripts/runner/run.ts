@@ -11,7 +11,7 @@ import {
 } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { invocationCommand, preflightCommand, type CommandSpec } from "./commands.ts";
-import { openCodeConfig, openCodeDirectory, openCodeEnvironment, openCodePreflightPassed, validateOpenCodeModel } from "./opencode.ts";
+import { openCodeConfig, openCodeDirectory, openCodeEnvironment, openCodePreflightPassed, openCodeVersionError, OPENCODE_MINIMUM_VERSION, validateOpenCodeModel } from "./opencode.ts";
 import { cursorConfigDirectory, cursorConfig, cursorHasApiKey, cursorUserConfigPath, validateCursorModel } from "./cursor.ts";
 import { antigravityLaneFiles, antigravitySettingsPath, antigravitySettingsTakeover, antigravityStdin, auditAntigravityStream, createAntigravityLaneFiles, validateAntigravityModel, type AntigravityCreatedFiles } from "./antigravity.ts";
 import { versionedClaudeAlias } from "./model-aliases.ts";
@@ -754,20 +754,35 @@ async function executeLane(
   }
 
   const preflightExecutable = executable;
+  let activePreflight: CommandSpec = options.provider === "opencode"
+    ? { command: "opencode", args: ["--version"], stdin: "none" }
+    : preflight;
+  progress.preflight = { ...progress.preflight, argv: [preflightExecutable, ...activePreflight.args] };
   let preflightResult = await runProcess(
     preflightExecutable,
-    preflight,
+    activePreflight,
     options.cwd,
     env,
     "",
     deadlineAt,
     cancellation
   );
-  let rawPreflightEvidence = options.provider === "opencode"
+  let versionError: string | null = null;
+  if (options.provider === "opencode") {
+    versionError = preflightResult.exitCode === 0
+      ? openCodeVersionError(preflightResult.stdout)
+      : `OpenCode version check failed. Install OpenCode ${OPENCODE_MINIMUM_VERSION} or newer and check opencode --version.`;
+    if (versionError === null && preflightResult.cancelledBy === null && !preflightResult.timedOut) {
+      activePreflight = preflight;
+      progress.preflight = { ...progress.preflight, argv: [preflightExecutable, ...activePreflight.args] };
+      preflightResult = await runProcess(preflightExecutable, activePreflight, options.cwd, env, "", deadlineAt, cancellation);
+    }
+  }
+  let rawPreflightEvidence = versionError ?? (options.provider === "opencode"
     ? "OpenCode effective agent preflight failed; configuration output withheld"
-    : evidence(`${preflightResult.stdout}\n${preflightResult.stderr}`);
+    : evidence(`${preflightResult.stdout}\n${preflightResult.stderr}`));
   let passed = options.provider === "opencode"
-    ? preflightResult.exitCode === 0 && openCodePreflightPassed(preflightResult.stdout, options, env)
+    ? versionError === null && preflightResult.exitCode === 0 && openCodePreflightPassed(preflightResult.stdout, options, env)
     : preflightPassed(options.provider, options.model, preflightResult, apiKeyAuth);
   let preflightEvidence = passed
     ? options.provider === "opencode" ? "effective agent model and tool policy verified; authentication deferred to execution" : successfulPreflightEvidence(options.provider, options.model, apiKeyAuth)
@@ -823,7 +838,7 @@ async function executeLane(
   }
 
   preflightState = {
-    argv: [preflightExecutable, ...preflight.args],
+    argv: [preflightExecutable, ...activePreflight.args],
     status: preflightResult.cancelledBy !== null
       ? "cancelled"
       : preflightResult.timedOut
@@ -846,7 +861,7 @@ async function executeLane(
       ? "cancelled"
       : preflightResult.timedOut
         ? "timed-out"
-        : preflightFailure;
+        : versionError !== null ? "unavailable-cli" : preflightFailure;
     receipt = completeReceipt(options, {
       status,
       startedAt,
@@ -868,7 +883,7 @@ async function executeLane(
           ? `launcher received ${preflightResult.cancelledBy} during preflight`
           : preflightResult.timedOut
             ? "authentication preflight timed out"
-            : "authentication or model preflight failed",
+            : versionError ?? "authentication or model preflight failed",
         evidence: preflightEvidence,
       },
       failurePhase: "preflight",

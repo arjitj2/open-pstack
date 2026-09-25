@@ -13,6 +13,23 @@ function string(value: unknown): string | null {
   return typeof value === "string" && value.length > 0 ? value : null;
 }
 
+export const OPENCODE_MINIMUM_VERSION = "1.18.29";
+
+export function openCodeVersionError(stdout: string): string | null {
+  const version = stdout.trim();
+  const match = /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/.exec(version);
+  const parts = match?.slice(1).map(Number);
+  if (parts === undefined || !parts.every(Number.isSafeInteger)) {
+    return `Cannot verify OpenCode version. Install OpenCode ${OPENCODE_MINIMUM_VERSION} or newer and check opencode --version.`;
+  }
+  const minimum = OPENCODE_MINIMUM_VERSION.split(".").map(Number);
+  for (let index = 0; index < minimum.length; index++) {
+    if (parts[index] > minimum[index]) return null;
+    if (parts[index] < minimum[index]) return `OpenCode ${version} is too old. Upgrade to ${OPENCODE_MINIMUM_VERSION} or newer for GPT-6 OAuth model support.`;
+  }
+  return null;
+}
+
 export function validateOpenCodeModel(model: string, effort: Effort): void {
   if (effort !== "default") throw new UsageError("OpenCode requires default effort; unverified variants can silently use defaults");
   if (!/^[A-Za-z0-9][A-Za-z0-9._-]*(?:\/[A-Za-z0-9][A-Za-z0-9._:-]*)+$/.test(model) || model.split("/").some(part => part.toLowerCase() === "auto")) {
