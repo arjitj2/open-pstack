@@ -4,7 +4,7 @@ Open Pstack, maintained by Arjit, uses its own release numbers starting with `v1
 
 The Cursor baseline identifies the source content incorporated with this distribution’s adaptations and exclusions. It does not claim identical behavior or inclusion of every upstream feature. More than one distribution release can share a baseline when changes affect provider support, setup, recovery, or packaging.
 
-The `main` installation package advances to 1.7.0 with [optional OpenCode workers](../plugins/pstack/skills/poteto-mode/references/provider-dispatch.md#optional-opencode-models). See [upstream status](../UPSTREAM.md) for its incorporated Cursor baseline and [OpenCode validation](opencode-worker-verification.md) for the tested candidate. The table below records tagged releases separately.
+The `main` installation package advances to 1.7.1 only after the draft [macOS Claude preflight candidate](../maintenance/claude-auth-repro/README.md) passes installed-parent validation. Version 1.7.0 introduced [optional OpenCode workers](../plugins/pstack/skills/poteto-mode/references/provider-dispatch.md#optional-opencode-models), with [OpenCode validation](opencode-worker-verification.md) recorded separately. See [upstream status](../UPSTREAM.md) for the incorporated Cursor baseline. The table below records tagged releases separately.
 
 | Distribution release | Cursor Pstack version | Incorporated Cursor commit | Scope at release |
 | --- | --- | --- | --- |

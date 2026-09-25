@@ -1,65 +1,73 @@
-# Claude auth diagnosis on 2.1.282
+# Claude preflight refresh loss on macOS
 
-The auth-status refresh-loss report did not reproduce in 18 isolated trials on macOS. A different reported failure did reproduce: a primary credential record with blank token fields hides a valid fallback file. Neither result establishes the cause of any particular user's recurring logouts. Track the unresolved diagnosis in [issue 38](https://github.com/arjitj2/open-pstack/issues/38).
+Claude 2.1.282 reproduces the complete logout sequence through Pstack's exact `--setting-sources '' auth status --json` command when the fabricated configuration needs startup migrations. The status process consumes a one-use refresh token and exits before persisting its replacement. The following print invocation receives `invalid_grant`, blanks the primary credential record, and a final status check reports `loggedIn: false`.
 
-## Observed behavior
+The draft 1.7.1 candidate runs only the macOS status preflight under `/usr/bin/sandbox-exec` with outbound network access denied. It retains the existing authentication JSON, subscription-only verdict, ambient API-credential checks, and normal network access for the model invocation. Pstack does not read, copy, reconcile, or repair credentials. Track the work in [issue 38](https://github.com/arjitj2/open-pstack/issues/38) and [draft PR 41](https://github.com/arjitj2/open-pstack/pull/41).
 
-The [recorded matrix](results-2.1.282.json) uses the installed native Claude 2.1.282 binary, SHA256 `fcfd837103965c64de34a6b9b94370d77a347ea71819715a27d5f0ef01775ea4`. All credentials, account metadata, and network responses are fabricated. The CLI itself is unchanged.
+## Reproduction and controls
 
-| Action | Fixture | Runs | Observation |
+The [cold-config matrix](refresh-loss-2.1.282.json) uses the unchanged installed native Claude 2.1.282 binary, SHA256 `fcfd837103965c64de34a6b9b94370d77a347ea71819715a27d5f0ef01775ea4`. All credentials, account metadata, and network responses are fabricated. Each case starts with an expired credential, `migrationVersion: 0`, and 1 MiB of fabricated configuration padding to make the startup race observable.
+
+| Preflight | Mock refresh delay | Subsequent task | Final authentication |
 | --- | --- | --- | --- |
-| `auth status --json` | Expired by 60 seconds, expires in 120 seconds, or expires in 3600 seconds; mock delays of 0, 0.5, or 3 seconds | 18 | Exit 0, first-party subscription login reported, no refresh request reached the mock |
-| Print control | Expired token; mock delays of 0, 0.5, and 3 seconds | 3 | A refresh reached the mock and its replacement was saved before exit |
-| `auth status --json` | Primary record has blank access and refresh fields; fallback contains an unexpired credential | 1 | Exit 1, `loggedIn: false`, `authMethod: none` |
-| `auth status --json` | Primary record is empty bytes or absent; same valid fallback | 2 | Exit 0, `loggedIn: true`, `authMethod: claude.ai` |
-| `auth status --json` | Fabricated API key and subscription credential both present | 1 | Reports `claude.ai` and `firstParty` alongside `apiKeySource: ANTHROPIC_API_KEY` |
+| Original command | 0, 0.5, 3 seconds | Reuses the consumed token; primary tokens become blank | Logged out in all three cases |
+| Outbound network denied | 0, 0.5, 3 seconds | Refreshes the original token and saves its replacement | Logged in in all three cases |
 
-The print control terminates naturally after the local mock rejects inference with HTTP 400. That exit is expected. It proves refresh persistence through the mock storage boundary, not a successful model call. No remote inference occurs.
+The protected status checks left the original fabricated token pair intact and sent no refresh request. Their following tasks saved replacement tokens. The mock then rejects inference with HTTP 400, so print exits nonzero by design. This proves refresh persistence and authentication state, not successful model inference. No remote inference occurs.
 
-The API-key observation explains why Pstack's environment guard must remain alongside its method/provider check. Auth-status fields alone do not exclude an ambient API credential. The existing runner tests cover that rejection before provider startup.
+The [earlier warm-config matrix](results-2.1.282.json) remains useful negative evidence: 18 status calls with migrations already complete sent no refresh request, while three print controls saved replacements. That fixture omitted the triggering startup work. It also established that a primary JSON record with blank token fields hides a valid fallback, whereas an absent record or empty bytes permits fallback. The newer sequence reproduces how refresh rejection can produce those blank fields.
 
-## Source evidence and limits
+These synthetic timings establish a failure mechanism. They do not establish which startup condition caused a particular real-world logout or show that a user's configuration has the fixture's size or migration state.
 
-[Upstream issue 95822](https://github.com/anthropics/claude-code/issues/95822) reports that short-lived commands can abandon startup refreshes. Inspection of the installed 2.1.282 executable found an unawaited OAuth population call during init and a direct process exit in the auth-status handler. That structure motivates the test. It does not prove that this invocation reaches a destructive refresh. In this matrix, it did not.
+## Candidate and limits
 
-[Upstream issue 93051](https://github.com/anthropics/claude-code/issues/93051) describes a zeroed primary record hiding a fallback credential. The fabricated zeroed record reproduces that selection behavior. The test does not reproduce the event that originally zeroed a record, including lock, sleep, refresh rejection, or concurrent-writer conditions.
+The candidate wraps the resolved absolute Claude executable with this macOS policy:
 
-[Claude 2.1.281 release notes](https://github.com/anthropics/claude-code/releases/tag/v2.1.281) announce a fix for credential writes deleting entries while macOS Keychain is locked. The tested binary is newer. This fixture does not exercise actual Keychain locking.
+```text
+(version 1)(allow default)(deny network-outbound)
+```
 
-Storage process timing, OS services, and network behavior differ under the fixture. The mock does not emulate Keychain locks, access controls, or system prompts. A passing control proves that the fixture can refresh and persist; absence of a refresh in auth-status does not disprove the upstream report under other conditions.
+Only preflight receives the wrapper. Its actual argv appears in the receipt. Missing sandbox support, profile rejection, and launch failure stop the lane; there is no unprotected retry. macOS rejects nested sandbox application, so a parent already running inside a sandbox can lose Claude-lane availability. That limitation is deliberate fail-closed behavior and requires installed-parent validation. Other operating systems retain their existing preflight.
 
-No Pstack mitigation follows from these results. Removing the preflight loses billing evidence. A delay or retry is unsupported by this reproduction. Reading, repairing, or reconciling credentials would add a token manager. A required setup-token would change the normal login experience. Pstack's packaged tree and subscription guard remain unchanged.
+The fixture combines the candidate's network restriction with its stricter credential-isolation policy in one sandbox. It removes the mock loopback exception for preflight. A broad deny appended alongside that specific allow would not test the candidate restriction. Nested sandbox application cannot be used to combine the two policies on this host.
+
+Two runner regression tests separately exercise the actual candidate wrapper using a fake provider: its preflight cannot reach a local HTTP server while its task can, and a refused nested sandbox never starts the task. Existing billing tests still reject API credentials, alternate routes, missing auth fields, and non-subscription methods.
+
+Managed remote-settings behavior remains unverified: an offline status check and a later online task could observe different policy state. The existing setting-source and authentication checks remain intact, but these fixtures do not prove billing equivalence for changing enterprise policy. Neither installed Claude-parent nor installed Codex-parent behavior has passed the exact-candidate gate. The PR stays draft; this candidate is not merged, released, or rolled out.
+
+The alternative persistent stream-json prototype preserved refresh when it proceeded to a task, but initialization was not a persistence barrier: EOF and `get_usage` could still abandon refresh. `--max-turns 0` still attempted inference. These alternatives are not part of the candidate.
+
+[Upstream issue 95822](https://github.com/anthropics/claude-code/issues/95822) reports short-command refresh abandonment. Installed-source inspection found an unawaited startup OAuth population call and a direct process exit in auth-status; runtime evidence above confirms their interaction. [Issue 93051](https://github.com/anthropics/claude-code/issues/93051) describes the blank-record fallback behavior. The fixture does not emulate actual Keychain locks, prompts, sleep, or every concurrent-writer condition.
 
 ## Run the isolated fixture
 
-Run from a checkout on macOS with Python 3, Bash, OpenSSL, and `sandbox-exec`. Pass an explicit installed Claude executable. Choose a new output directory for every matrix.
+Run on macOS with Python 3, Bash, OpenSSL, and `sandbox-exec`. Pass an explicit installed Claude executable and a new evidence directory:
 
 ```sh
 python3 maintenance/claude-auth-repro/verify.py \
   --claude /absolute/path/to/claude \
+  --refresh-loss \
   --output /absolute/path/to/new-evidence-directory
 ```
 
-The matrix writes raw stdout and stderr plus a compact `results.json`. It fails if the fixture cannot run, auth output is malformed, or a print control cannot save its replacement. Other outcomes remain observations so a newer CLI can reproduce or fix a failure without the harness hiding it.
+Omit `--refresh-loss` to run the earlier 25-case warm-config matrix. Raw stdout and stderr stay in the evidence directory; `results.json` contains compact observations. A protected case fails verification if preflight consumes a refresh token, changes the original token pair, or prevents the following task from refreshing and remaining logged in. Original-command outcomes remain observations so a future upstream fix is not hidden.
 
-For one case:
+For one protected sequence:
 
 ```sh
 python3 maintenance/claude-auth-repro/reproduce.py \
   --claude /absolute/path/to/claude \
-  --store zeroed --expires-in 3600
+  --cold-config --offline-preflight --follow-print --delay 3
 ```
 
-Each case uses a new temporary home, configuration directory, and file-backed primary credential store. A mock `security` executable accepts only the generated fixture account and service. It never forwards to the system executable. The local OAuth mock consumes each fabricated refresh token once and rejects reuse.
+Each case uses a new temporary home, configuration directory, and file-backed primary store. A mock `security` executable accepts only the fabricated fixture account and service and never forwards to the system executable. The local OAuth mock consumes each fabricated refresh token once and rejects reuse.
 
-The sandbox denies the system `security` executable, all Mach service lookups, Keychains paths, and the real home except for reading the selected binary. Network access is restricted to the exact loopback proxy port. The proxy has no forwarding code. It answers only mock OAuth requests and rejects inference. The certificate is trusted only through the child environment; no global proxy, certificate trust, authentication, or settings are changed.
+The research sandbox denies the system `security` executable, all Mach service lookups, Keychains paths, and the real home except for reading the selected binary. Network access is restricted to the exact loopback mock port, or denied entirely during protected preflight. The proxy has no forwarding code. The certificate is trusted only through the child environment. No global proxy, certificate trust, authentication, or settings are changed.
 
-Before Claude starts, the same sandbox must read a normal fabricated canary and fail to read a fabricated `Keychains/canary` file. No real Keychain content is used to test denial. The test retains temporary files and debug logs for inspection; it does not perform system credential cleanup.
+Before Claude starts, the same research sandbox must read a normal fabricated canary and fail to read a fabricated `Keychains/canary`. No real Keychain content is used to test denial. Temporary files and debug logs are retained. There is no system credential cleanup.
 
-## Maintenance verification
+## Verification record
 
-The final matrix ran on September 25, 2026. All 25 cases passed the fixture's isolation preconditions. The three refresh controls saved replacements; the other outcomes appear in the table above.
+The six-case cold matrix ran on September 25, 2026. All six cases passed the credential-isolation preconditions. All three original sequences ended logged out; all three protected sequences preserved subsequent authentication. Runner regression tests failed before the implementation and passed after it, alongside the subscription-only guard tests.
 
-The packaged plugin tree is unchanged from the branch base. This is maintenance tooling, so there is no changed installed-parent behavior to validate and no version bump. The checkout CLI doctor, strict typecheck, static invariants, manifest parsing, and sandboxed Claude plugin validation passed. The final Bun run passed 489 tests with zero failures. An earlier concurrent run failed one Grok deadline timing test; a full rerun passed after the matrix completed.
-
-The machine's default Node executable failed to load a Homebrew shared library. Verification used Codex's bundled Node through a command-local PATH. No system runtime configuration was changed.
+Packaged behavior changes from 1.7.0 to the draft 1.7.1 candidate. All 491 Bun tests, strict typecheck, static invariants, documentation checks, and sandboxed Claude plugin validation passed. Outstanding parent-validation evidence is recorded in the PR. Verification uses Codex's bundled Node through a command-local PATH because the default Homebrew Node cannot load a shared library. No system runtime configuration was changed.

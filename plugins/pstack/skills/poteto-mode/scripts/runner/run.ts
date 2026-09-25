@@ -753,10 +753,18 @@ async function executeLane(
     return { exitCode: statusExitCode(receipt.status), receipt };
   }
 
-  const preflightExecutable = executable;
+  let preflightExecutable = executable;
   let activePreflight: CommandSpec = options.provider === "opencode"
     ? { command: "opencode", args: ["--version"], stdin: "none" }
     : preflight;
+  if (options.provider === "claude" && process.platform === "darwin") {
+    preflightExecutable = "/usr/bin/sandbox-exec";
+    activePreflight = {
+      command: preflightExecutable,
+      args: ["-p", "(version 1)(allow default)(deny network-outbound)", executable, ...preflight.args],
+      stdin: "none",
+    };
+  }
   progress.preflight = { ...progress.preflight, argv: [preflightExecutable, ...activePreflight.args] };
   let preflightResult = await runProcess(
     preflightExecutable,

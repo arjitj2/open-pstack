@@ -240,13 +240,20 @@ def main():
                  '-p', '--strict-mcp-config', '--tools', '', '--no-session-persistence',
                  'fixture local-only test'], env=env, cwd=root, capture_output=True, text=True)
             event('follow_print_exit', code=following.returncode)
-            final_store = json.loads(store.read_text() or '{}').get('claudeAiOauth', {})
+            final_store = json.loads(store.read_text() or '{}') if store.exists() else {}
+            final_store = final_store.get('claudeAiOauth', {})
+            fallback = config / '.credentials.json'
+            final_fallback = json.loads(fallback.read_text() or '{}') if fallback.exists() else {}
+            final_fallback = final_fallback.get('claudeAiOauth', {})
             check = subprocess.run(
                 ['/usr/bin/sandbox-exec', '-p', preflight_profile, str(args.claude),
                  '--setting-sources', '', 'auth', 'status', '--json'],
                 env=env, cwd=root, capture_output=True, text=True)
             event('status_after_task', code=check.returncode)
-            continuation = {'accessPresent': bool(final_store.get('accessToken')),
+            continuation = {'primaryPresent': store.exists(),
+                            'fallbackAccessPresent': bool(final_fallback.get('accessToken')),
+                            'fallbackRefreshPresent': bool(final_fallback.get('refreshToken')),
+                            'accessPresent': bool(final_store.get('accessToken')),
                             'refreshPresent': bool(final_store.get('refreshToken')),
                             'auth': json.loads(check.stdout)}
         saved_in = []

@@ -2,6 +2,12 @@
 
 This port applies the Cursor → Claude Code substitutions in skill bodies. Earlier drafts left them flagged; this revision resolves them. A later pass added a Codex build that shares the same skills; see [Codex port](#codex-port) below.
 
+## 1.7.1 candidate — macOS Claude auth preflight
+
+Deny outbound network access during Claude's macOS authentication preflight so its short-lived status process cannot consume an OAuth refresh token and exit before saving the replacement. The model invocation retains normal network access and the existing subscription-only checks remain in place. A rejected sandbox stops the lane without an unprotected retry; parents that prohibit nested sandboxes require compatibility validation. Other operating systems are unchanged.
+
+The isolated native-CLI reproduction covers token consumption, subsequent refresh rejection, blank primary credentials, and final logged-out status. Protected controls preserve the login. Installed-parent and managed-policy validation remain pending; this is a draft candidate. See [evidence and limitations](maintenance/claude-auth-repro/README.md).
+
 ## 1.7.0 candidate
 
 Add opt-in OpenCode external workers for Claude Code and Codex parents. Assign an exact `opencode:<provider>/<model>@default` descriptor. Existing model assignments and default panels stay unchanged. OpenCode requires explicit API-spend approval because the runner cannot prove subscription-only routing.
