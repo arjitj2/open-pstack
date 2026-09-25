@@ -1,4 +1,5 @@
 import { cursorHasApiKey } from "./cursor.ts";
+import { antigravityLaneFiles } from "./antigravity.ts";
 import type {
   AccessMode,
   Effort,
@@ -11,7 +12,8 @@ import { devinConfigPath, devinExportPath, devinModel, devinPromptPath } from ".
 export interface CommandSpec {
   readonly command: string;
   readonly args: readonly string[];
-  readonly stdin: "prompt" | "none";
+  readonly stdin: "prompt" | "prompt-ndjson" | "none";
+  readonly cwd?: string;
 }
 
 export function preflightCommand(provider: Provider, apiSpend: RunnerOptions["apiSpend"] = null): CommandSpec {
@@ -38,6 +40,8 @@ export function preflightCommand(provider: Provider, apiSpend: RunnerOptions["ap
       };
     case "grok":
       return { command: "grok", args: ["models"], stdin: "none" };
+    case "antigravity":
+      return { command: "agy", args: ["models"], stdin: "none" };
   }
 }
 
@@ -76,6 +80,21 @@ function effortOverride(effort: Effort): string {
 
 export function invocationCommand(options: RunnerOptions): CommandSpec {
   switch (options.provider) {
+    case "antigravity": {
+      const files = antigravityLaneFiles(options);
+      return {
+        command: "agy",
+        args: [
+          "--print=", "--output-format", "stream-json", "--input-format", "stream-json",
+          "--model", options.model, "--agent", files.agentName, "--sandbox",
+          ...(options.mode === "read-only"
+            ? ["--disable-slash-commands", "--add-dir", options.cwd]
+            : ["--mode", "accept-edits"]),
+        ],
+        stdin: "prompt-ndjson",
+        cwd: files.childCwd,
+      };
+    }
     case "devin":
       return {
         command: "devin",

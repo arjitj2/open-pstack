@@ -15,7 +15,7 @@ import {
   UsageError,
 } from "./types.ts";
 
-const HELP = `Usage: pstack-runner --parent <claude|codex> --provider <claude|codex|grok|devin|cursor> \\
+const HELP = `Usage: pstack-runner --parent <claude|codex> --provider <claude|codex|grok|devin|cursor|antigravity> \\
   --model <slug> --effort <level> --mode <read-only|isolated-write> \\
   --prompt <file> --cwd <dir> --output <file> --receipt <file> [--timeout <seconds>]
   [--api-spend <deny|approved>]
@@ -35,7 +35,9 @@ confirm subscription-compatible authentication where one exists: Claude must
 report claude.ai first-party auth and Codex must report ChatGPT auth. Grok
 is blocked under deny because per-model BYOK can override session auth.
 Devin and Cursor use bounded environment/endpoint guards, ordinary account
-checks, and isolated runner configuration. --api-spend approved
+checks, and isolated runner configuration. Antigravity requires an explicit
+--api-spend choice; deny checks known environment routes and settings.json.
+--api-spend approved
 explicitly authorizes the paid route and records it in the receipt. Omitting
 the flag preserves the legacy behavior for configurations written before
 billing policy existed. The guard covers known ambient credential and routing

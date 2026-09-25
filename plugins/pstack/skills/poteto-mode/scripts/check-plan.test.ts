@@ -129,6 +129,11 @@ describe("check-plan", () => {
     expect(result.report[0]).toContain("verify-perf=4");
   });
 
+  it("accepts an optional Antigravity worker descriptor in the plan grammar", () => {
+    const plan = skeleton.replaceAll("devin:swe-2@high", "antigravity:gemini-3.1-pro-high@default");
+    expect(checkPlan(plan, "antigravity-plan.md").problems).toEqual([]);
+  });
+
   it("rejects unresolved or malformed worker descriptors", () => {
     for (const descriptor of ["<swarm workers descriptor>", "codex:bad model@high", "unknown:model@high", "devin:swe-2@", "grok-4.7-xhigh-fast"]) {
       const result = checkPlan(skeleton.replaceAll("devin:swe-2@high", descriptor), "invalid-lane.md");

@@ -44,6 +44,10 @@ The temporary config marks shell onboarding complete. The runner requests a priv
 
 Cursor is an external provider from both parents. Install and authenticate `cursor-agent`, run `cursor-agent models`, and choose an exact available slug as `cursor:<slug>@default` (for example, `cursor:composer-2.5@default` when listed). `default` means no separate effort flag is available; select any reasoning variant by its exact model slug. Do not translate Claude/Codex/Grok slugs into Cursor slugs or use Cursor's `auto` selector. Model availability and subscription limits remain Cursor's responsibility. Adding a Cursor lane does not alter the three baseline families.
 
+## Optional Antigravity models
+
+Antigravity is an opt-in external worker from either parent. Install and sign in to `agy`, inspect `agy models`, and use an exact listed slug such as `antigravity:gemini-3.1-pro-high@default`. The slug already contains the available reasoning variant; the runner does not pass `--effort`, and `auto` is invalid. Hosted Claude models remain Antigravity routes for access, receipts, and exhaustion grouping. It does not change the default panel. Every Antigravity attempt requires an explicit saved `apiSpend` choice, including on legacy sheets.
+
 ## Model sheet grammar
 
 The model sheet is the only persisted routing source. Each line assigns one or more role names before the first `: ` and the seat list after it. Role names themselves contain commas (`feature, refactoring`, `why investigators, synthesizer`, `reflect tooling, judgment, divergent, synthesizer`), so the header is matched against the documented role list before the right-hand side is split.
@@ -102,10 +106,10 @@ This read-time rule makes an older installed sheet use the latest family revisio
 
 The top-level harness freezes the sheet once and asks the helper for each attempt decision. A child receives an assigned provider, model, effort, access mode, prompt, working directory, and output path. A child never detects the harness, chooses a provider, or launches another model. Environment markers may corroborate the top-level harness before fan-out, but nested processes inherit parent markers and must not use them for routing.
 
-| Parent | `claude:*` | `codex:*` | `grok:*` | `devin:*` | `cursor:*` |
-|---|---|---|---|---|---|
-| Claude Code | native `Agent` | external runner | external runner | external runner | external runner |
-| Codex | external runner | native `spawn_agent` | external runner | external runner | external runner |
+| Parent | `claude:*` | `codex:*` | `grok:*` | `devin:*` | `cursor:*` | `antigravity:*` |
+|---|---|---|---|---|---|---|
+| Claude Code | native `Agent` | external runner | external runner | external runner | external runner | external runner |
+| Codex | external runner | native `spawn_agent` | external runner | external runner | external runner | external runner |
 
 `inherit-parent` and `auto` remain aliases. They use the parent's current model and effort through its native subagent primitive. In a panel they still consume one lane, but they reduce provider diversity; say so in the synthesis record.
 
@@ -125,7 +129,7 @@ The launcher lives at `skills/poteto-mode/scripts/runner/pstack-runner` under th
 ```text
 pstack-runner \
   --parent <claude|codex> \
-  --provider <claude|codex|grok|devin|cursor> \
+  --provider <claude|codex|grok|devin|cursor|antigravity> \
   --model <real CLI model> \
   --effort <low|medium|high|xhigh|max|default> \
   --mode <read-only|isolated-write> \
@@ -160,6 +164,10 @@ Each Cursor attempt exclusively creates a private `<receipt>.cursor-config` dire
 
 Cursor's CLI currently exposes no supported switch to disable recursive subagents, project rules, skills, plugins, or hooks. The runner passes `--trust` for the assigned workspace so headless execution can start; this may authorize project startup hooks. Use only trusted workspaces and keep the parent-owned assignment in the prompt. These settings are not a clean-room guarantee, and the receipt does not prove that project hooks or every descendant were sandboxed. Cursor's native child tools also differ from the parent's tools; MCP-dependent work must stay native. See Cursor's [configuration](https://cursor.com/docs/cli/reference/configuration), [permissions](https://cursor.com/docs/cli/reference/permissions), and [output format](https://cursor.com/docs/cli/reference/output-format) contracts.
 
+Antigravity preflights with `agy models`; a listed slug proves discovery, while authentication and execution remain subject to the real attempt. The runner sends one stream-json user message over stdin, pins `--model` and a unique `--agent`, enables `--sandbox`, and audits the final stream. Read-only launches from an exclusively created private directory beside the receipt, adds the assigned checkout with `--add-dir`, and declares only `view_file`, `list_dir`, and `grep_search`. Writers launch from their assigned **dedicated worktree** and temporarily create an exclusive `.agents/agents/<unique-name>.md` there. They use `--mode accept-edits` with only those read tools plus `write_to_file`, `replace_file_content`, and `multi_replace_file_content`. `--disable-slash-commands` is used only for read-only lanes because combining it with `--mode` disables the requested mode. Neither mode exposes shell, command status, web, MCP, or subagent tools; file-only writers cannot run tests, so the parent runs them. The runner removes its temporary agent definition after the attempt and never edits global configuration. Use trusted workspaces because project hooks and CLI history can still run or persist. The receipt does not prove all descendants were terminated.
+
+Under `apiSpend: deny`, Antigravity blocks known environment billing routes (`GEMINI_API_KEY`, `GOOGLE_GEMINI_BASE_URL`, `AGY_ADC_AUTH`, and set `AGY_GATEWAY_*` keys), an unreadable or malformed `~/.gemini/antigravity-cli/settings.json`, and settings containing `modelProvider` or `modelConfigOverrides`. Only key names appear in receipts. This is a route guard, not a claim that provider account overage cannot occur. `apiSpend: approved` permits the selected account route.
+
 Every concurrent external lane needs distinct prompt, output, and receipt paths. The launcher reserves output and receipt paths exclusively and refuses to overwrite them.
 
 ## Completion and dropouts
@@ -168,7 +176,7 @@ Success requires all of these:
 
 1. Exit status `0`.
 2. Receipt status `complete`.
-3. Either `modelVerified: true` with `modelEvidence: "provider-report"`, or a Codex, Devin, or Cursor receipt with `reportedModel: null`, `modelVerified: false`, and `modelEvidence: "pinned-argv"`. For Claude's `fable`, `opus`, and `sonnet` aliases, the concrete provider report must belong to the requested family. For pinned-argv evidence, verify the receipt provider, model, and effort match the assignment and its argv pins the expected CLI model. Codex and Cursor pin the assigned model directly; Cursor requires `effort: "default"`; Devin uses the exact UID mapping in Optional Devin models (for example, `swe-2@high` pins `--model swe-2-high`). These providers may omit a provider model report; do not describe pinned argv as provider-verified identity.
+3. Either `modelVerified: true` with `modelEvidence: "provider-report"`, or a Codex, Devin, or Cursor receipt with `reportedModel: null`, `modelVerified: false`, and `modelEvidence: "pinned-argv"`, or an Antigravity receipt with its requested slug echoed in `reportedModel`, `modelVerified: false`, and `modelEvidence: "pinned-argv"`. Antigravity's `init.model` must exactly match the request but merely echoes the CLI override; it does not verify the backend model. For Claude's `fable`, `opus`, and `sonnet` aliases, the concrete provider report must belong to the requested family. For pinned-argv evidence, verify the receipt provider, model, and effort match the assignment and its argv pins the expected CLI model. Codex and Cursor pin the assigned model directly; Cursor and Antigravity require `effort: "default"`; Devin uses the exact UID mapping in Optional Devin models (for example, `swe-2@high` pins `--model swe-2-high`).
 4. A non-empty output file.
 
 The receipt also carries elapsed time, token usage when the CLI exposes it, and cost when available. Cursor returns session IDs and may return token usage; missing model identity, usage, or cost stays null. Keep it with the arena or review artifacts so parent-harness comparisons are evidence-based.
@@ -218,6 +226,7 @@ Every registered provider implements a typed quota adapter (`scripts/runner/prov
 - Grok: the last terminal JSON record has `type: "result"`, `subtype: "error_during_execution"`, `is_error: true`, and an `errors` array containing exactly `You’ve reached your free Grok Build usage limit for now. Get SuperGrok for much higher limits, or try again later: https://grok.com/supergrok?referrer=grok-build`. A later terminal success supersedes an earlier error.
 - Devin: a nonzero exit plus exactly one stderr `Error:` frame whose top-level Display is `Quota exhausted: <canonical>` or a bare canonical cap sentence — `You've reached your monthly usage limit. Wait for the limit to reset next month.`, `Your organization has reached its monthly usage limit. Ask an account admin to raise it, or wait for the limit to reset next month.`, or `usage quota has been exhausted`. A `Quota exhausted:` prefix with unproven detail, a canonical sentence nested inside another `Error:` Display (authentication, rate-limit, transport), more than one `Error:` frame, `Rate limited:`/`Authentication required:`/`An admin paused usage on your account` shapes, model errors, and agent stdout prose all fail closed. A trusted successful terminal envelope vetoes the stderr diagnostic; Devin has no proven stdout result protocol — the ATIF transcript is a separate export file — so an envelope can only veto, never prove quota, and there is no postprocess quota path.
 - Cursor: a nonzero exit, no successful stdout result envelope, and exactly one stderr `<Class>Error:` frame that is `ActionRequiredError:` whose message begins `You've hit your usage limit` at a separator boundary (end of line, space, or period). Usage-limit, rate-limit, login, payment, and pro-only errors share the ActionRequiredError class, so the class alone is not proof; multiple error frames are contradictory and fail closed, and ANSI styling/CRLF endings are normalized on the frame only. A trusted successful terminal envelope vetoes; errored envelopes carry no proven quota channel. Do not invent structured error codes the CLI does not emit.
+- Antigravity: no canonical terminal quota envelope is proven. Its adapter returns UNKNOWN even for quota-sounding text or HTTP 429; no `usage-exhausted` receipt is emitted until captured protocol evidence supports one. A final `SUCCESS` with a nonempty response and no `denied_actions` still takes precedence over a conflicting exit code so the completed attempt is never replayed.
 
 Diagnostics hidden behind unresolved build constants, entitlement or seat-tier messages, unproven error shapes, and every failure outside these contracts are not quota: they get the normal receipt status and saved-policy handling above, so an authorized broad policy can still recover them while quota-only sheets treat them as terminal. A native lane may classify only an explicit capacity failure from the parent host's structured tool envelope. Never infer exhaustion from model prose, generated output, or a human-readable transcript. Generic 429 or 403 errors, `resource_exhausted`, authentication or model-access failures, task failures, timeouts, malformed output, and unrecognized provider shapes are not exhaustion; cancellations and billing-policy blocks stay terminal `failed` under every policy.
 

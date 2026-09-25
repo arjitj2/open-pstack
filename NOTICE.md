@@ -40,6 +40,7 @@ Summary of structural changes:
 - A Codex build shares the same `skills/` tree. It adds `plugins/pstack/.codex-plugin/plugin.json`, a root `.agents/plugins/marketplace.json`, and `plugins/pstack/skills/poteto-mode/references/codex-tools.md` (the Claude-to-Codex tool, model, and built-in map), plus a one-line Platform note in the skills that name a Claude primitive. The skill content itself is unchanged. See [CHANGES.md](CHANGES.md#codex-port).
 
 The external runner also includes an independently authored Devin CLI adapter for optional SWE-2 and SWE-1.6 workers. It does not import Cognition source code.
+The optional Antigravity CLI adapter and its setup/dispatch documentation are independently authored for this port against the installed CLI and public documentation; no Antigravity implementation code is copied.
 
 ## Modifications
 

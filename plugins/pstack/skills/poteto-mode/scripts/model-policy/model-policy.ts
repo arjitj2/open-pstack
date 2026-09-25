@@ -144,7 +144,7 @@ export interface PolicyContext {
 }
 
 const ATTEMPT_RE =
-  /^(claude|codex|grok|devin|cursor):([A-Za-z0-9][A-Za-z0-9._-]*)@([a-z]+)$/;
+  /^(claude|codex|grok|devin|cursor|antigravity):([A-Za-z0-9][A-Za-z0-9._-]*)@([a-z]+)$/;
 
 const ACCESS_KEY_ORDER = [
   "provider",
@@ -175,6 +175,9 @@ function parseAttempt(raw: string, header: string): Attempt {
     throw new ModelPolicyError([
       `${header}: unsupported effort ${JSON.stringify(effort)} in ${JSON.stringify(text)}`,
     ]);
+  }
+  if (match[1] === "antigravity" && (effort !== "default" || match[2].toLowerCase() === "auto")) {
+    throw new ModelPolicyError([`${header}: Antigravity requires an exact model slug at default effort`]);
   }
   return {
     kind: "descriptor",
@@ -759,4 +762,3 @@ export function nextAttempt(
   }
   return { kind: "stop", reason: "chain-exhausted" };
 }
-

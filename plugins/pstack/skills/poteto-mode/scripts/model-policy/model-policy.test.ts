@@ -40,6 +40,15 @@ function parse(text: string) {
 }
 
 describe("model sheet parser", () => {
+  it("accepts exact optional Antigravity slugs only at default effort", () => {
+    const line = "swarm workers: grok:grok-4.7@xhigh";
+    const selected = parse(FIRST_RUN.replace(line, "swarm workers: antigravity:gemini-3.1-pro-high@default"));
+    const row = selected.rows.find((entry) => entry.spec.header === "swarm workers");
+    expect(row?.seats[0].attempts[0]).toEqual({kind:"descriptor",provider:"antigravity",model:"gemini-3.1-pro-high",effort:"default"});
+    for (const descriptor of ["antigravity:auto@default", "antigravity:gemini-3.1-pro-high@high"]) {
+      expect(() => parse(FIRST_RUN.replace(line, `swarm workers: ${descriptor}`))).toThrow(ModelPolicyError);
+    }
+  });
   it("parses a legacy single-attempt sheet with no fallback permission", () => {
     const model = parse(FIRST_RUN);
     expect(model.budget).toBe("unlimited (max)");
