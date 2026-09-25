@@ -93,7 +93,7 @@ claude plugin marketplace add "arjitj2/open-pstack#$pstack_release" &&
 claude plugin install pstack@open-pstack
 ```
 
-If registration or installation fails after removal, retry the marketplace add and plugin install steps with the same `$pstack_release`, or set it to a previously tested tag.
+If registration or installation fails after removal, retry from the failed step with the same `$pstack_release`. If marketplace registration succeeded, retry only plugin installation. To choose a different tag, repeat the migration procedure.
 
 Then run `/reload-plugins` inside Claude Code or start a new session. Open a new Codex task to load the installed skills. The examples use the default user scope; if your Claude installation uses project or local scope, use that same scope when migrating. The marketplace stays `open-pstack`, and skills stay under `pstack:`. Installation does not rewrite your model sheet.
 
