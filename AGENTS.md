@@ -18,6 +18,17 @@ For documentation or maintenance-only changes, prove that the packaged plugin tr
 
 Do not add an implicit runtime timeout or a weaker-model fallback. The only permitted substitution is a saved `primary -> fallback` chain in the model sheet on a terminal outcome the sheet's `# fallback` policy authorizes (`usage-exhausted` only when no policy line is saved), per `plugins/pstack/skills/poteto-mode/references/provider-dispatch.md`; anything else remains a dropout.
 
+## Default delivery workflow
+
+For repository changes, carry the work through validation, public PR review, and squash merge without waiting for another user prompt. An explicit request to stop at a draft, review, or unmerged branch overrides this default.
+
+1. Use `create-public-facing-pr` to publish a focused PR with a concise description and verification evidence. Keep unrelated changes in separate PRs.
+2. Request Copilot review and use `address-copilot-review` to assess every finding, verify and push appropriate fixes, publish replies, and resolve addressed threads. Confirm replies are submitted rather than pending. If Copilot is unavailable or quota-limited, record that fact; do not treat it as an approval or wait indefinitely.
+3. Run the project-local [verify-open-pstack skill](.agents/skills/verify-open-pstack/SKILL.md) against the final candidate. Complete the applicable installed-parent or maintenance checks above and record observed results in the PR. Revalidate behavior affected by review fixes.
+4. Once required checks and applicable validation pass and review findings are addressed, squash merge the PR using a server-enforced expected-head SHA. Verify the resulting merge into `main`.
+
+Proceed autonomously through routine fixes and retries justified by evidence. Existing validation gates and explicit restrictions on credentials, spending, or other actions still apply. When a required check cannot run, document the concrete blocker, complete independent work, and leave the affected PR unmerged. Do not replace a missing live test with a unit-test or source-inspection claim. Tags, releases, and installation changes outside validation require their own task scope.
+
 ## Documentation ownership
 
 Each maintained fact has one owner. When behavior changes, update the owner in the same change; everywhere else, link rather than restate. Dated records and history sections are frozen snapshots. Never edit them to track current state. `python3 scripts/check-docs.py` enforces the objective parts of this table; passing proves structure, not that all prose is current.
