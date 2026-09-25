@@ -2,7 +2,7 @@
 
 This Open Pstack distribution lets Codex and Claude Code coordinate coding work across the AI subscriptions you already have. Arjit Jaiswal maintains it as an intelligent model router built around Pstack's engineering workflows.
 
-Codex and Claude Code are the supported parent apps; the [provider table](#supported-parent-apps-and-worker-providers) lists the supported worker providers.
+Use **Anthropic Claude, OpenAI Codex, xAI Grok, Devin, Cursor, Antigravity, and OpenCode** as workers, coordinated from Codex or Claude Code. See the [provider table](#supported-parent-apps-and-worker-providers) for how each connects.
 
 `setup-pstack` checks provider and model access, asks about subscriptions it cannot verify, and recommends models for implementation, investigation, and review. You approve the assignments and backup chains during setup. Pstack routes workers to those models and automatically uses approved backups when the saved policy allows recovery. It tells you what failed and which model is taking over, and inspects and preserves partial work before continuing.
 
