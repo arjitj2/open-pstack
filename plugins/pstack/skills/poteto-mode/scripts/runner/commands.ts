@@ -1,3 +1,4 @@
+import { openCodeAgent } from "./opencode.ts";
 import { cursorHasApiKey } from "./cursor.ts";
 import { antigravityLaneFiles } from "./antigravity.ts";
 import type {
@@ -18,6 +19,8 @@ export interface CommandSpec {
 
 export function preflightCommand(provider: Provider, apiSpend: RunnerOptions["apiSpend"] = null): CommandSpec {
   switch (provider) {
+    case "opencode":
+      return { command: "opencode", args: ["--pure", "debug", "config"], stdin: "none" };
     case "devin":
       return { command: "devin", args: ["auth", "status"], stdin: "none" };
     case "cursor":
@@ -95,6 +98,8 @@ export function invocationCommand(options: RunnerOptions): CommandSpec {
         cwd: files.childCwd,
       };
     }
+    case "opencode":
+      return { command: "opencode", args: ["run", "--pure", "--format", "json", "--model", options.model, "--agent", openCodeAgent(options), "--dir", options.cwd, "--title", "pstack-worker"], stdin: "prompt" };
     case "devin":
       return {
         command: "devin",

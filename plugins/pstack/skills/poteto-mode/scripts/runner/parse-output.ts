@@ -1,3 +1,4 @@
+import { parseOpenCodeTranscript } from "./opencode.ts";
 import type {
   NormalizedUsage,
   ParsedOutput,
@@ -253,6 +254,12 @@ export function parseProviderOutput(
   switch (provider) {
     case "antigravity":
       return parseAntigravity(stdout);
+    case "opencode": {
+      const terminal = parseOpenCodeTranscript(stdout);
+      if (terminal.kind === "error") throw new ProviderTerminalError("opencode", "OpenCode reported a failed session", terminal.envelope);
+      if (terminal.kind === "incomplete") throw new Error(terminal.reason);
+      return terminal.output;
+    }
     case "devin": {
       if (/^warning: rejected a tool call that requires confirmation\./im.test(stderr)) {
         throw new Error("devin could not approve a tool in non-interactive mode");

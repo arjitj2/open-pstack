@@ -172,7 +172,7 @@ describe("Cursor external lanes", () => {
   it("rejects unpinned selection, flag injection, and unsupported effort", () => {
     for (const model of ["auto", "Auto", "--force", "composer 2.5", ""]) expect(() => validateOptions(options({ model }))).toThrow();
     expect(() => validateOptions(options({ effort: "high" }))).toThrow("default effort");
-    expect(() => validateOptions(options({ provider:"grok", model:"grok-4.7" }))).toThrow("only for Cursor, Antigravity, or Devin SWE-1.6");
+    expect(() => validateOptions(options({ provider:"grok", model:"grok-4.7" }))).toThrow("only for Cursor, Antigravity, OpenCode, or Devin SWE-1.6");
   });
   it("keeps writers sandboxed without ask mode or blanket force", async () => {
     const opts = options({mode:"isolated-write"});

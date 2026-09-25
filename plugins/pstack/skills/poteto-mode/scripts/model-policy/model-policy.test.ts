@@ -954,3 +954,14 @@ describe("operator authorization and monotonic attempts", () => {
     expect(nextAttempt(lane, [{ attemptIndex: 1, status: "usage-exhausted", processStarted: false }], new Set(), "read-only")).toMatchObject({ kind: "stop", reason: "chain-exhausted" });
   });
 });
+
+
+it("round-trips explicit OpenCode descriptors without broadening other providers", () => {
+  const sheet = FIRST_RUN.replace("grok:grok-4.7@xhigh", "opencode:provider/vendor/model@default");
+  expect(renderSheet(parseSheet(sheet))).toContain("opencode:provider/vendor/model@default");
+  const bedrock = "opencode:amazon-bedrock/us.anthropic.claude-opus-4-5-20251101-v1:0@default";
+  expect(renderSheet(parseSheet(FIRST_RUN.replace("grok:grok-4.7@xhigh", bedrock)))).toContain(bedrock);
+  for (const invalid of ["opencode:provider/model@high", "opencode:auto@default", "opencode:provider/auto@default", "opencode:provider//model@default", "codex:provider/model@high"]) {
+    expect(() => parseSheet(FIRST_RUN.replace("grok:grok-4.7@xhigh", invalid))).toThrow(ModelPolicyError);
+  }
+});

@@ -9,7 +9,7 @@ const RULE =
 const LANE_TEMPLATE =
   "Ten lanes on `<swarm workers descriptor>` at the PR head";
 const LANES =
-  /Ten lanes on `(inherit-parent|auto|(?:claude|codex|grok|devin|cursor|antigravity):[A-Za-z0-9][A-Za-z0-9._/-]*@(low|medium|high|xhigh|max|default))` at the PR head/;
+  /Ten lanes on `(inherit-parent|auto|(?:claude|codex|grok|devin|cursor|antigravity):[A-Za-z0-9][A-Za-z0-9._/-]*@(low|medium|high|xhigh|max|default)|opencode:[A-Za-z0-9][A-Za-z0-9._-]*(?:\/[A-Za-z0-9][A-Za-z0-9._:-]*)+@default)` at the PR head/;
 const BOX = /^\s*- \[[ xX]\] (.*)$/;
 const TOP_BOX = /^- \[[ xX]\] (.*)$/;
 
