@@ -1,0 +1,48 @@
+{
+  "candidateCommit": "bb27ff77139ef83bf6bd86470518d9bcbf7b28ac",
+  "pluginTree": "dc2d8a00f45118752e1e38433aed2dc7e1836874",
+  "version": "1.5.1",
+  "packageFilesMatched": 185,
+  "runs": [
+    {
+      "parent": "claude",
+      "provider": "devin",
+      "model": "swe-2",
+      "effort": "high",
+      "mode": "read-only",
+      "startedAt": "2026-09-25T16:02:38.741Z",
+      "completedAt": "2026-09-25T16:07:52.313Z",
+      "elapsedMs": 313572,
+      "status": "complete",
+      "exitCode": 0,
+      "apiSpend": "deny",
+      "timeoutMs": null,
+      "modelEvidence": "pinned-argv",
+      "outputCharacters": 15471,
+      "outputSha256": "85816e76d9fc0ae87ac53ff344bd9310790865c0f7695df5de9bbadada930a10",
+      "runtimeVersion": "Claude Code 2.1.282",
+      "pluginLoading": "session-local --plugin-dir"
+    },
+    {
+      "parent": "codex",
+      "provider": "devin",
+      "model": "swe-2",
+      "effort": "high",
+      "mode": "read-only",
+      "startedAt": "2026-09-25T16:02:10.529Z",
+      "completedAt": "2026-09-25T16:07:28.267Z",
+      "elapsedMs": 317738,
+      "status": "complete",
+      "exitCode": 0,
+      "apiSpend": "deny",
+      "timeoutMs": null,
+      "modelEvidence": "pinned-argv",
+      "outputCharacters": 15555,
+      "outputSha256": "21e7531053e6da47e3615c8204fb6d66bb955b8231a387351f10c4ffd3a8ec2f",
+      "runtimeVersion": "Codex CLI 0.154.0",
+      "pluginLoading": "unique marketplace installed through codex plugin add"
+    }
+  ],
+  "personalPluginAndModelFilesUnchanged": true,
+  "temporaryCodexRegistrationRemoved": true
+}

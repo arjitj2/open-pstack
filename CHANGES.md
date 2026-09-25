@@ -4,7 +4,7 @@ This port applies the Cursor → Claude Code substitutions in skill bodies. Earl
 
 ## 1.5.1 — Devin read-only tool selection
 
-Disable the Devin `exec` tool in read-only workers so the model cannot select shell execution that the permission configuration denies. Writer workers retain sandboxed execution. The existing permission denies and final-response checks remain in place. This candidate awaits installed-parent validation.
+Disable the Devin `exec` tool in read-only workers so the model cannot select shell execution that the permission configuration denies. Writer workers retain sandboxed execution. The existing permission denies and final-response checks remain in place. The exact candidate passed live validation through Codex and Claude Code.
 
 ## 1.5.0 — independent release numbering
 
