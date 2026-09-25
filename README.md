@@ -2,11 +2,13 @@
 
 This Open Pstack distribution lets Codex and Claude Code coordinate coding work across the AI subscriptions you already have. Arjit Jaiswal maintains it as an intelligent model router built around Pstack's engineering workflows.
 
+Supported worker providers are **Anthropic Claude, OpenAI Codex, xAI Grok, Devin (SWE-2 and SWE-1.6), and Cursor**. Codex and Claude Code are the supported parent apps.
+
 `setup-pstack` checks provider and model access, asks about subscriptions it cannot verify, and recommends models for implementation, investigation, and review. You approve the assignments and backup chains during setup. Pstack routes workers to those models and automatically uses approved backups when the saved policy allows recovery. It tells you what failed and which model is taking over, and inspects and preserves partial work before continuing.
 
 This repository maintains its own provider integrations, recovery behavior, and tested releases while tracking Cursor's Pstack directly. It builds on Lauren Tan's original Pstack and Eric Litman's Open Pstack port, with their attribution preserved.
 
-See [release evidence and recovery limits](docs/compatibility.md), [why use this distribution](docs/distribution.md), and [upstream status](UPSTREAM.md).
+See [release evidence and recovery limits](docs/compatibility.md), [why use this distribution](docs/distribution.md), [release history and Cursor baselines](docs/releases.md), and [upstream status](UPSTREAM.md).
 
 [![CI](https://github.com/arjitj2/open-pstack/actions/workflows/ci.yml/badge.svg)](https://github.com/arjitj2/open-pstack/actions/workflows/ci.yml)
 [![Latest release](https://img.shields.io/github/v/release/arjitj2/open-pstack)](https://github.com/arjitj2/open-pstack/releases/latest)
@@ -67,7 +69,7 @@ Start with a current Claude Code or Codex installation. Install and sign in to t
 Run these commands inside Claude Code:
 
 ```text
-/plugin marketplace add arjitj2/open-pstack#v1.4.1-arjit.5
+/plugin marketplace add arjitj2/open-pstack#v1.5.0
 /plugin install pstack@open-pstack
 /reload-plugins
 ```
@@ -77,7 +79,7 @@ Run these commands inside Claude Code:
 Run these commands in your shell:
 
 ```shell
-codex plugin marketplace add arjitj2/open-pstack --ref v1.4.1-arjit.5
+codex plugin marketplace add arjitj2/open-pstack --ref v1.5.0
 codex plugin add pstack@open-pstack
 ```
 
@@ -186,7 +188,7 @@ This repository also keeps:
 
 ## Staying close to Lauren's pstack
 
-The stable release `v1.4.1-arjit.5` incorporates pstack 0.15.5 at Cursor commit [`12d587dfb20741cafc376c42c696c5f6e2a64487`](https://github.com/cursor/plugins/commit/12d587dfb20741cafc376c42c696c5f6e2a64487).
+The stable release `v1.5.0` incorporates pstack 0.15.5 at Cursor commit [`12d587dfb20741cafc376c42c696c5f6e2a64487`](https://github.com/cursor/plugins/commit/12d587dfb20741cafc376c42c696c5f6e2a64487).
 
 The two projects have separate version numbers. The pstack version identifies Lauren's upstream content. The Open Pstack version identifies the Claude Code and Codex package built from it.
 

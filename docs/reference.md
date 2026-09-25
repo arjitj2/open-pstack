@@ -2,7 +2,7 @@
 
 This page contains the full skill, dependency, runtime, and porting reference. For the plain-English introduction and quick start, see the [main README](../README.md).
 
-[Poteto](https://x.com/poteto)'s [pstack](https://github.com/cursor/plugins/tree/main/pstack), adapted to run in Claude Code and Codex without Cursor. One shared skill tree serves both harnesses; Grok, Devin, and Cursor remain available as external model-provider lanes. Release `v1.4.1-arjit.5` incorporates Cursor pstack v0.15.5 at `12d587dfb20741cafc376c42c696c5f6e2a64487`. See [UPSTREAM.md](../UPSTREAM.md) for the exact sync contract.
+[Poteto](https://x.com/poteto)'s [pstack](https://github.com/cursor/plugins/tree/main/pstack), adapted to run in Claude Code and Codex without Cursor. One shared skill tree serves both harnesses; Grok, Devin, and Cursor remain available as external model-provider lanes. Release `v1.5.0` incorporates Cursor pstack v0.15.5 at `12d587dfb20741cafc376c42c696c5f6e2a64487`. See [UPSTREAM.md](../UPSTREAM.md) for the exact sync contract.
 
 Original by Lauren Tan. Arjit Jaiswal maintains this distribution, building on [Eric Litman's Open Pstack](https://github.com/ericlitman/open-pstack) and Michael Denyer's [pstack-claude](https://github.com/michael-denyer/pstack-claude) port and retains its history and MIT attribution. It imports seven MIT-licensed skills from [cursor-team-kit](https://github.com/cursor/plugins/tree/main/cursor-team-kit): `deslop`, `thermo-nuclear-code-quality-review`, `make-pr-easy-to-review`, `fix-ci`, `fix-merge-conflicts`, `get-pr-comments`, `what-did-i-get-done`.
 
@@ -17,7 +17,7 @@ This is not a verbatim copy. Skill bodies have been edited so every Cursor-speci
 This repo ships as a Claude Code marketplace containing one plugin (`pstack`).
 
 ```text
-/plugin marketplace add arjitj2/open-pstack#v1.4.1-arjit.5
+/plugin marketplace add arjitj2/open-pstack#v1.5.0
 /plugin install pstack@open-pstack
 /reload-plugins
 ```
@@ -29,7 +29,7 @@ The plugin auto-fires through a `SessionStart` hook on startup, `/clear`, and po
 The same plugin carries a `.codex-plugin/plugin.json` manifest and a root `.agents/plugins/marketplace.json`. Install it through the Codex marketplace:
 
 ```shell
-codex plugin marketplace add arjitj2/open-pstack --ref v1.4.1-arjit.5
+codex plugin marketplace add arjitj2/open-pstack --ref v1.5.0
 codex plugin add pstack@open-pstack
 ```
 
