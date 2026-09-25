@@ -14,7 +14,7 @@ open-pstack tracks [Cursor's pstack](https://github.com/cursor/plugins/tree/main
 | Upstream version | `0.15.5` |
 | open-pstack version | `1.7.1` |
 
-Version 1.7.1 is a draft macOS Claude authentication-preflight mitigation. Installed-parent validation is pending; see `maintenance/claude-auth-repro/README.md`.
+Version 1.7.1 is a draft removal of Claude authentication-status probes. Installed-parent validation is pending; see `maintenance/claude-auth-repro/README.md`.
 
 The table records the packaged version and its incorporated Cursor content, with the exclusions below. Version 1.7.0 is an OpenCode worker candidate with installed-parent validation recorded in `docs/opencode-worker-verification.md`. Detecting or reviewing newer Cursor commits does not advance this baseline. `README-UPSTREAM.md` preserves the upstream pstack README verbatim. `CHANGES.md` and `NOTICE.md` describe the adaptations and provenance.
 

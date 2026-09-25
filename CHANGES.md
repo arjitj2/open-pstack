@@ -2,11 +2,11 @@
 
 This port applies the Cursor → Claude Code substitutions in skill bodies. Earlier drafts left them flagged; this revision resolves them. A later pass added a Codex build that shares the same skills; see [Codex port](#codex-port) below.
 
-## 1.7.1 candidate — macOS Claude auth preflight
+## 1.7.1 candidate — omit Claude auth status
 
-Deny outbound network access during Claude's macOS authentication preflight so its short-lived status process cannot consume an OAuth refresh token and exit before saving the replacement. The model invocation retains normal network access and the existing subscription-only checks remain in place. A rejected sandbox stops the lane without an unprotected retry; parents that prohibit nested sandboxes require compatibility validation. Other operating systems are unchanged.
+Remove Claude's separate auth-status command from worker dispatch and setup on every platform. Its short-lived startup can consume an OAuth refresh token without saving the replacement, causing the next task to lose login. Authentication now happens in the actual task; receipts mark preflight as not run and billing type as unverified.
 
-The isolated native-CLI reproduction covers token consumption, subsequent refresh rejection, blank primary credentials, and final logged-out status. Protected controls preserve the login. Installed-parent and managed-policy validation remain pending; this is a draft candidate. See [evidence and limitations](maintenance/claude-auth-repro/README.md).
+Keep `apiSpend`, known API environment guards, and the empty settings-source list under `deny`. This deliberately removes Claude's account billing-type assertion; other providers retain their checks. No network wrapper or credential repair is added. See [issue 38](https://github.com/arjitj2/open-pstack/issues/38), [upstream issue 95822](https://github.com/anthropics/claude-code/issues/95822), and [evidence and limitations](maintenance/claude-auth-repro/README.md). Installed-parent validation remains pending; this is a draft candidate.
 
 ## 1.7.0 candidate
 

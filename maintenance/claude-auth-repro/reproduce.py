@@ -20,6 +20,8 @@ import uuid
 def arguments():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--claude', required=True, type=Path)
+    parser.add_argument('--runner', type=Path, help='Candidate pstack-runner entry point')
+    parser.add_argument('--bun', type=Path, help='Explicit Bun executable for --runner')
     parser.add_argument('--delay', type=float, default=0.5)
     parser.add_argument('--expires-in', type=int, default=-60)
     parser.add_argument('--store', choices=['valid', 'empty', 'zeroed', 'absent'], default='valid')
@@ -33,6 +35,11 @@ def arguments():
         parser.error('This fixture requires the macOS sandbox-exec boundary.')
     if not 0 <= args.delay <= 3:
         parser.error('--delay must be between 0 and 3 seconds.')
+    if args.runner:
+        if not args.bun or args.offline_preflight or args.follow_print or args.print_control:
+            parser.error('--runner requires --bun and cannot combine with other execution modes')
+        args.runner = args.runner.resolve(strict=True)
+        args.bun = args.bun.resolve(strict=True)
     args.claude = args.claude.resolve(strict=True)
     return args
 
@@ -200,10 +207,21 @@ def main():
     if args.route == 'api':
         env['ANTHROPIC_API_KEY'] = 'fixture-api-key'
     profile = sandbox_profile(args.claude, root, server.server_port)
+    if args.runner:
+        profile += '\n' + f'(allow file-read* (literal {json.dumps(str(args.bun))}))'
     (root / 'sandbox.sb').write_text(profile)
     command = [str(args.claude), '--debug-file', str(root / 'debug.log'), '--setting-sources', '']
     command += (['-p', '--max-turns', '1', '--tools', '', '--strict-mcp-config', 'fixture local-only test']
                 if args.print_control else ['auth', 'status', '--json'])
+    if args.runner:
+        shutil.copytree(args.runner.parent, root / 'runner', ignore=shutil.ignore_patterns('*.test.ts'))
+        (mockbin / 'claude').symlink_to(args.claude)
+        (root / 'prompt.txt').write_text('fixture local-only test')
+        command = [str(args.bun), str(root / 'runner' / args.runner.name),
+                   '--parent', 'codex', '--provider', 'claude', '--model', 'opus',
+                   '--effort', 'high', '--mode', 'read-only', '--api-spend', 'deny',
+                   '--prompt', str(root / 'prompt.txt'), '--cwd', str(root),
+                   '--output', str(root / 'output.txt'), '--receipt', str(root / 'receipt.json')]
     preflight_profile = '\n'.join(
         line for line in profile.splitlines()
         if not (args.offline_preflight and line.startswith('(allow network-outbound'))
@@ -269,6 +287,7 @@ def main():
             'coldConfig': args.cold_config, 'configPaddingBytes': 1024 * 1024 if args.cold_config else 0,
             'offlinePreflight': args.offline_preflight, 'preflightPreservedTokens': preflight_preserved_tokens,
             'continuation': continuation,
+            'runnerReceipt': json.loads((root / 'receipt.json').read_text()) if args.runner else None,
             'storage': 'mock-file', 'keychainCanaryDenied': True, 'newSaved': bool(saved_in), 'savedIn': saved_in,
             'events': events, 'stdout': stdout, 'stderr': stderr,
             'storageEvents': (root / 'storage-events.jsonl').read_text()
