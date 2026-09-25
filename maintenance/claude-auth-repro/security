@@ -1,0 +1,21 @@
+#!/bin/bash
+operation=$1
+shift
+if [[ "$operation" == '-i' ]]; then
+  exec /usr/bin/python3 "$PSTACK_MOCK_ROOT/mock-security.py" -i
+fi
+service=''
+account=''
+while (($#)); do
+  case "$1" in
+    -a) account=$2; shift 2;;
+    -s) service=$2; shift 2;;
+    *) shift;;
+  esac
+done
+printf '%s\n' "$operation $service" >> "$PSTACK_MOCK_ROOT/storage-events.jsonl"
+[[ "$operation" == show-keychain-info ]] && exit 0
+[[ "$account" == "$USER" && "$service" == "$PSTACK_MOCK_SERVICE" ]] || exit 44
+[[ "$operation" == find-generic-password ]] || exit 64
+[[ -f "$PSTACK_MOCK_ROOT/mock-credential.json" ]] || exit 44
+exec /bin/cat "$PSTACK_MOCK_ROOT/mock-credential.json"

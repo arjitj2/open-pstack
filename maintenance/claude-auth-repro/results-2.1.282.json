@@ -1,0 +1,636 @@
+[
+  {
+    "binarySha256": "fcfd837103965c64de34a6b9b94370d77a347ea71819715a27d5f0ef01775ea4",
+    "expiresIn": -60,
+    "delay": 0.0,
+    "storeState": "valid",
+    "route": "subscription",
+    "printControl": false,
+    "newSaved": false,
+    "savedIn": [],
+    "keychainCanaryDenied": true,
+    "events": [
+      {
+        "event": "process_exit",
+        "seconds": 0.5754,
+        "code": 0
+      }
+    ],
+    "case": "status--60-0-0",
+    "auth": {
+      "loggedIn": true,
+      "authMethod": "claude.ai",
+      "apiProvider": "firstParty"
+    }
+  },
+  {
+    "binarySha256": "fcfd837103965c64de34a6b9b94370d77a347ea71819715a27d5f0ef01775ea4",
+    "expiresIn": -60,
+    "delay": 0.0,
+    "storeState": "valid",
+    "route": "subscription",
+    "printControl": false,
+    "newSaved": false,
+    "savedIn": [],
+    "keychainCanaryDenied": true,
+    "events": [
+      {
+        "event": "process_exit",
+        "seconds": 0.9667,
+        "code": 0
+      }
+    ],
+    "case": "status--60-0-1",
+    "auth": {
+      "loggedIn": true,
+      "authMethod": "claude.ai",
+      "apiProvider": "firstParty"
+    }
+  },
+  {
+    "binarySha256": "fcfd837103965c64de34a6b9b94370d77a347ea71819715a27d5f0ef01775ea4",
+    "expiresIn": -60,
+    "delay": 0.5,
+    "storeState": "valid",
+    "route": "subscription",
+    "printControl": false,
+    "newSaved": false,
+    "savedIn": [],
+    "keychainCanaryDenied": true,
+    "events": [
+      {
+        "event": "process_exit",
+        "seconds": 0.6318,
+        "code": 0
+      }
+    ],
+    "case": "status--60-0.5-0",
+    "auth": {
+      "loggedIn": true,
+      "authMethod": "claude.ai",
+      "apiProvider": "firstParty"
+    }
+  },
+  {
+    "binarySha256": "fcfd837103965c64de34a6b9b94370d77a347ea71819715a27d5f0ef01775ea4",
+    "expiresIn": -60,
+    "delay": 0.5,
+    "storeState": "valid",
+    "route": "subscription",
+    "printControl": false,
+    "newSaved": false,
+    "savedIn": [],
+    "keychainCanaryDenied": true,
+    "events": [
+      {
+        "event": "process_exit",
+        "seconds": 0.5025,
+        "code": 0
+      }
+    ],
+    "case": "status--60-0.5-1",
+    "auth": {
+      "loggedIn": true,
+      "authMethod": "claude.ai",
+      "apiProvider": "firstParty"
+    }
+  },
+  {
+    "binarySha256": "fcfd837103965c64de34a6b9b94370d77a347ea71819715a27d5f0ef01775ea4",
+    "expiresIn": -60,
+    "delay": 3.0,
+    "storeState": "valid",
+    "route": "subscription",
+    "printControl": false,
+    "newSaved": false,
+    "savedIn": [],
+    "keychainCanaryDenied": true,
+    "events": [
+      {
+        "event": "process_exit",
+        "seconds": 0.6223,
+        "code": 0
+      }
+    ],
+    "case": "status--60-3-0",
+    "auth": {
+      "loggedIn": true,
+      "authMethod": "claude.ai",
+      "apiProvider": "firstParty"
+    }
+  },
+  {
+    "binarySha256": "fcfd837103965c64de34a6b9b94370d77a347ea71819715a27d5f0ef01775ea4",
+    "expiresIn": -60,
+    "delay": 3.0,
+    "storeState": "valid",
+    "route": "subscription",
+    "printControl": false,
+    "newSaved": false,
+    "savedIn": [],
+    "keychainCanaryDenied": true,
+    "events": [
+      {
+        "event": "process_exit",
+        "seconds": 0.8977,
+        "code": 0
+      }
+    ],
+    "case": "status--60-3-1",
+    "auth": {
+      "loggedIn": true,
+      "authMethod": "claude.ai",
+      "apiProvider": "firstParty"
+    }
+  },
+  {
+    "binarySha256": "fcfd837103965c64de34a6b9b94370d77a347ea71819715a27d5f0ef01775ea4",
+    "expiresIn": 120,
+    "delay": 0.0,
+    "storeState": "valid",
+    "route": "subscription",
+    "printControl": false,
+    "newSaved": false,
+    "savedIn": [],
+    "keychainCanaryDenied": true,
+    "events": [
+      {
+        "event": "process_exit",
+        "seconds": 1.0019,
+        "code": 0
+      }
+    ],
+    "case": "status-120-0-0",
+    "auth": {
+      "loggedIn": true,
+      "authMethod": "claude.ai",
+      "apiProvider": "firstParty"
+    }
+  },
+  {
+    "binarySha256": "fcfd837103965c64de34a6b9b94370d77a347ea71819715a27d5f0ef01775ea4",
+    "expiresIn": 120,
+    "delay": 0.0,
+    "storeState": "valid",
+    "route": "subscription",
+    "printControl": false,
+    "newSaved": false,
+    "savedIn": [],
+    "keychainCanaryDenied": true,
+    "events": [
+      {
+        "event": "process_exit",
+        "seconds": 0.9001,
+        "code": 0
+      }
+    ],
+    "case": "status-120-0-1",
+    "auth": {
+      "loggedIn": true,
+      "authMethod": "claude.ai",
+      "apiProvider": "firstParty"
+    }
+  },
+  {
+    "binarySha256": "fcfd837103965c64de34a6b9b94370d77a347ea71819715a27d5f0ef01775ea4",
+    "expiresIn": 120,
+    "delay": 0.5,
+    "storeState": "valid",
+    "route": "subscription",
+    "printControl": false,
+    "newSaved": false,
+    "savedIn": [],
+    "keychainCanaryDenied": true,
+    "events": [
+      {
+        "event": "process_exit",
+        "seconds": 1.0925,
+        "code": 0
+      }
+    ],
+    "case": "status-120-0.5-0",
+    "auth": {
+      "loggedIn": true,
+      "authMethod": "claude.ai",
+      "apiProvider": "firstParty"
+    }
+  },
+  {
+    "binarySha256": "fcfd837103965c64de34a6b9b94370d77a347ea71819715a27d5f0ef01775ea4",
+    "expiresIn": 120,
+    "delay": 0.5,
+    "storeState": "valid",
+    "route": "subscription",
+    "printControl": false,
+    "newSaved": false,
+    "savedIn": [],
+    "keychainCanaryDenied": true,
+    "events": [
+      {
+        "event": "process_exit",
+        "seconds": 0.8296,
+        "code": 0
+      }
+    ],
+    "case": "status-120-0.5-1",
+    "auth": {
+      "loggedIn": true,
+      "authMethod": "claude.ai",
+      "apiProvider": "firstParty"
+    }
+  },
+  {
+    "binarySha256": "fcfd837103965c64de34a6b9b94370d77a347ea71819715a27d5f0ef01775ea4",
+    "expiresIn": 120,
+    "delay": 3.0,
+    "storeState": "valid",
+    "route": "subscription",
+    "printControl": false,
+    "newSaved": false,
+    "savedIn": [],
+    "keychainCanaryDenied": true,
+    "events": [
+      {
+        "event": "process_exit",
+        "seconds": 0.7623,
+        "code": 0
+      }
+    ],
+    "case": "status-120-3-0",
+    "auth": {
+      "loggedIn": true,
+      "authMethod": "claude.ai",
+      "apiProvider": "firstParty"
+    }
+  },
+  {
+    "binarySha256": "fcfd837103965c64de34a6b9b94370d77a347ea71819715a27d5f0ef01775ea4",
+    "expiresIn": 120,
+    "delay": 3.0,
+    "storeState": "valid",
+    "route": "subscription",
+    "printControl": false,
+    "newSaved": false,
+    "savedIn": [],
+    "keychainCanaryDenied": true,
+    "events": [
+      {
+        "event": "process_exit",
+        "seconds": 0.3003,
+        "code": 0
+      }
+    ],
+    "case": "status-120-3-1",
+    "auth": {
+      "loggedIn": true,
+      "authMethod": "claude.ai",
+      "apiProvider": "firstParty"
+    }
+  },
+  {
+    "binarySha256": "fcfd837103965c64de34a6b9b94370d77a347ea71819715a27d5f0ef01775ea4",
+    "expiresIn": 3600,
+    "delay": 0.0,
+    "storeState": "valid",
+    "route": "subscription",
+    "printControl": false,
+    "newSaved": false,
+    "savedIn": [],
+    "keychainCanaryDenied": true,
+    "events": [
+      {
+        "event": "process_exit",
+        "seconds": 0.3291,
+        "code": 0
+      }
+    ],
+    "case": "status-3600-0-0",
+    "auth": {
+      "loggedIn": true,
+      "authMethod": "claude.ai",
+      "apiProvider": "firstParty"
+    }
+  },
+  {
+    "binarySha256": "fcfd837103965c64de34a6b9b94370d77a347ea71819715a27d5f0ef01775ea4",
+    "expiresIn": 3600,
+    "delay": 0.0,
+    "storeState": "valid",
+    "route": "subscription",
+    "printControl": false,
+    "newSaved": false,
+    "savedIn": [],
+    "keychainCanaryDenied": true,
+    "events": [
+      {
+        "event": "process_exit",
+        "seconds": 0.6097,
+        "code": 0
+      }
+    ],
+    "case": "status-3600-0-1",
+    "auth": {
+      "loggedIn": true,
+      "authMethod": "claude.ai",
+      "apiProvider": "firstParty"
+    }
+  },
+  {
+    "binarySha256": "fcfd837103965c64de34a6b9b94370d77a347ea71819715a27d5f0ef01775ea4",
+    "expiresIn": 3600,
+    "delay": 0.5,
+    "storeState": "valid",
+    "route": "subscription",
+    "printControl": false,
+    "newSaved": false,
+    "savedIn": [],
+    "keychainCanaryDenied": true,
+    "events": [
+      {
+        "event": "process_exit",
+        "seconds": 0.3058,
+        "code": 0
+      }
+    ],
+    "case": "status-3600-0.5-0",
+    "auth": {
+      "loggedIn": true,
+      "authMethod": "claude.ai",
+      "apiProvider": "firstParty"
+    }
+  },
+  {
+    "binarySha256": "fcfd837103965c64de34a6b9b94370d77a347ea71819715a27d5f0ef01775ea4",
+    "expiresIn": 3600,
+    "delay": 0.5,
+    "storeState": "valid",
+    "route": "subscription",
+    "printControl": false,
+    "newSaved": false,
+    "savedIn": [],
+    "keychainCanaryDenied": true,
+    "events": [
+      {
+        "event": "process_exit",
+        "seconds": 0.303,
+        "code": 0
+      }
+    ],
+    "case": "status-3600-0.5-1",
+    "auth": {
+      "loggedIn": true,
+      "authMethod": "claude.ai",
+      "apiProvider": "firstParty"
+    }
+  },
+  {
+    "binarySha256": "fcfd837103965c64de34a6b9b94370d77a347ea71819715a27d5f0ef01775ea4",
+    "expiresIn": 3600,
+    "delay": 3.0,
+    "storeState": "valid",
+    "route": "subscription",
+    "printControl": false,
+    "newSaved": false,
+    "savedIn": [],
+    "keychainCanaryDenied": true,
+    "events": [
+      {
+        "event": "process_exit",
+        "seconds": 0.33,
+        "code": 0
+      }
+    ],
+    "case": "status-3600-3-0",
+    "auth": {
+      "loggedIn": true,
+      "authMethod": "claude.ai",
+      "apiProvider": "firstParty"
+    }
+  },
+  {
+    "binarySha256": "fcfd837103965c64de34a6b9b94370d77a347ea71819715a27d5f0ef01775ea4",
+    "expiresIn": 3600,
+    "delay": 3.0,
+    "storeState": "valid",
+    "route": "subscription",
+    "printControl": false,
+    "newSaved": false,
+    "savedIn": [],
+    "keychainCanaryDenied": true,
+    "events": [
+      {
+        "event": "process_exit",
+        "seconds": 0.3185,
+        "code": 0
+      }
+    ],
+    "case": "status-3600-3-1",
+    "auth": {
+      "loggedIn": true,
+      "authMethod": "claude.ai",
+      "apiProvider": "firstParty"
+    }
+  },
+  {
+    "binarySha256": "fcfd837103965c64de34a6b9b94370d77a347ea71819715a27d5f0ef01775ea4",
+    "expiresIn": -60,
+    "delay": 0.0,
+    "storeState": "valid",
+    "route": "subscription",
+    "printControl": true,
+    "newSaved": true,
+    "savedIn": [
+      "mock"
+    ],
+    "keychainCanaryDenied": true,
+    "events": [
+      {
+        "event": "refresh_consumed",
+        "seconds": 0.4803
+      },
+      {
+        "event": "refresh_replied",
+        "seconds": 0.4806
+      },
+      {
+        "event": "mock_request_rejected",
+        "seconds": 2.4164,
+        "path": "/v1/messages?beta=true"
+      },
+      {
+        "event": "process_exit",
+        "seconds": 2.4355,
+        "code": 1
+      }
+    ],
+    "case": "control-0",
+    "output": "API Error: 400 Mock fixture refuses inference\n"
+  },
+  {
+    "binarySha256": "fcfd837103965c64de34a6b9b94370d77a347ea71819715a27d5f0ef01775ea4",
+    "expiresIn": -60,
+    "delay": 0.5,
+    "storeState": "valid",
+    "route": "subscription",
+    "printControl": true,
+    "newSaved": true,
+    "savedIn": [
+      "mock"
+    ],
+    "keychainCanaryDenied": true,
+    "events": [
+      {
+        "event": "refresh_consumed",
+        "seconds": 0.4925
+      },
+      {
+        "event": "refresh_replied",
+        "seconds": 0.9977
+      },
+      {
+        "event": "mock_request_rejected",
+        "seconds": 2.5929,
+        "path": "/v1/messages?beta=true"
+      },
+      {
+        "event": "process_exit",
+        "seconds": 2.6104,
+        "code": 1
+      }
+    ],
+    "case": "control-0.5",
+    "output": "API Error: 400 Mock fixture refuses inference\n"
+  },
+  {
+    "binarySha256": "fcfd837103965c64de34a6b9b94370d77a347ea71819715a27d5f0ef01775ea4",
+    "expiresIn": -60,
+    "delay": 3.0,
+    "storeState": "valid",
+    "route": "subscription",
+    "printControl": true,
+    "newSaved": true,
+    "savedIn": [
+      "mock"
+    ],
+    "keychainCanaryDenied": true,
+    "events": [
+      {
+        "event": "refresh_consumed",
+        "seconds": 0.5754
+      },
+      {
+        "event": "refresh_replied",
+        "seconds": 3.5806
+      },
+      {
+        "event": "mock_request_rejected",
+        "seconds": 4.4516,
+        "path": "/v1/messages?beta=true"
+      },
+      {
+        "event": "process_exit",
+        "seconds": 4.466,
+        "code": 1
+      }
+    ],
+    "case": "control-3",
+    "output": "API Error: 400 Mock fixture refuses inference\n"
+  },
+  {
+    "binarySha256": "fcfd837103965c64de34a6b9b94370d77a347ea71819715a27d5f0ef01775ea4",
+    "expiresIn": 3600,
+    "delay": 0.5,
+    "storeState": "zeroed",
+    "route": "subscription",
+    "printControl": false,
+    "newSaved": false,
+    "savedIn": [],
+    "keychainCanaryDenied": true,
+    "events": [
+      {
+        "event": "process_exit",
+        "seconds": 0.312,
+        "code": 1
+      }
+    ],
+    "case": "store-zeroed",
+    "auth": {
+      "loggedIn": false,
+      "authMethod": "none",
+      "apiProvider": "firstParty"
+    }
+  },
+  {
+    "binarySha256": "fcfd837103965c64de34a6b9b94370d77a347ea71819715a27d5f0ef01775ea4",
+    "expiresIn": 3600,
+    "delay": 0.5,
+    "storeState": "empty",
+    "route": "subscription",
+    "printControl": false,
+    "newSaved": false,
+    "savedIn": [],
+    "keychainCanaryDenied": true,
+    "events": [
+      {
+        "event": "process_exit",
+        "seconds": 0.5172,
+        "code": 0
+      }
+    ],
+    "case": "store-empty",
+    "auth": {
+      "loggedIn": true,
+      "authMethod": "claude.ai",
+      "apiProvider": "firstParty"
+    }
+  },
+  {
+    "binarySha256": "fcfd837103965c64de34a6b9b94370d77a347ea71819715a27d5f0ef01775ea4",
+    "expiresIn": 3600,
+    "delay": 0.5,
+    "storeState": "absent",
+    "route": "subscription",
+    "printControl": false,
+    "newSaved": false,
+    "savedIn": [],
+    "keychainCanaryDenied": true,
+    "events": [
+      {
+        "event": "process_exit",
+        "seconds": 0.3565,
+        "code": 0
+      }
+    ],
+    "case": "store-absent",
+    "auth": {
+      "loggedIn": true,
+      "authMethod": "claude.ai",
+      "apiProvider": "firstParty"
+    }
+  },
+  {
+    "binarySha256": "fcfd837103965c64de34a6b9b94370d77a347ea71819715a27d5f0ef01775ea4",
+    "expiresIn": 3600,
+    "delay": 0.5,
+    "storeState": "valid",
+    "route": "api",
+    "printControl": false,
+    "newSaved": false,
+    "savedIn": [],
+    "keychainCanaryDenied": true,
+    "events": [
+      {
+        "event": "process_exit",
+        "seconds": 0.3366,
+        "code": 0
+      }
+    ],
+    "case": "api-route",
+    "auth": {
+      "loggedIn": true,
+      "authMethod": "claude.ai",
+      "apiProvider": "firstParty",
+      "apiKeySource": "ANTHROPIC_API_KEY"
+    }
+  }
+]
