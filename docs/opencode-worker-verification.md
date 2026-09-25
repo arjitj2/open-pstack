@@ -15,7 +15,7 @@ Each parent discovered the candidate skill, read its provider-dispatch instructi
 
 Both receipts pin `openai/gpt-6-sol`, record `pinned-argv` model evidence, and report zero provider cost. The event stream does not independently report model identity. No runner timeout or alternate-model fallback was used. Claude remained alive until its worker settled. Personal plugin installations and model sheets were unchanged.
 
-Local receipts and parent transcripts are retained under `/Users/arjitjaiswal/open-pstack-verification-opencode-170/`. The dedicated Codex profile's temporary authentication link was removed after verification.
+Receipts and parent transcripts are retained locally; the tables above record the observed outcomes without publishing personal filesystem paths. The dedicated Codex profile's temporary authentication link was removed after verification.
 
 ## Permission and protocol checks
 
