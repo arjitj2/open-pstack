@@ -2,7 +2,7 @@
 
 This page contains the full skill, dependency, runtime, and porting reference. For the plain-English introduction and quick start, see the [main README](../README.md).
 
-[Poteto](https://x.com/poteto)'s [pstack](https://github.com/cursor/plugins/tree/main/pstack), adapted to run in Claude Code and Codex without Cursor. One shared skill tree serves both harnesses; Grok, Devin, and Cursor remain available as external model-provider lanes. Release `v1.5.0` incorporates Cursor pstack v0.15.5 at `12d587dfb20741cafc376c42c696c5f6e2a64487`. See [UPSTREAM.md](../UPSTREAM.md) for the exact sync contract.
+[Poteto](https://x.com/poteto)'s [pstack](https://github.com/cursor/plugins/tree/main/pstack), adapted to run in Claude Code and Codex without Cursor. One shared skill tree serves both harnesses; Grok, Devin, Cursor, and Antigravity remain available as external model-provider lanes. Release `v1.5.0` incorporates Cursor pstack v0.15.5 at `12d587dfb20741cafc376c42c696c5f6e2a64487`. See [UPSTREAM.md](../UPSTREAM.md) for the exact sync contract.
 
 Original by Lauren Tan. Arjit Jaiswal maintains this distribution, building on [Eric Litman's Open Pstack](https://github.com/ericlitman/open-pstack) and Michael Denyer's [pstack-claude](https://github.com/michael-denyer/pstack-claude) port and retains its history and MIT attribution. It imports seven MIT-licensed skills from [cursor-team-kit](https://github.com/cursor/plugins/tree/main/cursor-team-kit): `deslop`, `thermo-nuclear-code-quality-review`, `make-pr-easy-to-review`, `fix-ci`, `fix-merge-conflicts`, `get-pr-comments`, `what-did-i-get-done`.
 
@@ -110,7 +110,7 @@ Not declared as deps, but referenced in skill bodies:
 - **`gh` (GitHub CLI).** This is the default forge for every stack playbook and a system-level requirement of the standalone `babysit` skill. Install it with [`brew install gh`](https://cli.github.com) and authenticate with `gh auth login`. If Origin's `origin` CLI is installed and can resolve the repository, the stack playbooks use it instead. Only the Orchestrate playbook and its `scripts/orch` frontier tooling still require `gt`.
 - **`bun`** — runs the vendored `skills/poteto-mode/scripts/` tooling (`watch-pr`, `orch`, `runner`, `model-policy`). Install via [`brew install oven-sh/bun/bun`](https://bun.sh). `bootstrap.ts` installs dependencies for `watch-pr` and `orch`; the runner and model-policy helper use only Bun and Node built-ins, so they launch directly without an install/re-exec layer.
 - **`node`** — runs `skills/poteto-mode/scripts/check-plan.mjs`. The checker uses only Node built-ins and does not need Bun.
-- **Claude Code, Codex, Grok Build, Devin, and Cursor CLIs** — the external runner invokes the assigned provider through `claude`, `codex`, `grok`, `devin`, or `cursor-agent`. Install and authenticate only the providers present in your model sheet. Same-provider work stays native; the runner refuses it.
+- **Claude Code, Codex, Grok Build, Devin, Cursor, and Antigravity CLIs** — the external runner invokes the assigned provider through `claude`, `codex`, `grok`, `devin`, `cursor-agent`, or `agy`. Install and authenticate only the providers present in your model sheet. Same-provider work stays native; the runner refuses it.
 - **`jq` and `rg` (ripgrep)** — only for `scripts/worktree-audit.sh` (the Worktree cleanup playbook). Without them the audit still runs but blanks its PR and LAST_CHAT columns, so it warns on stderr rather than returning a table that looks complete.
 
 No third-party plugins. The harsher-critique escape hatch lives in the bundled `thermo-nuclear-code-quality-review` skill (imported from cursor-team-kit), not in an external plugin.
@@ -228,6 +228,12 @@ MIT. Three upstream LICENSE files are preserved:
 - [LICENSE](../LICENSE) — pstack (Lauren Tan)
 - [LICENSE-cursor-team-kit](../LICENSE-cursor-team-kit) — Cursor (covers the seven imported Cursor Team Kit skills listed in NOTICE.md)
 - [LICENSE-superpowers](../LICENSE-superpowers) — superpowers, Jesse Vincent (covers the vendored `hooks/run-hook.cmd`)
+
+### Optional Antigravity workers
+
+`antigravity:<exact-model-slug>@default` starts `agy` from either parent. Install and authenticate the CLI, discover slugs with `agy models`, and select one through setup with an explicit API-spend choice. Do not use `auto` or add a separate effort flag; the selected slug contains its reasoning variant. This optional provider does not change the first-run panel.
+
+Both read-only and writer workers expose file tools only. Writers need a dedicated worktree, and the parent executes tests. Workers do not inherit parent MCP connections. Receipts record the pinned model argument without claiming independently verified backend identity. Quota classification remains unknown until a canonical signal is captured. See [compatibility and live evidence](compatibility.md#antigravity-workers) and the [dispatch contract](../plugins/pstack/skills/poteto-mode/references/provider-dispatch.md#optional-antigravity-models) for permissions, billing guards, and cleanup.
 
 ### Optional Cursor workers
 
