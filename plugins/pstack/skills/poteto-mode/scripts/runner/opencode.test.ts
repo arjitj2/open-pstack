@@ -178,7 +178,7 @@ describe("OpenCode optional worker", () => {
     const env = openCodeEnvironment(opts,process.env);
     const config = openCodeConfig(opts) as Record<string,unknown>;
     expect(openCodePreflightPassed(JSON.stringify(config),opts,env)).toBe(true);
-    for (const change of [{small_model:"other/model"},{share:"auto"},{lsp:{}},{formatter:{}},{compaction:{auto:true}},{provider:{custom:{}}}]) expect(openCodePreflightPassed(JSON.stringify({...config,...change}),opts,env)).toBe(false);
+    for (const change of [{small_model:"other/model"},{share:"auto"},{lsp:{}},{formatter:{}},{compaction:{auto:true}},{compaction:{auto:false,prune:true}},{compaction:{auto:false}},{provider:{custom:{}}}]) expect(openCodePreflightPassed(JSON.stringify({...config,...change}),opts,env)).toBe(false);
     const agents = config.agent as Record<string,object>;
     for (const change of [{variant:"high"},{permission:{"*":"allow"}},{options:{reasoningEffort:"high"}}]) expect(openCodePreflightPassed(JSON.stringify({...config,agent:{[openCodeAgent(opts)]:{...agents[openCodeAgent(opts)],...change}}}),opts,env)).toBe(false);
   });

@@ -98,7 +98,7 @@ export function openCodePreflightPassed(stdout: string, options: RunnerOptions, 
   if (config === null || config.model !== options.model || config.small_model !== options.model ||
       config.default_agent !== openCodeAgent(options) || config.share !== "disabled" ||
       config.autoupdate !== false || config.lsp !== false || config.formatter !== false ||
-      object(config.compaction)?.auto !== false) return false;
+      object(config.compaction)?.auto !== false || object(config.compaction)?.prune !== false) return false;
   if (config.provider !== undefined && Object.keys(object(config.provider) ?? { invalid: true }).length !== 0) return false;
   if (config.mcp !== undefined) {
     const mcp = object(config.mcp);

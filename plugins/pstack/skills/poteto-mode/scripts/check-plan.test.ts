@@ -134,6 +134,18 @@ describe("check-plan", () => {
     expect(checkPlan(plan, "antigravity-plan.md").problems).toEqual([]);
   });
 
+  it("accepts exact OpenCode descriptors in the plan grammar", () => {
+    for (const descriptor of ["opencode:openai/gpt-6-sol@default", "opencode:openrouter/vendor/model@default", "opencode:amazon-bedrock/anthropic.claude-v1:0@default"]) {
+      expect(checkPlan(skeleton.replaceAll("devin:swe-2@high", descriptor), "opencode-plan.md").problems).toEqual([]);
+    }
+  });
+
+  it("rejects malformed OpenCode descriptors without broadening other providers", () => {
+    for (const descriptor of ["opencode:model@default", "opencode:provider//model@default", "opencode:provider/model/@default", "opencode:provider/model@high", "codex:model:v1@high"]) {
+      expect(checkPlan(skeleton.replaceAll("devin:swe-2@high", descriptor), "invalid-opencode-plan.md").ok, descriptor).toBe(false);
+    }
+  });
+
   it("rejects unresolved or malformed worker descriptors", () => {
     for (const descriptor of ["<swarm workers descriptor>", "codex:bad model@high", "unknown:model@high", "devin:swe-2@", "grok-4.7-xhigh-fast"]) {
       const result = checkPlan(skeleton.replaceAll("devin:swe-2@high", descriptor), "invalid-lane.md");
