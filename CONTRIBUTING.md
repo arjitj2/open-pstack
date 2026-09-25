@@ -1,12 +1,12 @@
 # Contribute to Open Pstack
 
-Use [this repository's issues](https://github.com/arjitj2/open-pstack/issues) to report bugs and propose changes. Include reproduction steps, expected behavior, installed release, and relevant application versions. Pull requests for documentation and maintenance tooling are welcome.
+Use [this repository's issues](https://github.com/arjitj2/open-pstack/issues) to report bugs and propose changes. Include reproduction steps, expected behavior, the installed version and source revision your install follows (branch, tag, or commit), and relevant application versions. Pull requests for documentation and maintenance tooling are welcome.
 
-Read [AGENTS.md](AGENTS.md) and [UPSTREAM.md](UPSTREAM.md) before editing. Keep one shared skill tree for Codex and Claude Code. Preserve upstream licenses and credit. Explain intentional differences from Cursor in the upstream decision record.
+Read [AGENTS.md](AGENTS.md) and [UPSTREAM.md](UPSTREAM.md) before editing. Keep one shared skill tree for Codex and Claude Code. Preserve upstream licenses and credit. Explain intentional differences from Cursor in the upstream decision record. Each maintained fact has one owner per the [documentation ownership](AGENTS.md#documentation-ownership) map; update the owner and link elsewhere instead of duplicating guidance.
 
 ## Validate a change
 
-Run the checks in [.github/workflows/ci.yml](.github/workflows/ci.yml). They include Bun tests, strict typechecking, maintenance tests, manifest parsing, and static invariants. Run `claude plugin validate ./plugins/pstack` for plugin validation.
+Run the checks in [.github/workflows/ci.yml](.github/workflows/ci.yml). They include Bun tests, strict typechecking, maintenance tests, manifest parsing, documentation structure, and static invariants. Run `claude plugin validate ./plugins/pstack` for plugin validation and `python3 scripts/check-docs.py` for the documentation checks.
 
 For changes to packaged skills, agents, manifests, or runner behavior, install the exact candidate and exercise the changed behavior from every affected parent application. Record the installed version, action, observed result, and limitations in the PR. Keep behavior changes in draft until that evidence is available.
 

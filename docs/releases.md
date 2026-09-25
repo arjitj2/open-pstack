@@ -4,7 +4,7 @@ Open Pstack, maintained by Arjit, uses its own release numbers starting with `v1
 
 The Cursor baseline identifies the source content incorporated with this distribution’s adaptations and exclusions. It does not claim identical behavior or inclusion of every upstream feature. More than one distribution release can share a baseline when changes affect provider support, setup, recovery, or packaging.
 
-The `main` installation package advances to 1.6.0 with [optional Antigravity workers](compatibility.md#antigravity-workers), retaining the same Cursor 0.15.5 baseline. This is separate from the tagged release history below; no 1.6.0 tag or GitHub release is recorded yet.
+The `main` installation package advances to 1.7.0 with [optional OpenCode workers](../plugins/pstack/skills/poteto-mode/references/provider-dispatch.md#optional-opencode-models). See [upstream status](../UPSTREAM.md) for its incorporated Cursor baseline and [OpenCode validation](opencode-worker-verification.md) for the tested candidate. The table below records tagged releases separately.
 
 | Distribution release | Cursor Pstack version | Incorporated Cursor commit | Scope at release |
 | --- | --- | --- | --- |

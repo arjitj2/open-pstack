@@ -17,3 +17,19 @@ Nothing merges, tags, releases, or rolls out until the exact candidate is instal
 For documentation or maintenance-only changes, prove that the packaged plugin tree is unchanged and exercise the changed CLI or GitHub workflow. There is no affected parent installation in that case. Record the actual maintenance evidence instead of repeating unchanged provider tests.
 
 Do not add an implicit runtime timeout or a weaker-model fallback. The only permitted substitution is a saved `primary -> fallback` chain in the model sheet on a terminal outcome the sheet's `# fallback` policy authorizes (`usage-exhausted` only when no policy line is saved), per `plugins/pstack/skills/poteto-mode/references/provider-dispatch.md`; anything else remains a dropout.
+
+## Documentation ownership
+
+Each maintained fact has one owner. When behavior changes, update the owner in the same change; everywhere else, link rather than restate. Dated records and history sections are frozen snapshots. Never edit them to track current state. `python3 scripts/check-docs.py` enforces the objective parts of this table; passing proves structure, not that all prose is current.
+
+| Fact | Owner |
+| --- | --- |
+| Fresh install steps | `README.md` (`## Install`) |
+| Supported parent and provider IDs | `plugins/pstack/skills/poteto-mode/scripts/runner/types.ts` (`PARENTS`, `PROVIDERS`), rendered by the README provider table |
+| Models, defaults, permissions, billing | `plugins/pstack/skills/poteto-mode/references/provider-dispatch.md` |
+| Cursor baseline | `UPSTREAM.md` sync table |
+| Package version | plugin manifests, mirrored in the `UPSTREAM.md` sync table and checked by `check-ledger` |
+| Skill purpose and invocation | each packaged `SKILL.md`; README lists common entry points |
+| Release history | `docs/releases.md` |
+| Install-source policy | `docs/fork-maintenance.md` (`### Keep main ready for users`) |
+| Validation evidence | dated records and the frozen `## Validation history` block in `docs/compatibility.md` |
