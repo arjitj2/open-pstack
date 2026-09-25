@@ -11,6 +11,7 @@ import {
 } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { invocationCommand, preflightCommand, type CommandSpec } from "./commands.ts";
+import { openCodeConfig, openCodeDirectory, openCodeEnvironment, openCodePreflightPassed, validateOpenCodeModel } from "./opencode.ts";
 import { cursorConfigDirectory, cursorConfig, cursorHasApiKey, cursorUserConfigPath, validateCursorModel } from "./cursor.ts";
 import { antigravityLaneFiles, antigravitySettingsPath, antigravitySettingsTakeover, antigravityStdin, auditAntigravityStream, createAntigravityLaneFiles, validateAntigravityModel, type AntigravityCreatedFiles } from "./antigravity.ts";
 import { versionedClaudeAlias } from "./model-aliases.ts";
@@ -367,6 +368,8 @@ function preflightPassed(provider: Provider, model: string, result: ProcessResul
   if (result.exitCode !== 0 || result.timedOut) return false;
   const combined = `${result.stdout}\n${result.stderr}`;
   switch (provider) {
+    case "opencode":
+      return false;
     case "cursor": {
       if (apiKeyAuth) return true;
       try {
@@ -520,7 +523,7 @@ function modelProof(
       modelEvidence: "provider-report",
     };
   }
-  if ((provider === "codex" || provider === "devin" || provider === "cursor") && reported === null) {
+  if ((provider === "codex" || provider === "devin" || provider === "cursor" || provider === "opencode") && reported === null) {
     return {
       reportedModel: null,
       modelVerified: false,
@@ -555,6 +558,7 @@ function completeReceipt(
 
 export function validateOptions(options: RunnerOptions): void {
   assertQuotaAdapter(options.provider);
+  if (options.provider === "opencode") validateOpenCodeModel(options.model, options.effort);
   if (options.provider === "cursor") validateCursorModel(options.model, options.effort);
   if (options.provider === "antigravity") {
     validateAntigravityModel(options.model, options.effort);
@@ -568,8 +572,8 @@ export function validateOptions(options: RunnerOptions): void {
   if (options.model.trim().length === 0) throw new UsageError("model must not be empty");
   if (options.provider === "devin") {
     devinModel(options.model, options.effort);
-  } else if (options.provider !== "cursor" && options.provider !== "antigravity" && options.effort === "default") {
-    throw new UsageError("default effort is supported only for Cursor, Antigravity, or Devin SWE-1.6");
+  } else if (options.provider !== "cursor" && options.provider !== "antigravity" && options.provider !== "opencode" && options.effort === "default") {
+    throw new UsageError("default effort is supported only for Cursor, Antigravity, OpenCode, or Devin SWE-1.6");
   }
   const staleAlias = options.provider === "claude"
     ? versionedClaudeAlias(options.model)
@@ -618,7 +622,8 @@ async function executeLane(
 ): Promise<RunResult> {
   const startedAt = new Date(started).toISOString();
   const prompt = readFileSync(options.promptPath, "utf8");
-  const env = childEnvironment(options.provider);
+  const inherited = childEnvironment(options.provider);
+  const env = options.provider === "opencode" ? openCodeEnvironment(options, inherited) : inherited;
   const apiKeyAuth = options.provider === "cursor" && cursorHasApiKey(env);
   if (options.provider === "cursor") env.CURSOR_CONFIG_DIR = cursorConfigDirectory(options);
 
@@ -626,7 +631,8 @@ async function executeLane(
     ? apiCredentialTakeover(options.provider, env) ??
       (options.provider === "antigravity" ? antigravitySettingsTakeover(antigravitySettingsPath()) : null)
     : null;
-  if (takeover !== null) {
+  const openCodeBillingBlocked = options.provider === "opencode" && options.apiSpend !== "approved";
+  if (takeover !== null || openCodeBillingBlocked) {
     const completed = Date.now();
     const receipt = completeReceipt(options, {
       status: "billing-policy-blocked",
@@ -645,12 +651,14 @@ async function executeLane(
       usage: null,
       costUsd: null,
       error: {
-        message: `subscription-only policy refuses ambient API credential ${takeover}; approve API spend explicitly or unset it`,
+        message: openCodeBillingBlocked
+          ? "OpenCode requires explicit API-spend approval because subscription-only routing cannot be verified"
+          : `subscription-only policy refuses ambient API credential ${takeover}; approve API spend explicitly or unset it`,
         evidence: "",
       },
       failurePhase: "preflight",
       processStarted: false,
-      apiSpend: "deny",
+      apiSpend: options.apiSpend ?? "legacy",
     });
     removeIfExists(options.outputPath);
     writeReceipt(options.receiptPath, receipt);
@@ -755,10 +763,14 @@ async function executeLane(
     deadlineAt,
     cancellation
   );
-  let rawPreflightEvidence = evidence(`${preflightResult.stdout}\n${preflightResult.stderr}`);
-  let passed = preflightPassed(options.provider, options.model, preflightResult, apiKeyAuth);
+  let rawPreflightEvidence = options.provider === "opencode"
+    ? "OpenCode effective agent preflight failed; configuration output withheld"
+    : evidence(`${preflightResult.stdout}\n${preflightResult.stderr}`);
+  let passed = options.provider === "opencode"
+    ? preflightResult.exitCode === 0 && openCodePreflightPassed(preflightResult.stdout, options, env)
+    : preflightPassed(options.provider, options.model, preflightResult, apiKeyAuth);
   let preflightEvidence = passed
-    ? successfulPreflightEvidence(options.provider, options.model, apiKeyAuth)
+    ? options.provider === "opencode" ? "effective agent model and tool policy verified; authentication deferred to execution" : successfulPreflightEvidence(options.provider, options.model, apiKeyAuth)
     : rawPreflightEvidence;
 
   if (
@@ -1082,6 +1094,7 @@ export async function runLane(
   };
   const cancellation = installRunCancellation();
   let createdCursorConfig = false;
+  let createdOpenCodeConfig = false;
   let devinConfigCreated = false;
   let devinExportCreated = false;
   let antigravityCreated: AntigravityCreatedFiles | null = null;
@@ -1101,6 +1114,14 @@ export async function runLane(
             encoding: "utf8", mode: 0o600, flag: "wx",
           });
         }
+      }
+      if (options.provider === "opencode" && options.apiSpend === "approved") {
+        const directory = openCodeDirectory(options);
+        mkdirSync(directory, { mode: 0o700 });
+        createdOpenCodeConfig = true;
+        mkdirSync(`${directory}/home`, { mode: 0o700 });
+        mkdirSync(`${directory}/xdg`, { mode: 0o700 });
+        writeFileSync(`${directory}/opencode.json`, JSON.stringify(openCodeConfig(options)), { flag: "wx", mode: 0o600 });
       }
       if (options.provider === "cursor") {
         const directory = cursorConfigDirectory(options);
@@ -1167,6 +1188,7 @@ export async function runLane(
     try {
       if (devinConfigCreated) removeIfExists(devinConfigPath(options));
       if (devinExportCreated) rmSync(devinExportDirectory(options), { recursive: true, force: true });
+      if (createdOpenCodeConfig) rmSync(openCodeDirectory(options), { recursive: true, force: true });
       if (createdCursorConfig) rmSync(cursorConfigDirectory(options), { recursive: true, force: true });
       antigravityCreated?.cleanup();
     } finally {

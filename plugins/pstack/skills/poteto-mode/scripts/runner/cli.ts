@@ -15,7 +15,7 @@ import {
   UsageError,
 } from "./types.ts";
 
-const HELP = `Usage: pstack-runner --parent <claude|codex> --provider <claude|codex|grok|devin|cursor|antigravity> \\
+const HELP = `Usage: pstack-runner --parent <claude|codex> --provider <claude|codex|grok|devin|cursor|antigravity|opencode> \\
   --model <slug> --effort <level> --mode <read-only|isolated-write> \\
   --prompt <file> --cwd <dir> --output <file> --receipt <file> [--timeout <seconds>]
   [--api-spend <deny|approved>]
@@ -40,7 +40,11 @@ checks, and isolated runner configuration. Antigravity requires an explicit
 --api-spend approved
 explicitly authorizes the paid route and records it in the receipt. Omitting
 the flag preserves the legacy behavior for configurations written before
-billing policy existed. The guard covers known ambient credential and routing
+billing policy existed. OpenCode is new and requires explicit --api-spend approved;
+subscription routing is unproven. It requires provider/model and default effort.
+Read-only permits file inspection; isolated-write requires a Git worktree root
+and additionally permits edits. Neither mode permits shell commands. OpenCode
+tool permissions are not an OS sandbox. The guard covers known ambient credential and routing
 takeover plus observable auth evidence only; provider-managed overage,
 on-demand credits, or account billing controls are not guaranteed locally.
 `;

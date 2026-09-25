@@ -592,6 +592,11 @@ interface ProviderContract {
 }
 
 const PROVIDER_CONTRACTS: Readonly<Record<Provider, ProviderContract>> = {
+  opencode: { quotaProof: "none", quota: [], nonquota: [outcome({ stdout: JSON.stringify({ type: "error", sessionID: "s", error: { name: "APIError", data: { statusCode: 429, message: "quota exhausted" } } }) })], terminalSuccess: [outcome({ stdout: [
+    { type: "step_start", sessionID: "s", part: { id: "a", sessionID: "s", messageID: "m" } },
+    { type: "text", sessionID: "s", part: { id: "b", sessionID: "s", messageID: "m", text: "done" } },
+    { type: "step_finish", sessionID: "s", part: { id: "c", sessionID: "s", messageID: "m", reason: "stop" } },
+  ].map(value => JSON.stringify(value)).join("\n") })] },
   claude: {
     quota: [
       outcome({ stdout: JSON.stringify(CLAUDE_REAL_QUOTA) }),

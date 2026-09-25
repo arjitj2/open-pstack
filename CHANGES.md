@@ -2,6 +2,14 @@
 
 This port applies the Cursor → Claude Code substitutions in skill bodies. Earlier drafts left them flagged; this revision resolves them. A later pass added a Codex build that shares the same skills; see [Codex port](#codex-port) below.
 
+## 1.7.0 candidate
+
+Add opt-in OpenCode external workers for Claude Code and Codex parents. Assign an exact `opencode:<provider>/<model>@default` descriptor. Existing model assignments and default panels stay unchanged. OpenCode requires explicit API-spend approval because the runner cannot prove subscription-only routing.
+
+The runner creates private configuration, checks effective configuration before inference, and extracts final text from the OpenCode JSON event stream. Read-only workers inspect files. Writers edit their assigned Git worktree root. Both modes deny shell commands, recursive dispatch, web tools, skills, and MCP tools. Native OpenCode authentication remains in place. Ambient custom providers and external auth plugins are outside the initial scope. Managed and remote configuration can run during CLI startup, so the adapter is not an OS sandbox or a hermetic environment.
+
+Model receipts record pinned argv rather than a provider-reported model identity. Unknown quota errors do not authorize a fallback. No implicit timeout or model substitution is added. The candidate remains subject to installed Claude Code and Codex live validation before release.
+
 ## 1.6.1 — Devin read-only tool selection
 
 Disable the Devin `exec` tool in read-only workers so the model cannot select shell execution that the permission configuration denies. Writer workers retain sandboxed execution. The existing permission denies and final-response checks remain in place.

@@ -164,11 +164,14 @@ function isAlias(value: string): value is Alias {
 function parseAttempt(raw: string, header: string): Attempt {
   const text = raw.trim();
   if (isAlias(text)) return { kind: "alias", alias: text };
-  const match = ATTEMPT_RE.exec(text);
+  const match = ATTEMPT_RE.exec(text) ?? /^(opencode):([A-Za-z0-9][A-Za-z0-9._-]*(?:\/[A-Za-z0-9][A-Za-z0-9._:-]*)+)@(default)$/.exec(text);
   if (match === null) {
     throw new ModelPolicyError([
       `${header}: attempt ${JSON.stringify(text)} is not \`inherit-parent\`, \`auto\`, or \`provider:model@effort\``,
     ]);
+  }
+  if (match[1] === "opencode" && match[2].split("/").some(part => part.toLowerCase() === "auto")) {
+    throw new ModelPolicyError([`${header}: OpenCode requires an exact provider/model ID, not auto`]);
   }
   const effort = match[3] as Effort;
   if (!(EFFORTS as readonly string[]).includes(effort) && effort !== "default") {

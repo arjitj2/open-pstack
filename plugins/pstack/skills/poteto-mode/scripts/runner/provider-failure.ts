@@ -1,3 +1,4 @@
+import { parseOpenCodeTranscript } from "./opencode.ts";
 import type { Provider } from "./types.ts";
 import { antigravityEvents, antigravitySuccessfulResult } from "./antigravity.ts";
 
@@ -478,6 +479,11 @@ const antigravityAdapter: QuotaAdapter = {
   },
 };
 
+const openCodeAdapter: QuotaAdapter = {
+  classify() { return UNKNOWN; },
+  succeeded(outcome) { return parseOpenCodeTranscript(outcome.stdout).kind === "complete"; },
+};
+
 const QUOTA_ADAPTERS: Readonly<Record<Provider, QuotaAdapter>> = {
   claude: claudeAdapter,
   codex: codexAdapter,
@@ -485,6 +491,7 @@ const QUOTA_ADAPTERS: Readonly<Record<Provider, QuotaAdapter>> = {
   devin: devinAdapter,
   cursor: cursorAdapter,
   antigravity: antigravityAdapter,
+  opencode: openCodeAdapter,
 };
 
 export class QuotaAdapterNotImplementedError extends Error {
@@ -557,6 +564,7 @@ const API_CREDENTIAL_ENV: Readonly<Record<Provider, readonly string[]>> = {
   devin: ["DEVIN_API_KEY"],
   cursor: ["CURSOR_API_KEY"],
   antigravity: ["GEMINI_API_KEY"],
+  opencode: [],
 };
 
 // Provider-selection and gateway switches: count only when set to a truthy
@@ -577,6 +585,7 @@ const API_ROUTE_ENV: Readonly<Record<Provider, readonly string[]>> = {
   devin: ["DEVIN_API_URL"],
   cursor: ["CURSOR_API_ENDPOINT"],
   antigravity: ["GOOGLE_GEMINI_BASE_URL", "AGY_ADC_AUTH"],
+  opencode: [],
 };
 
 function truthy(value: string | undefined): boolean {
@@ -673,6 +682,8 @@ export function subscriptionAuthEvidence(
         compatible: false,
         reason: "Grok per-model BYOK credentials can override session auth; subscription-only routing cannot be verified",
       };
+    case "opencode":
+      return { compatible: false, reason: "OpenCode subscription-only routing cannot be verified" };
     case "devin":
     case "cursor":
     case "antigravity":

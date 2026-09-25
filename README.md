@@ -2,7 +2,7 @@
 
 This Open Pstack distribution lets Codex and Claude Code coordinate coding work across the AI subscriptions you already have. Arjit Jaiswal maintains it as an intelligent model router built around Pstack's engineering workflows.
 
-Supported worker providers are **Anthropic Claude, OpenAI Codex, xAI Grok, Devin (SWE-2 and SWE-1.6), Cursor, and optional Antigravity CLI**. Codex and Claude Code are the supported parent apps.
+Supported worker providers are **Anthropic Claude, OpenAI Codex, xAI Grok, Devin (SWE-2 and SWE-1.6), Cursor, Antigravity, and OpenCode**. Codex and Claude Code are the supported parent apps.
 
 `setup-pstack` checks provider and model access, asks about subscriptions it cannot verify, and recommends models for implementation, investigation, and review. You approve the assignments and backup chains during setup. Pstack routes workers to those models and automatically uses approved backups when the saved policy allows recovery. It tells you what failed and which model is taking over, and inspects and preserves partial work before continuing.
 
@@ -20,7 +20,7 @@ Choose based on where you run Pstack and how you want to use your model subscrip
 
 - **Cursor’s original Pstack** is Lauren Tan’s engineering workflow for Cursor. It assigns work to models available inside Cursor. Use it when Cursor is your parent app.
 - **Eric Litman’s Open Pstack** brings those workflows to Codex and Claude Code, with Claude, Codex, and Grok workers. It provides the foundation for this distribution.
-- **This distribution** adds Devin, Cursor, and Antigravity CLI workers, subscription-aware model recommendations, setup that checks only the providers you select, and automatic recovery through your approved backup chains. It tracks Cursor directly and publishes its own tested releases, without waiting for Eric’s port to incorporate changes.
+- **This distribution** adds Devin, Cursor, Antigravity, and OpenCode CLI workers, subscription-aware model recommendations, setup that checks only the providers you select, and automatic recovery through your approved backup chains. It tracks Cursor directly and publishes its own tested releases, without waiting for Eric’s port to incorporate changes.
 
 Routing follows the role assignments you approve. Setup recommends a mix based on task fit and confirmed access. The saved policy controls which models run and when a backup can take over.
 
@@ -38,10 +38,13 @@ The **parent** is the app where you start a task. It coordinates the work and ke
 | Devin SWE-2 / SWE-1.6 | External `devin` CLI | External `devin` CLI |
 | Cursor models | External `cursor-agent` CLI | External `cursor-agent` CLI |
 | Antigravity models | External `agy` CLI | External `agy` CLI |
+| OpenCode models | External `opencode` CLI | External `opencode` CLI |
 
-**This distribution supports Codex and Claude Code as parents.** Grok, Devin, Cursor, and Antigravity are worker providers here. For Cursor as your parent app, use [Cursor's original Pstack](https://github.com/cursor/plugins/tree/main/pstack). Provider availability does not guarantee access to every model: setup checks the exact models you select.
+**This distribution supports Codex and Claude Code as parents.** Grok, Devin, Cursor, Antigravity, and OpenCode are worker providers here. For Cursor as your parent app, use [Cursor's original Pstack](https://github.com/cursor/plugins/tree/main/pstack). Provider availability does not guarantee access to every model: setup checks the exact models you select.
 
 External workers use their own authentication and do not inherit the parent's MCP connections. Why and Reflect stay native so they retain those tools. See [compatibility](docs/compatibility.md) for supported models, permissions, and tested routes.
+
+OpenCode workers are opt-in. They require an exact `opencode:<provider>/<model>@default` assignment and explicit API-spend approval because subscription-only routing is unproven. Read-only workers inspect files. Writers edit a Git worktree root, but neither mode runs shell commands or builds. Initial support uses built-in OpenCode providers and native authentication. See [OpenCode worker limits](plugins/pstack/skills/poteto-mode/references/provider-dispatch.md#optional-opencode-models).
 
 ## What pstack does
 
