@@ -1,0 +1,147 @@
+{
+  "date": "2026-09-26",
+  "version": "1.8.2",
+  "candidateCommit": "739121fa0ca74572f7794f4ed62996aee0168a8f",
+  "candidatePackageTree": "c853591c6ecbe29db61bd1e1847b09931e51d6eb",
+  "filesMatched": 191,
+  "parents": {
+    "codex": {
+      "surface": "Codex CLI exec with isolated marketplace installation",
+      "skill": "pstack:setup-pstack",
+      "action": "Availability probe followed by synthetic provider-boundary checks",
+      "parentExitCode": 0,
+      "outputMatchesInput": true,
+      "receipt": {
+        "parent": "codex",
+        "provider": "claude",
+        "model": "opus",
+        "effort": "high",
+        "mode": "read-only",
+        "status": "complete",
+        "reportedModel": "claude-opus-5-5",
+        "modelVerified": true,
+        "modelEvidence": "provider-report",
+        "elapsedMs": 4468,
+        "preflight": {
+          "argv": [],
+          "status": "not-run",
+          "evidence": "authentication deferred to invocation; billing route unverified"
+        },
+        "apiSpend": "deny"
+      },
+      "streamFlags": [
+        "--output-format",
+        "stream-json",
+        "--verbose"
+      ],
+      "syntheticCases": [
+        {
+          "case": "primary-with-helper",
+          "status": "complete",
+          "exitCode": 0,
+          "modelVerified": true,
+          "transcriptPrivate": true
+        },
+        {
+          "case": "requested-only-helper",
+          "status": "malformed-output",
+          "exitCode": 65,
+          "modelVerified": false,
+          "transcriptPrivate": true
+        },
+        {
+          "case": "usage-only",
+          "status": "malformed-output",
+          "exitCode": 65,
+          "modelVerified": false,
+          "transcriptPrivate": true
+        },
+        {
+          "case": "conflicting-primary",
+          "status": "malformed-output",
+          "exitCode": 65,
+          "modelVerified": false,
+          "transcriptPrivate": true
+        }
+      ]
+    },
+    "claude": {
+      "surface": "Claude Code print with session-local plugin",
+      "skill": "pstack:setup-pstack",
+      "action": "Availability probe followed by synthetic provider-boundary checks",
+      "parentExitCode": 0,
+      "outputMatchesInput": true,
+      "receipt": {
+        "parent": "claude",
+        "provider": "claude",
+        "model": "claude-haiku-4-5-20251001",
+        "effort": "low",
+        "mode": "read-only",
+        "status": "complete",
+        "reportedModel": "claude-haiku-4-5-20251001",
+        "modelVerified": true,
+        "modelEvidence": "provider-report",
+        "elapsedMs": 5319,
+        "preflight": {
+          "argv": [],
+          "status": "not-run",
+          "evidence": "authentication deferred to invocation; billing route unverified"
+        },
+        "apiSpend": "deny"
+      },
+      "streamFlags": [
+        "--output-format",
+        "stream-json",
+        "--verbose"
+      ],
+      "syntheticCases": [
+        {
+          "case": "primary-with-helper",
+          "status": "complete",
+          "exitCode": 0,
+          "modelVerified": true,
+          "transcriptPrivate": true
+        },
+        {
+          "case": "requested-only-helper",
+          "status": "malformed-output",
+          "exitCode": 65,
+          "modelVerified": false,
+          "transcriptPrivate": true
+        },
+        {
+          "case": "usage-only",
+          "status": "malformed-output",
+          "exitCode": 65,
+          "modelVerified": false,
+          "transcriptPrivate": true
+        },
+        {
+          "case": "conflicting-primary",
+          "status": "malformed-output",
+          "exitCode": 65,
+          "modelVerified": false,
+          "transcriptPrivate": true
+        }
+      ]
+    }
+  },
+  "checks": {
+    "bunTests": {
+      "passed": 531,
+      "failed": 0
+    },
+    "strictTypecheck": "passed",
+    "staticInvariants": "passed",
+    "pluginValidation": "passed",
+    "documentation": "passed",
+    "ledger": "passed",
+    "maintenanceTests": 27,
+    "documentationCheckerTests": 16
+  },
+  "limits": [
+    "Mixed-model rejection scenarios use an explicitly synthetic provider executable. Real probes establish successful installed-parent execution, not a real backend substitution.",
+    "Stream output is collected until completion; this change does not add live progress display.",
+    "An unrecognized stdout-only diagnostic without a result envelope is omitted from receipts to avoid retaining malformed or truncated transcript data."
+  ]
+}
