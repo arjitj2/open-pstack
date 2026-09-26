@@ -2,6 +2,19 @@ import { describe, expect, it } from "bun:test";
 import { parseProviderOutput, reportedModelMatches } from "./parse-output.ts";
 
 describe("parseProviderOutput", () => {
+  it("rejects result-only Claude usage as primary-model evidence", () => {
+    expect(() => parseProviderOutput("claude", JSON.stringify({
+      type: "result",
+      subtype: "success",
+      is_error: false,
+      result: "MAIN_RESPONSE",
+      modelUsage: {
+        "claude-sonnet-4-6": { outputTokens: 100 },
+        "claude-opus-4-6": { outputTokens: 1 },
+      },
+    }), "", "opus")).toThrow();
+  });
+
   it("extracts Claude text, model, usage, cost, and session", () => {
     const parsed = parseProviderOutput(
       "claude",
