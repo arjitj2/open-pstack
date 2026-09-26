@@ -1,10 +1,10 @@
 # Claude auth-status refresh loss
 
-The draft 1.7.1 candidate omits Claude's separate authentication-status command from worker dispatch and setup on every platform. Authentication happens in the actual task. The runner retains `apiSpend`, known API environment guards, and `--setting-sources ''` under `deny`. Claude receipts explicitly record preflight as `not-run` and billing route as unverified. Other providers keep their checks.
+The 1.8.1 candidate omits Claude's separate authentication-status command from worker dispatch and setup on every platform. Authentication happens in the actual task. The runner retains `apiSpend`, known API environment guards, and `--setting-sources ''` under `deny`. Claude receipts explicitly record preflight as `not-run` and billing route as unverified. Other providers keep their checks.
 
 This deliberately removes the assertion that Claude is using subscription authentication. Saved funding remains user-reported, and managed configuration or other unsupported routes can still affect billing. It is not a zero-charge guarantee. The candidate adds no network wrapper, credential inspection, or credential repair.
 
-The decision is tracked in [issue 38](https://github.com/arjitj2/open-pstack/issues/38) and [draft PR 41](https://github.com/arjitj2/open-pstack/pull/41), linked to [upstream issue 95822](https://github.com/anthropics/claude-code/issues/95822). Revisit the exception only when a supported, side-effect-free check can establish the billing route without risking refresh persistence. Verify that behavior with the reproduction and installed-parent tests before restoring a check.
+The decision is tracked in [issue 38](https://github.com/arjitj2/open-pstack/issues/38) and [PR 41](https://github.com/arjitj2/open-pstack/pull/41), linked to [upstream issue 95822](https://github.com/anthropics/claude-code/issues/95822). Revisit the exception only when a supported, side-effect-free check can establish the billing route without risking refresh persistence. Verify that behavior with the reproduction and installed-parent tests before restoring a check.
 
 ## Reproduction and evidence
 
@@ -25,7 +25,7 @@ These synthetic conditions establish a failure mechanism, not the cause of a par
 On macOS, use Python 3, Bash, OpenSSL, Bun, and `sandbox-exec`. Pass explicit executables:
 
 ```sh
-python3 maintenance/claude-auth-repro/reproduce.py \
+python3 tests/claude-auth-repro/reproduce.py \
   --claude /absolute/path/to/claude \
   --runner plugins/pstack/skills/poteto-mode/scripts/runner/pstack-runner \
   --bun /absolute/path/to/bun \
@@ -35,7 +35,7 @@ python3 maintenance/claude-auth-repro/reproduce.py \
 Repeat with delays 0 and 0.5; add `--route api` for the ambient-key blocking control. Output includes the runner receipt, mock events, and whether the replacement was saved. To repeat the historical status/offline-status comparison:
 
 ```sh
-python3 maintenance/claude-auth-repro/verify.py \
+python3 tests/claude-auth-repro/verify.py \
   --claude /absolute/path/to/claude \
   --refresh-loss --output /absolute/path/to/new-evidence-directory
 ```
@@ -50,4 +50,13 @@ The research sandbox denies the system security executable, all Mach service loo
 
 On September 25, 2026, all 490 Bun tests passed, including regression tests that reject unexpected Claude status calls, preserve task networking, and cover cancellation, invocation auth failure, and ambient API blocking. The new regressions failed before the implementation. Strict typecheck, static invariants, documentation checks, and sandboxed plugin validation also passed.
 
-Version 1.7.1 remains a draft candidate. Neither the installed Claude-parent nor installed Codex-parent surface has passed the exact-candidate gate. The native runner fixture proves only that CLI boundary; it does not replace parent skill discovery, setup decisions, or live model execution. No merge, release, or rollout is authorized before those gates pass. Validation uses a command-local bundled Node path because the default Homebrew Node is broken; no global runtime configuration changes were made.
+On September 26, the exact 1.8.1 package passed live validation in both installed parent surfaces. The [sanitized record](installed-parent-1.8.1.json) identifies package tree `33b8d0388c129e56e3b1601ba26a2f16673b90ee`; all 191 installed files matched before and after execution.
+
+| Parent surface | Action | Observed result |
+| --- | --- | --- |
+| Claude Code print session with session-local plugin | Invoke setup's availability phase and dispatch `claude:opus@high` natively | Loaded 1.8.1 skill; native agent read and returned the marker; parent independently checked it |
+| Fresh Codex CLI session with a dedicated marketplace installation | Invoke setup's availability phase and dispatch `claude:opus@high` externally with `apiSpend: deny` | Two sequential tasks completed with verified `claude-opus-5-5`; both receipts recorded no preflight and an unverified billing route |
+
+The first Codex task returned the marker without the fixture's trailing newline. A second fixture without a trailing newline passed exact-byte comparison. This was a fixture adjustment, not a product change. Both parent processes exited successfully. Validation covered availability and dispatch, not setup persistence; no personal model sheet was changed. These live tests used the providers' normal existing authentication, with no direct credential inspection or manipulation. The temporary Codex authentication link was removed afterward.
+
+The current candidate passed 519 Bun tests, strict typecheck, static invariants, plugin validation, documentation checks, and 16 documentation-checker tests. Validation used a command-local bundled Node path because the default Homebrew Node is broken. No global runtime configuration was changed. The PR is prepared for review and remains unmerged.

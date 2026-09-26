@@ -31,7 +31,6 @@ CURSOR_REF = "refs/remotes/maintenance/cursor"
 ERIC_REF = "refs/remotes/maintenance/eric"
 PSTACK = "pstack/"
 LEDGER_PATH = "maintenance/upstream-ledger.json"
-PROPOSAL_DIR = "maintenance/proposals"
 BRANCH_PREFIX = "automation/"
 START = "<!-- fork-maintenance:start -->"
 END = "<!-- fork-maintenance:end -->"
@@ -44,6 +43,8 @@ SHA_RE = re.compile(r"[0-9a-f]{40}")
 STATUSES = {"pending", "adopted", "adapted", "excluded"}
 FINAL_STATUSES = {"adopted", "adapted", "excluded"}
 DEFAULT_REPORT = "Maintenance monitoring is active. The next weekly run will publish the full report."
+MAX_PROPOSAL_BODY = 60_000
+PROPOSAL_BODY_OVERHEAD = 1024
 
 
 class CheckFailed(Exception):
@@ -203,132 +204,90 @@ def branch_name(target, base):
 def build_proposal(base, ledger, baseline, new):
     target = new[-1]["sha"]
     pid = proposal_id(target, base)
-    pdir = PROPOSAL_DIR + "/" + pid
     entries = [dict(e) for e in ledger.get("entries", [])]
     have = {e["commit"] for e in entries}
-    files = {}
-    audit_commits = []
     for commit in new:
         if commit["sha"] in have:
             continue
         entries.append({"commit": commit["sha"], "status": "pending",
                         "subject": commit["subject"], "date": commit["date"]})
-    for commit in new:
-        paths = changed_paths(commit["sha"], PSTACK)
-        patch_rel = pdir + "/patches/" + commit["sha"] + ".patch"
-        files[patch_rel] = git("-c", "color.ui=false", "-c", "log.showSignature=false", "show", "--format=fuller", "--date=iso-strict", "--no-ext-diff", "--no-textconv", "--no-renames", "--diff-algorithm=myers", "--unified=3", "--src-prefix=a/", "--dst-prefix=b/", "--first-parent", "-m", commit["sha"], "--", PSTACK, raw=True)
-        audit_commits.append({
-            "commit": commit["sha"],
-            "date": commit["date"],
-            "subject": commit["subject"],
-            "substantive": substantive(paths),
-            "paths": paths,
-            "patch": patch_rel,
-            "diff_url": "https://github.com/" + CURSOR + "/commit/" + commit["sha"],
-        })
     ledger_after = dict(ledger)
     ledger_after["reviewed_through"] = target
     ledger_after["entries"] = entries
-    files[LEDGER_PATH] = dump_ledger(ledger_after)
     meta = {
         "pid": pid,
         "base": base,
         "target": target,
         "baseline": baseline,
         "reviewed_before": ledger["reviewed_through"],
-        "new": audit_commits,
+        "new": new,
         "pending": [e for e in entries if e["status"] == "pending"],
     }
-    files[pdir + "/report.md"] = proposal_report(meta)
-    audit = {
-        "schema": 1,
-        "proposal": pid,
-        "source": {"repository": CURSOR, "ref": "main", "path": PSTACK},
-        "baseline": baseline,
-        "base": base,
-        "target": target,
-        "reviewed_through_before": ledger["reviewed_through"],
-        "reviewed_through_after": target,
-        "new_commits": audit_commits,
-        "pending": [{"commit": e["commit"], "subject": e.get("subject", "")} for e in meta["pending"]],
-        "files": sorted(list(files) + [pdir + "/audit.json"]),
-    }
-    files[pdir + "/audit.json"] = json.dumps(audit, indent=2, sort_keys=True) + "\n"
-    return files, meta
+    return {LEDGER_PATH: dump_ledger(ledger_after)}, meta
 
 
-def proposal_report(meta):
-    lines = [
-        "# Cursor pstack catalog proposal `" + meta["pid"] + "`",
-        "",
-        "Automation-generated metadata proposal. Merging records the Cursor commits below as",
-        "pending review decisions in `maintenance/upstream-ledger.json`. It does not adopt upstream",
-        "behavior, does not change `plugins/`, and does not authorize installation or release.",
-        "",
-        "| Field | Value |",
-        "| --- | --- |",
-        "| Source | `" + CURSOR + "` `" + PSTACK + "` |",
-        "| Incorporated baseline | `" + meta["baseline"] + "` |",
-        "| Ledger reviewed_through | `" + meta["reviewed_before"] + "` -> `" + meta["target"] + "` |",
-        "| Base | `" + meta["base"] + "` |",
-        "",
-        "## New commits",
-        "",
-        "| Commit | Date | Classification | Subject |",
-        "| --- | --- | --- | --- |",
-    ]
-    for commit in meta["new"]:
-        kind = "substantive" if commit["substantive"] else "prose only"
-        link = "https://github.com/" + CURSOR + "/commit/" + commit["commit"]
-        lines.append("| [`" + commit["commit"][:12] + "`](" + link + ") | " + commit["date"] + " | " + kind + " | " + commit["subject"] + " |")
-    lines += ["", "## Outstanding pending decisions", ""]
-    if meta["pending"]:
-        for entry in meta["pending"]:
-            link = "https://github.com/" + CURSOR + "/commit/" + entry["commit"]
-            lines.append("- [`" + entry["commit"][:12] + "`](" + link + "): " + entry.get("subject", "(no subject)"))
-    else:
-        lines.append("None.")
-    lines += [
-        "",
-        "## Review material",
-        "",
-        "- `audit.json`: deterministic machine-readable record of this proposal.",
-        "- `patches/<sha>.patch`: upstream source diffs stored as non-executable review material.",
-        "",
-        "## Recording a decision",
-        "",
-        "Adopt upstream intent in a normal pull request that changes `plugins/pstack`, then set the",
-        "ledger entry to `adopted` or `adapted` with `reason` and `evidence` (the PR plus installed-host",
-        "validation). Use `excluded` with `reason` and `evidence` for commits deliberately not taken.",
-        "Pending entries remain listed until a decision is recorded, even after reviewed_through",
-        "advances past them.",
-        "",
-    ]
-    return "\n".join(lines)
+def inert_subject(subject):
+    subject = str(subject).replace("\n", " ").replace("\r", " ")
+    runs = re.findall(r"`+", subject)
+    fence = "`" * (max((len(run) for run in runs), default=0) + 1)
+    return fence + " " + subject + " " + fence
 
 
 def proposal_body(meta, head):
-    content = "\n".join([
+    prefix = "\n".join([
         "# Cursor pstack catalog proposal",
         "",
         "Metadata-only automation proposal `" + meta["pid"] + "`. Merging records new Cursor `pstack/`",
         "commits as pending in the maintenance ledger; it does not adopt upstream behavior or change `plugins/`.",
         "",
         "- Source: `" + CURSOR + "` `" + PSTACK + "` through [`" + meta["target"][:12] + "`](https://github.com/" + CURSOR + "/commit/" + meta["target"] + ")",
-        "- Base: `main` at `" + meta["base"][:12] + "`",
+        "- Incorporated baseline: `" + meta["baseline"] + "`",
+        "- Compare: https://github.com/" + CURSOR + "/compare/" + meta["reviewed_before"] + "..." + meta["target"],
+        "- Rebuild: `python3 scripts/fork-maintenance.py preview --base " + meta["base"] + " --target " + meta["target"] + "`",
+        "- Base: `main` at `" + meta["base"] + "`",
         "- Head: `" + head + "`",
         "- New pending commits: " + str(len(meta["new"])),
         "- Outstanding pending decisions after merge: " + str(len(meta["pending"])),
         "",
-        "Review material is in `" + PROPOSAL_DIR + "/" + meta["pid"] + "/` (report, machine-readable audit,",
-        "per-commit patches). This body is automation-owned and written once; human edits are preserved.",
+        "This body is automation-owned and written once; human edits are preserved.",
         "Dispatch and validation state are reported as commit statuses on the head commit, never by",
         "rewriting this body. A closed unmerged proposal is surfaced, not silently duplicated.",
+        "",
+        "## New commits",
+        "",
     ]) + "\n"
+    def commit_line(commit):
+        sha = commit.get("sha", commit.get("commit"))
+        return "- [`" + sha[:12] + "`](https://github.com/" + CURSOR + "/commit/" + sha + ") (" + commit.get("date", "") + "): " + inert_subject(commit.get("subject", "")) + "\n"
+    suffix = "\n## Outstanding pending decisions\n\n"
+    details = ""
+    omitted = 0
+    budget = MAX_PROPOSAL_BODY - len(prefix) - len(suffix) - PROPOSAL_BODY_OVERHEAD
+    for commit in meta["new"]:
+        line = commit_line(commit)
+        if len(details) + len(line) <= budget:
+            details += line
+        else:
+            omitted += 1
+    pending = ""
+    for entry in meta["pending"]:
+        line = commit_line(entry)
+        if len(details) + len(pending) + len(line) <= budget:
+            pending += line
+        else:
+            omitted += 1
+    if not pending:
+        pending = "None listed.\n" if not meta["pending"] else "See the ledger for the full pending list.\n"
+    if omitted:
+        pending += "\n" + str(omitted) + " commit details omitted; see the pinned compare and rebuild command above.\n"
+    content = prefix + (details or "See the pinned compare for the commit list.\n") + suffix + pending
     digest = hashlib.sha256(content.encode()).hexdigest()
     marker = PR_MARKER + " " + json.dumps(
         {"target": meta["target"], "base": meta["base"], "head": head, "body_sha256": digest}, sort_keys=True) + " -->"
-    return marker + "\n" + content
+    body = marker + "\n" + content
+    if len(body) > MAX_PROPOSAL_BODY:
+        raise CheckFailed(["proposal body exceeds character limit"])
+    return body
 
 
 def proposal_marker(body):
@@ -688,10 +647,8 @@ def preview(base_arg=None, target_arg=None, out_dir=None):
             dest = root / path
             dest.parent.mkdir(parents=True, exist_ok=True)
             dest.write_text(content)
-        print("Wrote proposal tree to %s" % out_dir)
-    else:
-        print(files[PROPOSAL_DIR + "/" + meta["pid"] + "/report.md"])
-        print(files[PROPOSAL_DIR + "/" + meta["pid"] + "/audit.json"])
+        print("Wrote proposed ledger to %s" % out_dir)
+    print(proposal_body(meta, commit))
     print("commit: %s\nbranch: %s" % (commit, branch_name(meta["target"], meta["base"])))
 
 
@@ -745,8 +702,9 @@ def check_candidate(pr, head, base, target):
         problems.append("proposal head does not match the dispatched head")
     if (data.get("base") or {}).get("ref") != "main" or (data.get("base") or {}).get("sha") != base:
         problems.append("proposal base does not match the dispatched main commit")
-    if PR_MARKER not in (data.get("body") or ""):
-        problems.append("proposal is not marked as automation-owned")
+    marker = proposal_marker(data.get("body") or "")
+    if marker is None or any(marker.get(k) != v for k, v in (("head", head), ("base", base), ("target", target))):
+        problems.append("proposal marker does not match dispatched base/head/target")
     try:
         parents = git("rev-list", "--parents", "-n", "1", head).split()
         if parents != [head, base]:
@@ -755,9 +713,8 @@ def check_candidate(pr, head, base, target):
         problems.append("candidate head object is not available")
         raise CheckFailed(problems)
     changed = git("diff", "--name-only", base, head).splitlines()
-    bad = [p for p in changed if not p.startswith("maintenance/")]
-    if bad:
-        problems.append("candidate changes paths outside maintenance/: " + ", ".join(bad))
+    if changed != [LEDGER_PATH]:
+        problems.append("candidate must change exactly " + LEDGER_PATH + " (found: " + ", ".join(changed) + ")")
     try:
         if git("rev-parse", base + ":plugins/pstack") != git("rev-parse", head + ":plugins/pstack"):
             problems.append("candidate changes plugins/pstack")
@@ -799,7 +756,7 @@ def main():
     parser.add_argument("--head", help="Candidate head commit (check-candidate)")
     parser.add_argument("--pr", help="Candidate pull request number (check-candidate)")
     parser.add_argument("--file", help="Ledger path (check-ledger)")
-    parser.add_argument("--out-dir", help="Write the proposal tree here instead of printing (preview)")
+    parser.add_argument("--out-dir", help="Write only the proposed ledger here (preview)")
     args = parser.parse_args()
     if args.mode in {"daily", "weekly"} and os.environ.get("GITHUB_REPOSITORY") != FORK:
         raise RuntimeError("This automation only runs in " + FORK + ".")

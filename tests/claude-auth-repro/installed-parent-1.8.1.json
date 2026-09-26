@@ -1,0 +1,68 @@
+{
+  "date": "2026-09-26",
+  "version": "1.8.1",
+  "candidatePackageTree": "33b8d0388c129e56e3b1601ba26a2f16673b90ee",
+  "filesMatched": 191,
+  "claudeParent": {
+    "surface": "Claude Code print session, session-local --plugin-dir",
+    "discoveredSkill": "pstack:setup-pstack",
+    "route": "native Agent pstack:pstack-opus-high",
+    "status": "completed",
+    "workerToolUses": 1,
+    "workerElapsedMs": 3832,
+    "markerMatched": true
+  },
+  "codexParent": {
+    "surface": "Codex CLI exec, dedicated installed marketplace profile",
+    "discoveredSkill": "pstack:setup-pstack",
+    "route": "external candidate runner to Claude CLI",
+    "status": "completed",
+    "exactMarkerMatched": true,
+    "receipts": [
+      {
+        "parent": "codex",
+        "provider": "claude",
+        "model": "opus",
+        "reportedModel": "claude-opus-5-5",
+        "effort": "high",
+        "apiSpend": "deny",
+        "status": "complete",
+        "preflight": {
+          "argv": [],
+          "status": "not-run",
+          "evidence": "authentication deferred to invocation; billing route unverified"
+        },
+        "elapsedMs": 5346,
+        "processStarted": true,
+        "modelVerified": true
+      },
+      {
+        "parent": "codex",
+        "provider": "claude",
+        "model": "opus",
+        "reportedModel": "claude-opus-5-5",
+        "effort": "high",
+        "apiSpend": "deny",
+        "status": "complete",
+        "preflight": {
+          "argv": [],
+          "status": "not-run",
+          "evidence": "authentication deferred to invocation; billing route unverified"
+        },
+        "elapsedMs": 5272,
+        "processStarted": true,
+        "modelVerified": true
+      }
+    ]
+  },
+  "scope": "Setup availability phase and worker dispatch only; no model sheet was saved. Existing normal provider authentication was used; no direct credential inspection or manipulation. Billing type remains unverified.",
+  "fixtureNote": "The first Codex probe returned the correct marker without the fixture trailing newline. The second used a marker file without a trailing newline and passed exact-byte comparison. No product change was made for this fixture adjustment.",
+  "checks": {
+    "bunTests": 519,
+    "docCheckerTests": 16,
+    "strictTypecheck": "passed",
+    "staticInvariants": "passed",
+    "documentation": "passed",
+    "pluginValidation": "passed"
+  }
+}

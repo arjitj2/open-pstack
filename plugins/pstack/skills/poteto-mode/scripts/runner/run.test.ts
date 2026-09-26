@@ -32,6 +32,10 @@ const isPreflight =
   (name === "grok" && args[0] === "models") ||
   (name === "devin" && args[0] === "auth") ||
   (name === "cursor-agent" && (args[0] === "status" || args[0] === "--version"));
+if (name === "claude" && !isPreflight && process.env.CLAUDECODE) {
+  console.error("Claude cannot launch inside an existing Claude session.");
+  process.exit(1);
+}
 const stage = isPreflight ? "preflight" : "model";
 if (process.env.FAKE_NETWORK_TEST_URL) {
   let connected = false;
@@ -108,13 +112,15 @@ if (name === "grok" && args[0] === "models") {
 }
 const modelIndex = args.findIndex((value) => value === "--model");
 const model = modelIndex >= 0 ? args[modelIndex + 1] : "unknown";
-const reportedModel = model === "fable"
+const reportedModel = process.env.FAKE_CLAUDE_REPORTED_MODEL ?? (model === "fable"
   ? "claude-fable-9-9"
   : model === "opus"
     ? "claude-opus-9"
     : model === "sonnet"
       ? "claude-sonnet-9-9"
-      : model;
+      : model === "haiku"
+        ? "claude-haiku-4-5"
+        : model);
 if (process.env.FAKE_INVALID_MODEL === "1") {
   console.error("The requested model is not supported with this account.");
   process.exit(1);
@@ -335,6 +341,7 @@ beforeEach(() => {
   delete process.env.FAKE_QUOTA_RESULT;
   delete process.env.FAKE_QUOTA_TEXT;
   delete process.env.FAKE_QUOTA_WORDS_STDERR;
+  delete process.env.FAKE_CLAUDE_REPORTED_MODEL;
   delete process.env.FAKE_CODEX_LOGIN_STATUS;
   delete process.env.FAKE_CODEX_TURN_FAILED;
   delete process.env.FAKE_CODEX_TURN_FAILED_EXIT;
@@ -394,6 +401,7 @@ afterEach(() => {
   delete process.env.FAKE_QUOTA_RESULT;
   delete process.env.FAKE_QUOTA_TEXT;
   delete process.env.FAKE_QUOTA_WORDS_STDERR;
+  delete process.env.FAKE_CLAUDE_REPORTED_MODEL;
   delete process.env.FAKE_CODEX_LOGIN_STATUS;
   delete process.env.FAKE_CODEX_TURN_FAILED;
   delete process.env.FAKE_CODEX_TURN_FAILED_EXIT;
@@ -1121,9 +1129,79 @@ describe("runLane", () => {
     expect(receipt(retry.receiptPath).status).toBe("complete");
   });
 
-  it("rejects same-provider recursion", async () => {
+  it("rejects a same-provider call a shipped native lane covers", async () => {
     const input = { ...options("claude"), parent: "claude" as const };
     await expect(runLane(input)).rejects.toThrow("native to parent");
+    expect(existsSync(input.receiptPath)).toBe(false);
+  });
+
+  it("still rejects every Codex model on a Codex parent", async () => {
+    const input = {
+      ...options("codex", "codex-native"),
+      parent: "codex" as const,
+      model: "gpt-7-nova",
+    };
+    await expect(runLane(input)).rejects.toThrow("native to parent");
+  });
+
+  it("routes a same-parent Claude model with no shipped lane through the external CLI", async () => {
+    const input = {
+      ...options("claude", "haiku-external"),
+      parent: "claude" as const,
+      model: "haiku",
+      effort: "low" as const,
+    };
+    const inheritedSession = process.env.CLAUDECODE;
+    process.env.CLAUDECODE = "1";
+    let result;
+    try {
+      result = await runLane(input);
+    } finally {
+      if (inheritedSession === undefined) delete process.env.CLAUDECODE;
+      else process.env.CLAUDECODE = inheritedSession;
+    }
+    expect(result.exitCode).toBe(0);
+    const recorded = receipt(input.receiptPath);
+    expect(recorded.argv[recorded.argv.indexOf("--model") + 1]).toBe("haiku");
+    expect(recorded).toMatchObject({
+      status: "complete",
+      provider: "claude",
+      model: "haiku",
+      effort: "low",
+      reportedModel: "claude-haiku-4-5",
+      modelVerified: true,
+      modelEvidence: "provider-report",
+    });
+  });
+
+  it("rejects a same-parent Claude model whose reported family mismatches", async () => {
+    process.env.FAKE_CLAUDE_REPORTED_MODEL = "claude-sonnet-9-9";
+    const input = {
+      ...options("claude", "haiku-mismatch"),
+      parent: "claude" as const,
+      model: "haiku",
+      effort: "low" as const,
+    };
+    const result = await runLane(input);
+    expect(result.receipt.status).toBe("malformed-output");
+    expect(result.receipt.error?.message).toContain("was not reported");
+    expect(existsSync(input.outputPath)).toBe(false);
+  });
+
+  it("passes an exact Claude ID through unchanged when no native lane covers it", async () => {
+    process.env.FAKE_CLAUDE_REPORTED_MODEL = "claude-haiku-4-5";
+    const input = {
+      ...options("claude", "haiku-exact"),
+      parent: "claude" as const,
+      model: "claude-haiku-4-5",
+      effort: "high" as const,
+    };
+    const result = await runLane(input);
+    expect(result.exitCode).toBe(0);
+    const recorded = receipt(input.receiptPath);
+    expect(recorded.argv[recorded.argv.indexOf("--model") + 1]).toBe("claude-haiku-4-5");
+    expect(recorded.reportedModel).toBe("claude-haiku-4-5");
+    expect(recorded.modelVerified).toBe(true);
   });
 
   it("rejects versioned Claude families before they can stay pinned", async () => {
@@ -1334,8 +1412,6 @@ describe("childEnvironment", () => {
     };
     expect(childEnvironment("claude", source)).toEqual({
       PATH: "/bin",
-      CLAUDECODE: "1",
-      CLAUDE_CODE_CHILD_SESSION: "1",
       KEEP_ME: "yes",
     });
     expect(childEnvironment("codex", source)).toEqual({

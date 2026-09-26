@@ -325,6 +325,7 @@ describe("claude terminal quota classification", () => {
       "You've hit your usage limitless credits",
       "You've hit your weekly limited-time offer",
       "You've hit your limit, sorry",
+      "You've hit your Haiku limit",
       "You're out of usage creditsville",
     ]) {
       const envelope = { ...CLAUDE_REAL_QUOTA, result };

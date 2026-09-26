@@ -5,6 +5,7 @@ import {
   type Parent,
   type Provider,
 } from "../runner/types.ts";
+import { nativeLane } from "../runner/native-route.ts";
 
 export const MAX_ATTEMPTS_PER_SEAT = 3;
 
@@ -567,7 +568,8 @@ function exhaustionGroupFor(attempt: Attempt, parent: Parent): Provider {
 export function resolveRole(
   model: SheetModel,
   role: string,
-  parent: Parent
+  parent: Parent,
+  agentsDir?: string
 ): RolePolicy | null {
   const policyEnabled = model.access.length > 0 ||
     model.fallback !== null ||
@@ -592,7 +594,7 @@ export function resolveRole(
         );
       }
       groups.add(provider);
-      const native = attempt.kind === "alias" || attempt.provider === parent;
+      const native = attempt.kind === "alias" || nativeLane(parent, attempt, agentsDir) !== null;
       let authorization: AttemptAuthorization = { state: "allowed" };
       if (fact === undefined) {
         if (chained || policyEnabled) {
@@ -638,7 +640,11 @@ export function resolveRole(
   return { role, header: row.spec.header, lanes };
 }
 
-export function validateSheet(model: SheetModel, parent: Parent): void {
+export function validateSheet(
+  model: SheetModel,
+  parent: Parent,
+  agentsDir?: string
+): void {
   const issues: string[] = [];
   if (model.access.length === 0) issues.push("setup requires access facts for every configured provider");
   try {
@@ -649,7 +655,7 @@ export function validateSheet(model: SheetModel, parent: Parent): void {
   }
   for (const row of model.rows) {
     try {
-      const policy = resolveRole(model, row.spec.header, parent);
+      const policy = resolveRole(model, row.spec.header, parent, agentsDir);
       if (policy !== null) {
         for (const lane of policy.lanes) {
           for (const attempt of lane.attempts) {

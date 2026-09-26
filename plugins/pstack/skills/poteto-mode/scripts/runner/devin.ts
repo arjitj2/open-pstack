@@ -6,8 +6,14 @@ export function devinModel(model: string, effort: Effort): string {
     return `swe-2-${effort}`;
   }
   if (model === "swe-1.6" && effort === "default") return "swe-1-6";
+  if (effort === "default") return model;
+  if (model === "swe-2" || model === "swe-1.6") {
+    throw new UsageError(
+      "Devin supports swe-2 at medium/high/max or swe-1.6 at default effort"
+    );
+  }
   throw new UsageError(
-    "Devin supports swe-2 at medium/high/max or swe-1.6 at default effort"
+    `Devin has no separate effort flag; pass an exact CLI model UID as devin:<uid>@default (got ${model}@${effort})`
   );
 }
 

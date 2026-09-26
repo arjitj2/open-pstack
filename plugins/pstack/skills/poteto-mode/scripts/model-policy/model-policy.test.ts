@@ -1,4 +1,7 @@
 import { describe, expect, it } from "bun:test";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
 import {
   ModelPolicyError,
   assertCompleteSheet,
@@ -212,6 +215,94 @@ describe("model sheet parser", () => {
       ["grok:grok-4.7@xhigh", "external", "grok", "allowed"],
       ["inherit-parent", "native", "codex", "allowed"],
     ]);
+  });
+
+  it("routes a same-parent Claude model externally when no shipped agent covers it", () => {
+    const text = FIRST_RUN.replace(
+      "swarm workers: grok:grok-4.7@xhigh",
+      "swarm workers: claude:haiku@low"
+    );
+    const policy = resolveRole(parse(text), "swarm workers", "claude");
+    expect(policy?.lanes[0].attempts[0]).toMatchObject({
+      descriptor: "claude:haiku@low",
+      route: "external",
+      exhaustionGroup: "claude",
+      authorization: { state: "allowed" },
+    });
+  });
+
+  it("keeps shipped Claude agents native and other parents external", () => {
+    const text = FIRST_RUN.replace(
+      "swarm workers: grok:grok-4.7@xhigh",
+      "swarm workers: claude:opus@max"
+    );
+    expect(
+      resolveRole(parse(text), "swarm workers", "claude")?.lanes[0].attempts[0].route
+    ).toBe("native");
+    expect(
+      resolveRole(parse(text), "swarm workers", "codex")?.lanes[0].attempts[0].route
+    ).toBe("external");
+  });
+
+  it("covers every Codex model natively on a Codex parent", () => {
+    const text = FIRST_RUN.replace(
+      "swarm workers: grok:grok-4.7@xhigh",
+      "swarm workers: codex:gpt-7-nova@high"
+    );
+    expect(
+      resolveRole(parse(text), "swarm workers", "codex")?.lanes[0].attempts[0].route
+    ).toBe("native");
+    expect(
+      resolveRole(parse(text), "swarm workers", "claude")?.lanes[0].attempts[0].route
+    ).toBe("external");
+  });
+
+  it("accepts unknown model IDs on every supported provider as external lanes", () => {
+    for (const descriptor of [
+      "claude:haiku@low",
+      "claude:claude-haiku-4-5@high",
+      "codex:gpt-7-nova@high",
+      "grok:grok-5@xhigh",
+      "devin:swe-1.7-lightning@default",
+      "cursor:composer-9@default",
+      "antigravity:gemini-3.3-pro-high@default",
+      "opencode:openai/gpt-6@default",
+    ]) {
+      const text = FIRST_RUN.replace(
+        "swarm workers: grok:grok-4.7@xhigh",
+        `swarm workers: ${descriptor}`
+      );
+      const attempt = resolveRole(parse(text), "swarm workers", "claude")
+        ?.lanes[0].attempts[0];
+      expect(attempt?.descriptor, descriptor).toBe(descriptor);
+      expect(attempt?.route, descriptor).toBe("external");
+    }
+  });
+
+  it("resolves a fixture native agent without code changes", () => {
+    const agentsDir = mkdtempSync(join(tmpdir(), "pstack-policy-agents-"));
+    try {
+      writeFileSync(
+        join(agentsDir, "pstack-nova-medium.md"),
+        "---\nname: pstack-nova-medium\nmodel: nova\neffort: medium\nbackground: true\n---\nbody\n"
+      );
+      const text = FIRST_RUN.replace(
+        "swarm workers: grok:grok-4.7@xhigh",
+        "swarm workers: claude:nova@medium"
+      );
+      const model = parse(text);
+      expect(
+        resolveRole(model, "swarm workers", "claude", agentsDir)?.lanes[0].attempts[0].route
+      ).toBe("native");
+      expect(
+        resolveRole(model, "swarm workers", "claude")?.lanes[0].attempts[0].route
+      ).toBe("external");
+      expect(
+        resolveRole(model, "swarm workers", "claude", agentsDir)?.lanes[0].attempts[0].exhaustionGroup
+      ).toBe("claude");
+    } finally {
+      rmSync(agentsDir, { recursive: true, force: true });
+    }
   });
 
   it("resolves leaf roles to their shared row", () => {

@@ -8,15 +8,15 @@ This script verifies the objective parts of that contract:
   prefixes, and the parent line lists exactly the runner's PARENTS;
 - relative Markdown links (and .md heading fragments, including same-page
   links and GitHub's duplicate-heading -1 suffix) resolve; and
-- docs/releases.md accounts for the packaged version and CHANGES.md has a
-  heading for it.
+- the approved public document inventory is respected; and
+- the current CHANGELOG entry and pinned upstream README agree with the
+  packaged version and Cursor baseline.
 
 It is not a full Markdown parser. It supports the link forms used in this
 repository (inline links, images, and single-line reference definitions).
 Fenced code blocks, inline code, and scheme URLs (https:, mailto:) are skipped.
-Outgoing links are scanned only in maintained docs: everything under plugins/,
-README-UPSTREAM.md, and maintenance/proposals/ is exempt as a source, though
-links into plugin docs are still validated. File discovery uses
+Outgoing links are scanned only in maintained docs; links into plugin docs
+are still validated. File discovery uses
 `git ls-files`, so untracked trees such as .worktrees/ are never scanned.
 The checker reads plugins/ but never writes to it and makes no network calls.
 """
@@ -32,11 +32,14 @@ from urllib.parse import unquote
 RUNNER_TYPES = "plugins/pstack/skills/poteto-mode/scripts/runner/types.ts"
 PLUGIN_MANIFEST = "plugins/pstack/.claude-plugin/plugin.json"
 README = "README.md"
-RELEASES = "docs/releases.md"
-CHANGES = "CHANGES.md"
+CHANGELOG = "CHANGELOG.md"
+UPSTREAM = "UPSTREAM.md"
 PROVIDER_SECTION = "Supported parent apps and worker providers"
-
-UNSCANNED = ("README-UPSTREAM.md", "maintenance/proposals/")
+APPROVED = {"README.md", "CHANGELOG.md", "CONTRIBUTING.md", "UPSTREAM.md",
+            "NOTICE.md", "AGENTS.md", "LICENSE", "LICENSES/LICENSE-cursor-team-kit",
+            "LICENSES/LICENSE-superpowers", "maintenance/upstream-ledger.json"}
+CURSOR_BASELINE = re.compile(r"Cursor baseline: \[([0-9][^\]]*)\]\(https://github\.com/cursor/plugins/tree/([0-9a-f]{40})/pstack\)")
+PINNED_README = re.compile(r"https://github\.com/cursor/plugins/blob/([0-9a-f]{40})/pstack/README\.md")
 
 
 @dataclass(frozen=True)
@@ -222,7 +225,26 @@ def tracked_markdown(root):
                              check=True, capture_output=True, text=True).stdout
     except (OSError, subprocess.CalledProcessError) as e:
         raise DocsError("git ls-files failed under %s (%s); the docs checker needs a git checkout" % (root, e))
-    return [p for p in out.split("\0") if p]
+    return [p for p in out.split("\0") if p and (root / p).is_file()]
+
+
+def inventory_problems(root):
+    try:
+        out = subprocess.run(["git", "ls-files", "-z"], cwd=str(root), check=True,
+                             capture_output=True, text=True).stdout
+    except (OSError, subprocess.CalledProcessError) as e:
+        return [Problem(".", 0, "git ls-files failed: %s" % e)]
+    scoped = []
+    for rel in out.split("\0"):
+        if not rel or not (root / rel).is_file():
+            continue
+        if "/" not in rel:
+            if rel.endswith(".md") or rel.startswith(("LICENSE", "NOTICE")):
+                scoped.append(rel)
+        elif rel.startswith(("docs/", "maintenance/", "LICENSES/")):
+            scoped.append(rel)
+    return [Problem(rel, 0, "public document is outside the approved inventory")
+            for rel in scoped if rel not in APPROVED]
 
 
 def link_problems(root):
@@ -233,7 +255,7 @@ def link_problems(root):
     problems = []
     slug_cache = {}
     for rel in files:
-        if rel.startswith("plugins/") or rel in UNSCANNED or any(rel.startswith(p) for p in UNSCANNED if p.endswith("/")):
+        if rel.startswith("plugins/"):
             continue
         path = root / rel
         try:
@@ -284,41 +306,35 @@ def release_problems(root):
     except (DocsError, KeyError, ValueError) as e:
         return [Problem(PLUGIN_MANIFEST, 0, "cannot read packaged version: %s" % e)]
     try:
-        lines = _read(root, RELEASES).splitlines()
+        changes = _read(root, CHANGELOG).splitlines()
+        upstream = _read(root, UPSTREAM)
     except DocsError as e:
-        return [Problem(RELEASES, 0, str(e))]
-
-    row_versions = set()
-    advances = []
-    for i, line in enumerate(lines):
-        row = re.match(r"\s*\|\s*\[?v([0-9][0-9A-Za-z.\-]*)", line)
-        if row:
-            row_versions.add(row.group(1).rstrip("."))
-        adv = re.search(r"advances to `?([0-9][0-9A-Za-z.\-]*)", line)
-        if adv:
-            advances.append((i + 1, adv.group(1).rstrip(".")))
-
-    if version in row_versions:
-        for lineno, _ in advances:
-            problems.append(Problem(RELEASES, lineno, "`main advances to` line must be removed once v%s has a release row" % version))
-    else:
-        if len(advances) != 1 or advances[0][1] != version:
-            line = advances[0][0] if advances else 1
-            found = advances[0][1] if advances else "none"
-            problems.append(Problem(RELEASES, line, "expected exactly one `main ... advances to %s` line or a `v%s` release row (found: %s; %d pending lines)" % (version, version, found, len(advances))))
-
-    try:
-        changes = _read(root, CHANGES)
-        if not any(HEADING.match(l) and re.match(r"^## %s(\s|$)" % re.escape(version), l) for l in changes.splitlines()):
-            problems.append(Problem(CHANGES, 1, "no `## %s` heading for the packaged version" % version))
-    except DocsError as e:
-        problems.append(Problem(CHANGES, 0, str(e)))
+        return [Problem(".", 0, str(e))]
+    headings = [(i, line) for i, line in enumerate(changes) if line.startswith("## ")]
+    if not headings:
+        problems.append(Problem(CHANGELOG, 1, "no version heading"))
+        return problems
+    first, heading = headings[0]
+    if not re.match(r"^## " + re.escape(version) + r"(?:\s|$)", heading):
+        problems.append(Problem(CHANGELOG, first + 1, "first version heading must be ## %s (suffix allowed)" % version))
+    section = "\n".join(changes[first + 1:headings[1][0] if len(headings) > 1 else len(changes)])
+    commit = re.findall(r"^\| Commit \| `([0-9a-f]{40})` \|$", upstream, re.M)
+    upstream_version = re.findall(r"^\| Upstream version \| `([^`]+)` \|$", upstream, re.M)
+    if len(commit) != 1 or len(upstream_version) != 1:
+        problems.append(Problem(UPSTREAM, 1, "expected one Cursor Commit and Upstream version row"))
+        return problems
+    baselines = CURSOR_BASELINE.findall(section)
+    if baselines != [(upstream_version[0], commit[0])]:
+        problems.append(Problem(CHANGELOG, first + 1, "current version needs exactly one Cursor baseline matching UPSTREAM.md version and Commit"))
+    pins = PINNED_README.findall(upstream)
+    if pins != [commit[0]]:
+        problems.append(Problem(UPSTREAM, 1, "pinned Cursor README must match Commit row"))
     return problems
 
 
 def check(root):
     root = Path(root)
-    problems = provider_problems(root) + link_problems(root) + release_problems(root)
+    problems = provider_problems(root) + inventory_problems(root) + link_problems(root) + release_problems(root)
     return sorted(problems, key=lambda p: (p.path, p.line, p.message))
 
 

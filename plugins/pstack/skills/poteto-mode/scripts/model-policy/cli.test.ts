@@ -656,6 +656,57 @@ describe("model-policy normalize command", () => {
     expect(capture.stderr.join("")).toContain("native lane");
   });
 
+  it("refuses a same-parent Claude descriptor a shipped native lane covers", () => {
+    const nativeSheet = `# access: {"provider":"claude","funding":"included","capacity":"high","apiSpend":"deny","provenance":"user"}
+# access: {"provider":"grok","funding":"included","capacity":"high","apiSpend":"deny","provenance":"user"}
+swarm workers: claude:opus@max -> grok:grok-4.7@xhigh
+`;
+    const sheet = join(scratch, "native-claude.sheet");
+    writeFileSync(sheet, nativeSheet);
+    const receiptPath = join(scratch, "receipt.json");
+    writeFileSync(receiptPath, JSON.stringify(receipt({ parent: "claude", provider: "claude", model: "opus", effort: "max" })));
+    const capture = io();
+    expect(main([
+      "normalize", "--sheet", sheet, "--role", "swarm workers", "--parent", "claude",
+      "--lane", "0", "--attempt", "0", "--receipt", receiptPath, "--mode", "read-only",
+    ], capture.capture)).toBe(64);
+    expect(capture.stderr.join("")).toContain("native lane");
+  });
+
+  it("normalizes a same-parent external Claude receipt into an event", () => {
+    const externalSheet = `# access: {"provider":"claude","funding":"included","capacity":"high","apiSpend":"deny","provenance":"user"}
+# access: {"provider":"grok","funding":"included","capacity":"high","apiSpend":"deny","provenance":"user"}
+swarm workers: claude:haiku@low -> grok:grok-4.7@xhigh
+`;
+    const sheet = join(scratch, "external-claude.sheet");
+    writeFileSync(sheet, externalSheet);
+    const receiptPath = join(scratch, "receipt.json");
+    writeFileSync(receiptPath, JSON.stringify(receipt({
+      parent: "claude",
+      provider: "claude",
+      model: "haiku",
+      effort: "low",
+      status: "complete",
+      exitCode: 0,
+      error: null,
+      failurePhase: null,
+      reportedModel: "claude-haiku-4-5",
+      modelVerified: true,
+      modelEvidence: "provider-report",
+    })));
+    const capture = io();
+    expect(main([
+      "normalize", "--sheet", sheet, "--role", "swarm workers", "--parent", "claude",
+      "--lane", "0", "--attempt", "0", "--receipt", receiptPath, "--mode", "read-only",
+    ], capture.capture)).toBe(0);
+    const out = JSON.parse(capture.stdout.join(""));
+    expect(out).toMatchObject({
+      status: "event",
+      attempt: "claude:haiku@low",
+      event: { attemptIndex: 0, status: "complete" },
+    });
+  });
+
   it("rejects out-of-range lane and attempt indices", () => {
     const receiptPath = join(scratch, "receipt.json");
     writeFileSync(receiptPath, JSON.stringify(receipt()));

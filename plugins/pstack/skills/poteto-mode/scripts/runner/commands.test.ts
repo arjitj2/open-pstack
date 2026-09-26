@@ -179,6 +179,19 @@ describe("invocationCommand", () => {
     }
   });
 
+  it("passes opaque model IDs through unchanged", () => {
+    for (const { provider, model, effort } of [
+      { provider: "claude" as const, model: "haiku", effort: "low" as const },
+      { provider: "claude" as const, model: "claude-haiku-4-5", effort: "high" as const },
+      { provider: "codex" as const, model: "gpt-7-nova", effort: "high" as const },
+      { provider: "grok" as const, model: "grok-5", effort: "xhigh" as const },
+      { provider: "devin" as const, model: "swe-1.7-lightning", effort: "default" as const },
+    ]) {
+      const spec = invocationCommand(options({ provider, model, effort }));
+      expect(spec.args[spec.args.indexOf("--model") + 1]).toBe(model);
+    }
+  });
+
   it("pins every additional supported family in external argv", () => {
     const cases = [
       {
