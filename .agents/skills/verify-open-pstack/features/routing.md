@@ -30,6 +30,6 @@ capture routing-unchanged diff -u "$VERIFY_EVIDENCE/routing-sheet-before.stdout"
 ## Gotchas
 
 - Resolve is read-only and launches no providers; it cannot prove authentication, spending controls, or successful execution.
-- Same-provider work runs natively; do not force it through `pstack-runner`.
+- Use the [provider dispatch route rules](../../../../plugins/pstack/skills/poteto-mode/references/provider-dispatch.md#native-lanes); same-provider identity alone does not establish a native Claude lane.
 - A missing fallback-policy line means quota-only recovery. Generic failure is not quota exhaustion.
 - Each real external attempt needs fresh output and receipt paths. Retain failed receipts and partial work; no implicit timeout or substitution is allowed.

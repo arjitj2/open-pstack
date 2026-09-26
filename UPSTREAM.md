@@ -14,7 +14,7 @@ open-pstack tracks [Cursor's pstack](https://github.com/cursor/plugins/tree/main
 | Upstream version | `0.15.5` |
 | open-pstack version | `1.8.0` |
 
-The table records the packaged version and its incorporated Cursor content, with the exclusions below. Version 1.8.0 is a candidate that accepts newly available provider model IDs without a release; its installed-parent validation is pending. Version 1.7.0's OpenCode worker validation is recorded in `docs/opencode-worker-verification.md`. Detecting or reviewing newer Cursor commits does not advance this baseline. `README-UPSTREAM.md` preserves the upstream pstack README verbatim. `CHANGES.md` and `NOTICE.md` describe the adaptations and provenance.
+The table records the packaged version and its incorporated Cursor content, with the exclusions below. Version 1.8.0 accepts newly available provider model IDs without a release; its installed-parent validation is recorded in `docs/model-discovery-verification.md`. Version 1.7.0's OpenCode worker validation is recorded in `docs/opencode-worker-verification.md`. Detecting or reviewing newer Cursor commits does not advance this baseline. `README-UPSTREAM.md` preserves the upstream pstack README verbatim. `CHANGES.md` and `NOTICE.md` describe the adaptations and provenance.
 
 See [release history](docs/releases.md) for the incorporated Cursor version and commit of each distribution release. Our release numbers are independent of Cursor and Eric’s port.
 
