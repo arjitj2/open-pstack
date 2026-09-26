@@ -52,7 +52,7 @@ const args = process.argv.slice(2);
 const stage = args[0] === "auth" ? "auth" : "model";
 await Bun.write(
   ${JSON.stringify(join(scratch, "captured-env"))} + "-" + stage + ".json",
-  JSON.stringify({ DEVIN_REFUSAL_FALLBACK: process.env.DEVIN_REFUSAL_FALLBACK ?? null })
+  JSON.stringify({ fallbackPresent: Object.hasOwn(process.env, "DEVIN_REFUSAL_FALLBACK") })
 );
 if (args[0] === "auth") {
   console.log(${JSON.stringify(auth)});
@@ -464,25 +464,60 @@ describe("Devin external provider", () => {
   });
 
   it("does not leak DEVIN_REFUSAL_FALLBACK into the Devin workload or its descendants", async () => {
-    const previous = process.env.DEVIN_REFUSAL_FALLBACK;
-    process.env.DEVIN_REFUSAL_FALLBACK = "synthetic-unapproved-model";
+    const saved = {
+      fallback: process.env.DEVIN_REFUSAL_FALLBACK,
+      apiKey: process.env.DEVIN_API_KEY,
+      apiUrl: process.env.DEVIN_API_URL,
+    };
+    delete process.env.DEVIN_API_KEY;
+    delete process.env.DEVIN_API_URL;
+    const cases: Array<{ label: string; value?: string; apiSpend: RunnerOptions["apiSpend"] }> = [
+      { label: "set", value: "synthetic-unapproved-model", apiSpend: null },
+      { label: "blank", value: "", apiSpend: null },
+      { label: "absent", apiSpend: null },
+      { label: "deny", value: "synthetic-unapproved-model", apiSpend: "deny" },
+    ];
     try {
       fakeDevin("DEVIN_RESULT");
-      const result = await runLane(options);
-      expect(result.exitCode).toBe(0);
-      for (const stage of ["auth", "model"]) {
-        const captured = JSON.parse(readFileSync(join(scratch, `captured-env-${stage}.json`), "utf8"));
-        expect(captured.DEVIN_REFUSAL_FALLBACK, stage).toBeNull();
+      for (const { label, value, apiSpend } of cases) {
+        for (const name of ["captured-env-auth.json", "captured-env-model.json", "descendant-env.txt"]) {
+          rmSync(join(scratch, name), { force: true });
+        }
+        if (value === undefined) delete process.env.DEVIN_REFUSAL_FALLBACK;
+        else process.env.DEVIN_REFUSAL_FALLBACK = value;
+        const input = {
+          ...options,
+          outputPath: join(scratch, `result-${label}.md`),
+          receiptPath: join(scratch, `receipt-${label}.json`),
+          apiSpend,
+        };
+        const result = await runLane(input);
+        expect(result.exitCode, label).toBe(0);
+        for (const stage of ["auth", "model"]) {
+          const captured = JSON.parse(readFileSync(join(scratch, `captured-env-${stage}.json`), "utf8"));
+          expect(captured.fallbackPresent, `${label} ${stage}`).toBe(false);
+        }
+        expect(
+          JSON.parse(readFileSync(join(scratch, "descendant-env.txt"), "utf8")),
+          label
+        ).toEqual({ fallbackPresent: false });
+        if (value === undefined) expect("DEVIN_REFUSAL_FALLBACK" in process.env).toBe(false);
+        else expect(process.env.DEVIN_REFUSAL_FALLBACK).toBe(value);
+        expect(readFileSync(input.outputPath, "utf8")).toBe("DEVIN_RESULT");
+        expect(result.receipt.argv).toContain("swe-2-high");
+        expect(result.receipt.modelEvidence).toBe("pinned-argv");
+        expect(result.receipt.modelVerified).toBe(false);
+        expect(result.receipt.apiSpend).toBe(apiSpend ?? "legacy");
       }
-      expect(JSON.parse(readFileSync(join(scratch, "descendant-env.txt"), "utf8"))).toEqual({ fallbackPresent: false });
-      expect(process.env.DEVIN_REFUSAL_FALLBACK).toBe("synthetic-unapproved-model");
-      expect(readFileSync(options.outputPath, "utf8")).toBe("DEVIN_RESULT");
-      expect(result.receipt.argv).toContain("swe-2-high");
-      expect(result.receipt.modelEvidence).toBe("pinned-argv");
-      expect(result.receipt.modelVerified).toBe(false);
     } finally {
-      if (previous === undefined) delete process.env.DEVIN_REFUSAL_FALLBACK;
-      else process.env.DEVIN_REFUSAL_FALLBACK = previous;
+      for (const [key, value] of [
+        ["DEVIN_REFUSAL_FALLBACK", saved.fallback],
+        ["DEVIN_API_KEY", saved.apiKey],
+        ["DEVIN_API_URL", saved.apiUrl],
+      ] as const) {
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      }
     }
   });
 });
