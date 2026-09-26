@@ -52,7 +52,7 @@ legacy_model_pins="$(
   grep -REn \
     --include='*.md' --include='*.ts' --include='*.sh' \
     'claude:claude-(fable|opus|sonnet)-[0-9]|^model: claude-(fable|opus|sonnet)-[0-9]|--model claude-(fable|opus|sonnet)-[0-9]' \
-    "$repo/plugins/pstack" "$repo/tests" "$repo/README.md" "$repo/docs/reference.md" \
+    "$repo/plugins/pstack" "$repo/tests" "$repo/README.md" "$repo/UPSTREAM.md" \
     2>/dev/null || true
 )"
 standalone_code_pins="$(
@@ -72,8 +72,6 @@ else
   note "ok: active Fable, Opus, and Sonnet configuration uses rolling aliases"
 fi
 
-# Static invariant (CHANGES maintenance note): provider-dispatch owns the default
-# provider/model quad and the three panel skills plus setup-pstack copy it verbatim.
 setup="$repo/plugins/pstack/skills/setup-pstack/SKILL.md"
 dispatch="$repo/plugins/pstack/skills/poteto-mode/references/provider-dispatch.md"
 quad_of() { { grep -oE '(claude|codex|grok):[a-z0-9.-]+@(low|medium|high|xhigh|max)' || true; } | tr '\n' ' ' | sed 's/ $//'; }

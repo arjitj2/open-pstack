@@ -286,8 +286,7 @@ class MaintenanceGitTests(unittest.TestCase):
             self.assertEqual(self.git('rev-list', '--parents', '-n', '1', commit1, env=env1).split(),
                              [commit1, self.repos.base])
             changed = self.git('diff', '--name-only', self.repos.base, commit1, env=env1).splitlines()
-            self.assertTrue(changed)
-            self.assertTrue(all(p.startswith('maintenance/') for p in changed))
+            self.assertEqual(changed, [m.LEDGER_PATH])
             self.assertEqual(self.git('rev-parse', self.repos.base + ':plugins/pstack'),
                              self.git('rev-parse', commit1 + ':plugins/pstack', env=env1))
             after = json.loads(self.git('show', commit1 + ':' + m.LEDGER_PATH, env=env1))
@@ -295,23 +294,34 @@ class MaintenanceGitTests(unittest.TestCase):
             self.assertEqual([e['status'] for e in after['entries']], ['pending', 'pending'])
             self.assertEqual([e['commit'] for e in after['entries']], [self.repos.c1, self.repos.c2])
 
-    def test_source_patch_preserves_terminal_blank_context_and_parses(self):
-        (self.repos.cursor / 'pstack/skills/one/SKILL.md').write_text('one v2\n\n')
-        repo_git(self.repos.cursor, 'commit', '-am', 'Change first line, keep blank context')
-        self.git('fetch', '--no-tags', str(self.repos.cursor), 'main:' + m.CURSOR_REF)
-        target = self.git('rev-parse', m.CURSOR_REF)
+    def test_body_keeps_source_links_and_inert_subjects(self):
+        new = self.new_commits()
+        new[0]['subject'] = 'inject | [link](https://evil.invalid) @maintainer\n## Surprise'
+        files, meta = m.build_proposal(self.repos.base, m.load_ledger(ref=self.repos.base),
+                                       self.repos.baseline, new)
+        self.assertEqual(set(files), {m.LEDGER_PATH})
+        body = m.proposal_body(meta, 'f' * 40)
+        self.assertIn('https://github.com/cursor/plugins/compare/' + self.repos.baseline + '...' + self.repos.c2, body)
+        self.assertIn('preview --base ' + self.repos.base + ' --target ' + self.repos.c2, body)
+        self.assertIn('https://github.com/cursor/plugins/commit/' + self.repos.c1, body)
+        self.assertIn('` inject | [link](https://evil.invalid) @maintainer ## Surprise `', body)
+        self.assertNotIn('\n## Surprise', body)
+        self.assertLessEqual(len(body), m.MAX_PROPOSAL_BODY)
+
+    def test_body_is_bounded_with_large_subjects(self):
         files, meta = m.build_proposal(self.repos.base, m.load_ledger(ref=self.repos.base),
                                        self.repos.baseline, self.new_commits())
-        path = m.PROPOSAL_DIR + '/' + meta['pid'] + '/patches/' + target + '.patch'
-        content = files[path].encode()
-        self.assertTrue(content.endswith(b' \n'))
-        parsed = subprocess.check_output(['git', 'apply', '--numstat', '-'], input=content)
-        self.assertIn(b'pstack/skills/one/SKILL.md', parsed)
-        expected = subprocess.check_output(['git', '-c', 'color.ui=false', '-c', 'log.showSignature=false',
-            'show', '--format=fuller', '--date=iso-strict', '--no-ext-diff', '--no-textconv', '--no-renames',
-            '--diff-algorithm=myers', '--unified=3', '--src-prefix=a/', '--dst-prefix=b/',
-            '--first-parent', '-m', target, '--', m.PSTACK])
-        self.assertEqual(content, expected)
+        meta['new'] = [dict(meta['new'][0], subject='x' * 100_000)] + meta['new'][1:]
+        body = m.proposal_body(meta, 'f' * 40)
+        self.assertLessEqual(len(body), m.MAX_PROPOSAL_BODY)
+        self.assertIn('preview --base ' + self.repos.base, body)
+        self.assertIn('details omitted', body)
+        meta['new'] = [dict(meta['new'][0], subject='x' * 200) for _ in range(700)]
+        meta['pending'] = [dict(commit=self.repos.c1, subject='pending' * 20) for _ in range(400)]
+        body = m.proposal_body(meta, 'f' * 40)
+        self.assertLessEqual(len(body), m.MAX_PROPOSAL_BODY)
+        self.assertGreater(len(body), 50_000)
+        self.assertIn('preview --base ' + self.repos.base, body)
 
     def test_caller_worktree_and_index_are_preserved(self):
         (self.repos.fork / 'README.md').write_text('dirty edit\n')
@@ -491,6 +501,8 @@ class MaintenanceGitTests(unittest.TestCase):
                 patch.object(m, 'CURSOR_URL', str(self.repos.cursor)):
             result = m.catalogue_cursor_changes()
             m.check_candidate(result['pr']['number'], result['commit'], self.repos.base, self.repos.c2)
+            self.fake.find(result['pr']['number'])['body'] += '\nHuman review notes.'
+            m.check_candidate(result['pr']['number'], result['commit'], self.repos.base, self.repos.c2)
 
     def candidate(self):
         with patch.object(m, 'api', side_effect=self.fake.api), patch.object(m, 'run'):
@@ -514,6 +526,15 @@ class MaintenanceGitTests(unittest.TestCase):
                         m.check_candidate(*good)
                 pr.clear()
                 pr.update(saved)
+            for field in ('base', 'head', 'target'):
+                saved = pr['body']
+                marker = m.proposal_marker(saved)
+                marker[field] = '0' * 40
+                pr['body'] = m.PR_MARKER + ' ' + json.dumps(marker, sort_keys=True) + ' -->' + saved.split('-->', 1)[1]
+                with patch.object(m, 'api', side_effect=self.fake.api):
+                    with self.assertRaisesRegex(m.CheckFailed, 'proposal marker'):
+                        m.check_candidate(*good)
+                pr['body'] = saved
             with patch.object(m, 'api', side_effect=self.fake.api):
                 with self.assertRaises(m.CheckFailed):
                     m.check_candidate(pr['number'], '0' * 40, self.repos.base, self.repos.c2)
@@ -538,6 +559,13 @@ class MaintenanceGitTests(unittest.TestCase):
         self.assertIn(self.repos.c2[:12], text)
         self.assertIn('cursor-%s-%s' % (self.repos.c2[:12], self.repos.base[:12]), text)
         self.assertIn('pending', text)
+        self.assertNotIn('audit.json', text)
+        outdir = Path(self.tmp) / 'preview-output'
+        with contextlib.redirect_stdout(out := io.StringIO()):
+            m.preview(self.repos.base, self.repos.tip, str(outdir))
+        self.assertIn('preview --base ' + self.repos.base, out.getvalue())
+        self.assertIn('commit: ', out.getvalue())
+        self.assertEqual([p.relative_to(outdir).as_posix() for p in outdir.rglob('*') if p.is_file()], [m.LEDGER_PATH])
 
 
 if __name__ == '__main__':

@@ -6,7 +6,7 @@
       "status": "adapted",
       "subject": "fix(pstack): operator-neutral pronouns + in-chat status tick (#362)",
       "reason": "Adopt operator-neutral wording and new-information status reports while preserving host standing orders and evidence-based cancellation.",
-      "evidence": "https://github.com/arjitj2/open-pstack/pull/9; docs/cursor-adoption-20260924.md records exact-package Codex and Claude validation."
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/9; https://github.com/arjitj2/open-pstack/blob/5f0bb42dea46344c2f1961ebeebaeee135b49778/docs/cursor-adoption-20260924.md records exact-package Codex and Claude validation."
     },
     {
       "commit": "889ec4b68fa5aab0e867dad71ec3fdf386ae48f3",
@@ -14,7 +14,7 @@
       "status": "adapted",
       "subject": "fix(pstack): bug-fix/perf/hillclimb defaults to grok 4.6 (#365)",
       "reason": "Preserve the documented Sol defaults for bug fixes, performance work, and hillclimbing while refreshing source documentation.",
-      "evidence": "https://github.com/arjitj2/open-pstack/pull/9; docs/cursor-adoption-20260924.md records exact-package Codex and Claude validation."
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/9; https://github.com/arjitj2/open-pstack/blob/5f0bb42dea46344c2f1961ebeebaeee135b49778/docs/cursor-adoption-20260924.md records exact-package Codex and Claude validation."
     },
     {
       "commit": "5bf2b1544db739998121a306340631963c2ff3de",
@@ -22,7 +22,7 @@
       "status": "adapted",
       "subject": "feat(pstack): setup-pstack budget ask (max/xhigh/high/medium) (#366)",
       "reason": "Apply confirmed budget ceilings without raising lower efforts or changing model assignments, aliases, fixed-effort providers, or lane order.",
-      "evidence": "https://github.com/arjitj2/open-pstack/pull/9; docs/cursor-adoption-20260924.md records exact-package Codex and Claude validation."
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/9; https://github.com/arjitj2/open-pstack/blob/5f0bb42dea46344c2f1961ebeebaeee135b49778/docs/cursor-adoption-20260924.md records exact-package Codex and Claude validation."
     },
     {
       "commit": "70b2dc8b4b85c8d5648624ca40d692c421fff32f",
@@ -30,7 +30,7 @@
       "status": "adapted",
       "subject": "feat(pstack): port skill updates and default to Opus 5.5 and Grok 4.7 (#414)",
       "reason": "Adopt the Opus/Sol/Grok panel and compatible workflow updates while retaining provider dispatch, native MCP roles, and guarded merges.",
-      "evidence": "https://github.com/arjitj2/open-pstack/pull/9; docs/cursor-adoption-20260924.md records exact-package Codex and Claude validation."
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/9; https://github.com/arjitj2/open-pstack/blob/5f0bb42dea46344c2f1961ebeebaeee135b49778/docs/cursor-adoption-20260924.md records exact-package Codex and Claude validation."
     },
     {
       "commit": "b42effe0aa50f59c693d7e2924714e015e00bf7c",
@@ -38,7 +38,7 @@
       "status": "adapted",
       "subject": "fix(pstack): scrub old model names from public upgrade help (#416)",
       "reason": "Adopt mapped public upgrade wording and the source README; Cursor-only guide paths remain excluded from this portable distribution.",
-      "evidence": "https://github.com/arjitj2/open-pstack/pull/9; docs/cursor-adoption-20260924.md records exact-package Codex and Claude validation."
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/9; https://github.com/arjitj2/open-pstack/blob/5f0bb42dea46344c2f1961ebeebaeee135b49778/docs/cursor-adoption-20260924.md records exact-package Codex and Claude validation."
     },
     {
       "commit": "b0b9c7a0baf8b6aa1d00bf77d4101e577d4ba411",
@@ -46,7 +46,7 @@
       "status": "adapted",
       "subject": "docs(pstack): cut 19 more instructions Opus 5.5 does not need (#419)",
       "reason": "Trim repeated instructions while preserving provider contracts and installed-host verification gates.",
-      "evidence": "https://github.com/arjitj2/open-pstack/pull/9; docs/cursor-adoption-20260924.md records exact-package Codex and Claude validation."
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/9; https://github.com/arjitj2/open-pstack/blob/5f0bb42dea46344c2f1961ebeebaeee135b49778/docs/cursor-adoption-20260924.md records exact-package Codex and Claude validation."
     },
     {
       "commit": "12d587dfb20741cafc376c42c696c5f6e2a64487",
@@ -54,7 +54,7 @@
       "status": "adapted",
       "subject": "fix(pstack): resolve rule conflicts and read the model rule the same way (#422)",
       "reason": "Resolve configured roles consistently and validate plan syntax while excluding raw Cursor task fields and implicit model fallback.",
-      "evidence": "https://github.com/arjitj2/open-pstack/pull/9; docs/cursor-adoption-20260924.md records exact-package Codex and Claude validation."
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/9; https://github.com/arjitj2/open-pstack/blob/5f0bb42dea46344c2f1961ebeebaeee135b49778/docs/cursor-adoption-20260924.md records exact-package Codex and Claude validation."
     }
   ],
   "reviewed_through": "12d587dfb20741cafc376c42c696c5f6e2a64487",

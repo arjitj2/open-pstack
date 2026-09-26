@@ -31,16 +31,25 @@ Proceed autonomously through routine fixes and retries justified by evidence. Ex
 
 ## Documentation ownership
 
-Each maintained fact has one owner. When behavior changes, update the owner in the same change; everywhere else, link rather than restate. Dated records and history sections are frozen snapshots. Never edit them to track current state. `python3 scripts/check-docs.py` enforces the objective parts of this table; passing proves structure, not that all prose is current.
+Add or keep a public document only when it answers a question readers ask repeatedly. Each maintained fact has one owner. When behavior changes, update the owner in the same change; everywhere else, link rather than restate. Record validation of a particular candidate in its pull request and release notes. Keep reproducible proof in tests and in the verification recipes under `.agents/skills/verify-open-pstack/`. Do not commit lab reports, dated evidence files, or generated proposal artifacts; keep them outside the checkout. To cite past evidence, link a pull request or a commit-pinned GitHub permalink. Never edit an old record to track current state.
 
 | Fact | Owner |
 | --- | --- |
 | Fresh install steps | `README.md` (`## Install`) |
+| Update, migration, pinning, and rollback steps | `README.md` (`## Update, switch, or roll back`) |
 | Supported parent and provider IDs | `plugins/pstack/skills/poteto-mode/scripts/runner/types.ts` (`PARENTS`, `PROVIDERS`), rendered by the README provider table |
-| Models, defaults, permissions, billing | `plugins/pstack/skills/poteto-mode/references/provider-dispatch.md` |
-| Cursor baseline | `UPSTREAM.md` sync table |
-| Package version | plugin manifests, mirrored in the `UPSTREAM.md` sync table and checked by `check-ledger` |
+| Models, defaults, permissions, billing, provider limits, recovery policy | `plugins/pstack/skills/poteto-mode/references/provider-dispatch.md` |
+| Development dependencies and checks | `CONTRIBUTING.md` |
+| Harness substitutions and upstream adaptation | `UPSTREAM.md` (`## Port adaptations`) |
+| Cursor baseline and upstream exclusions | `UPSTREAM.md` sync table and `## Upstream-only exclusions` |
+| Decision for each Cursor commit | `maintenance/upstream-ledger.json` |
+| Sync, proposal, adoption, and release procedure | `UPSTREAM.md` |
+| Package version | plugin manifests, mirrored in the `UPSTREAM.md` sync table and checked by `tests/skill-collision-repro.sh` |
+| Release history, Cursor baseline per version, and evidence links | `CHANGELOG.md` |
+| Attribution and licenses | `NOTICE.md`, `LICENSE`, and `LICENSES/` |
+| Bug reports and contribution checks | `CONTRIBUTING.md` |
+| Install-source policy | this file (the `main` paragraph above) |
 | Skill purpose and invocation | each packaged `SKILL.md`; README lists common entry points |
-| Release history | `docs/releases.md` |
-| Install-source policy | `docs/fork-maintenance.md` (`### Keep main ready for users`) |
-| Validation evidence | dated records and the frozen `## Validation history` block in `docs/compatibility.md` |
+| Reproducible verification | `.agents/skills/verify-open-pstack/` and `tests/` |
+
+`python3 scripts/check-docs.py` checks that the README provider table matches the runner IDs, that relative links and heading anchors resolve, that the public documentation inventory stays within its approved scope, and that the current `CHANGELOG.md` entry and pinned upstream README agree with the package version and Cursor baseline. Passing proves structure, not that all prose is current.
