@@ -1,17 +1,73 @@
 import { describe, expect, it } from "bun:test";
 import { parseProviderOutput, reportedModelMatches } from "./parse-output.ts";
 
+const CLAUDE_SESSION = "claude-session";
+
+function claudeInit(model = "fable", session: unknown = CLAUDE_SESSION): string {
+  return JSON.stringify({
+    type: "system",
+    subtype: "init",
+    session_id: session,
+    model,
+  });
+}
+
+function claudeAssistant(
+  model: unknown,
+  parent: unknown = null,
+  session: unknown = CLAUDE_SESSION
+): string {
+  return JSON.stringify({
+    type: "assistant",
+    session_id: session,
+    parent_tool_use_id: parent,
+    message: {
+      role: "assistant",
+      model,
+      content: [{ type: "text", text: "ok" }],
+    },
+  });
+}
+
+function claudeResult(extra: Record<string, unknown> = {}): string {
+  return JSON.stringify({
+    type: "result",
+    subtype: "success",
+    is_error: false,
+    result: "CLAUDE_OK",
+    session_id: CLAUDE_SESSION,
+    ...extra,
+  });
+}
+
 describe("parseProviderOutput", () => {
-  it("extracts Claude text, model, usage, cost, and session", () => {
+  it("rejects result-only Claude usage as primary-model evidence", () => {
+    expect(() => parseProviderOutput("claude", JSON.stringify({
+      type: "result",
+      subtype: "success",
+      is_error: false,
+      result: "MAIN_RESPONSE",
+      session_id: CLAUDE_SESSION,
+      modelUsage: {
+        "claude-sonnet-4-6": { outputTokens: 100 },
+        "claude-opus-4-6": { outputTokens: 1 },
+      },
+    }), "", "opus")).toThrow("primary assistant model");
+  });
+
+  it("extracts Claude text, primary model, usage, cost, and session from a stream", () => {
     const parsed = parseProviderOutput(
       "claude",
-      JSON.stringify({
-        result: "CLAUDE_OK",
-        session_id: "claude-session",
-        usage: { input_tokens: 10, output_tokens: 3 },
-        total_cost_usd: 0.05,
-        modelUsage: { "claude-fable-9-9": { inputTokens: 10 } },
-      }),
+      [
+        claudeInit(),
+        claudeAssistant("claude-fable-9-9"),
+        claudeAssistant("claude-fable-9-9"),
+        claudeResult({
+          usage: { input_tokens: 10, output_tokens: 3 },
+          total_cost_usd: 0.05,
+          modelUsage: { "claude-fable-9-9": { inputTokens: 10 } },
+        }),
+      ].join("\n"),
       "",
       "fable"
     );
@@ -94,20 +150,221 @@ describe("parseProviderOutput", () => {
     );
   });
 
-  it("selects the requested Claude model when usage includes a side model", () => {
+  it("verifies a valid Claude primary that reports alongside helpers", () => {
     const parsed = parseProviderOutput(
       "claude",
-      JSON.stringify({
-        result: "CLAUDE_OK",
-        modelUsage: {
-          "claude-haiku-4-5-20251001": {},
-          "claude-fable-9-9": {},
-        },
-      }),
+      [
+        claudeInit(),
+        claudeAssistant("claude-haiku-4-5-20251001", "toolu_helper_1"),
+        claudeAssistant("claude-fable-9-9"),
+        claudeResult({
+          modelUsage: {
+            "claude-haiku-4-5-20251001": {},
+            "claude-fable-9-9": {},
+          },
+        }),
+      ].join("\n"),
       "",
       "fable"
     );
     expect(parsed.reportedModel).toBe("claude-fable-9-9");
+    expect(
+      reportedModelMatches("claude", "fable", parsed.reportedModel)
+    ).toBe(true);
+  });
+
+  it("does not let helper Claude events or modelUsage prove the requested model", () => {
+    const parsed = parseProviderOutput(
+      "claude",
+      [
+        claudeInit("opus"),
+        claudeAssistant("claude-sonnet-9-9"),
+        claudeAssistant("claude-opus-9", "toolu_helper_1"),
+        claudeResult({
+          modelUsage: {
+            "claude-sonnet-9-9": {},
+            "claude-opus-9": {},
+          },
+        }),
+      ].join("\n"),
+      "",
+      "opus"
+    );
+    expect(parsed.reportedModel).toBe("claude-sonnet-9-9");
+    expect(
+      reportedModelMatches("claude", "opus", parsed.reportedModel)
+    ).toBe(false);
+  });
+
+  it("rejects a Claude stream with helper-only or missing primary evidence", () => {
+    expect(() =>
+      parseProviderOutput(
+        "claude",
+        [
+          claudeAssistant("claude-fable-9-9", "toolu_helper_1"),
+          claudeResult({ modelUsage: { "claude-fable-9-9": {} } }),
+        ].join("\n"),
+        "",
+        "fable"
+      )
+    ).toThrow("primary assistant model");
+    // init.model echoes the request; it is not a provider report
+    expect(() =>
+      parseProviderOutput(
+        "claude",
+        [claudeInit(), claudeResult()].join("\n"),
+        "",
+        "fable"
+      )
+    ).toThrow("primary assistant model");
+  });
+
+  it("rejects Claude streams reporting multiple primary models", () => {
+    expect(() =>
+      parseProviderOutput(
+        "claude",
+        [
+          claudeAssistant("claude-fable-9-9"),
+          claudeAssistant("claude-opus-9"),
+          claudeResult(),
+        ].join("\n"),
+        "",
+        "fable"
+      )
+    ).toThrow("multiple primary models");
+  });
+
+  it("rejects Claude assistant events with ambiguous ownership, foreign sessions, or missing models", () => {
+    expect(() =>
+      parseProviderOutput(
+        "claude",
+        [
+          JSON.stringify({
+            type: "assistant",
+            session_id: CLAUDE_SESSION,
+            message: { role: "assistant", model: "claude-fable-9-9" },
+          }),
+          claudeResult(),
+        ].join("\n"),
+        "",
+        "fable"
+      )
+    ).toThrow("owner");
+    expect(() =>
+      parseProviderOutput(
+        "claude",
+        [claudeAssistant("claude-fable-9-9", 5), claudeResult()].join("\n"),
+        "",
+        "fable"
+      )
+    ).toThrow("owner");
+    expect(() =>
+      parseProviderOutput(
+        "claude",
+        [
+          claudeAssistant("claude-fable-9-9", null, "other-session"),
+          claudeResult(),
+        ].join("\n"),
+        "",
+        "fable"
+      )
+    ).toThrow("another session");
+    expect(() =>
+      parseProviderOutput(
+        "claude",
+        [claudeAssistant(undefined), claudeResult()].join("\n"),
+        "",
+        "fable"
+      )
+    ).toThrow("did not report a model");
+  });
+
+  it("rejects malformed or unterminated Claude streams", () => {
+    expect(() =>
+      parseProviderOutput(
+        "claude",
+        [claudeAssistant("claude-fable-9-9"), "not-json", claudeResult()].join(
+          "\n"
+        ),
+        "",
+        "fable"
+      )
+    ).toThrow("malformed stream event");
+    expect(() =>
+      parseProviderOutput(
+        "claude",
+        [claudeAssistant("claude-fable-9-9"), "42", claudeResult()].join("\n"),
+        "",
+        "fable"
+      )
+    ).toThrow("malformed stream event");
+    expect(() =>
+      parseProviderOutput(
+        "claude",
+        [claudeAssistant("claude-fable-9-9")].join("\n"),
+        "",
+        "fable"
+      )
+    ).toThrow("terminal result");
+    expect(() =>
+      parseProviderOutput(
+        "claude",
+        [claudeAssistant("claude-fable-9-9"), claudeResult(), claudeInit()].join(
+          "\n"
+        ),
+        "",
+        "fable"
+      )
+    ).toThrow("exactly one result");
+    expect(() =>
+      parseProviderOutput(
+        "claude",
+        [
+          claudeAssistant("claude-fable-9-9"),
+          claudeResult(),
+          claudeResult(),
+        ].join("\n"),
+        "",
+        "fable"
+      )
+    ).toThrow("exactly one result");
+    expect(() =>
+      parseProviderOutput(
+        "claude",
+        [
+          claudeAssistant("claude-fable-9-9"),
+          claudeResult({ session_id: undefined }),
+        ].join("\n"),
+        "",
+        "fable"
+      )
+    ).toThrow("session");
+    expect(() =>
+      parseProviderOutput(
+        "claude",
+        [
+          claudeAssistant("claude-fable-9-9"),
+          claudeResult({ result: undefined }),
+        ].join("\n"),
+        "",
+        "fable"
+      )
+    ).toThrow("final text");
+  });
+
+  it("requires explicit Claude success without classifying malformed results as terminal errors", async () => {
+    const { ProviderTerminalError } = await import("./provider-failure.ts");
+    for (const fields of [{ subtype: "error_during_execution" }, { is_error: undefined }, { is_error: "false" }]) {
+      const parse = () => parseProviderOutput("claude", [
+        claudeAssistant("claude-fable-9-9"), claudeResult(fields),
+      ].join("\n"), "", "fable");
+      expect(parse).toThrow("explicit success");
+      try {
+        parse();
+      } catch (error) {
+        expect(error).not.toBeInstanceOf(ProviderTerminalError);
+      }
+    }
   });
 
   it("matches only concrete Claude revisions from the requested rolling family", () => {
@@ -149,7 +406,7 @@ describe("parseProviderOutput", () => {
   it("rejects malformed or textless responses", () => {
     expect(() =>
       parseProviderOutput("claude", "not-json", "", "fable")
-    ).toThrow("valid JSON");
+    ).toThrow("terminal result");
     expect(() =>
       parseProviderOutput(
         "codex",
@@ -168,8 +425,10 @@ describe("structured provider terminal errors", () => {
       parseProviderOutput(
         "claude",
         JSON.stringify({
-          result: "",
+          type: "result",
+          subtype: "error_during_execution",
           is_error: true,
+          result: "",
           errors: [
             JSON.stringify({
               type: "error",
@@ -181,6 +440,42 @@ describe("structured provider terminal errors", () => {
         "opus"
       )
     ).toThrow(ProviderTerminalError);
+  });
+
+  it("lets Claude's terminal error result win over stream structure faults", async () => {
+    const { ProviderTerminalError } = await import("./provider-failure.ts");
+    const envelope = {
+      type: "result",
+      subtype: "success",
+      is_error: true,
+      api_error_status: 429,
+      terminal_reason: "api_error",
+      result: "You've hit your session limit \u00b7 resets 4pm",
+      session_id: "claude-session",
+    };
+    expect(() =>
+      parseProviderOutput(
+        "claude",
+        ["not-json", JSON.stringify(envelope), claudeAssistant("claude-opus-9")].join(
+          "\n"
+        ),
+        "",
+        "opus"
+      )
+    ).toThrow(ProviderTerminalError);
+    try {
+      parseProviderOutput(
+        "claude",
+        JSON.stringify(envelope),
+        "",
+        "opus"
+      );
+      throw new Error("expected a throw");
+    } catch (error) {
+      expect(
+        (error as InstanceType<typeof ProviderTerminalError>).envelope
+      ).toEqual(envelope);
+    }
   });
 
   it("throws a typed terminal error carrying Codex's failed-turn envelope", async () => {

@@ -78,7 +78,8 @@ describe("invocationCommand", () => {
       "--disallowed-tools",
       "Agent,Task,WebSearch,WebFetch,Edit,Write,NotebookEdit",
       "--output-format",
-      "json",
+      "stream-json",
+      "--verbose",
     ]);
     expect(spec.args).not.toContain("bypassPermissions");
   });

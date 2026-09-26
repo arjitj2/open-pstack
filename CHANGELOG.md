@@ -4,6 +4,12 @@ This file records what each version of the Open Pstack package changed. Versions
 
 Entries describe package versions. Published release checkpoints have tag links; installation follows `main` unless pinned. Validation belongs to the linked pull requests. Older reports remain available through immutable links.
 
+## 1.8.2 verifies Claude's primary model
+
+Cursor baseline: [0.15.5](https://github.com/cursor/plugins/tree/12d587dfb20741cafc376c42c696c5f6e2a64487/pstack). [Issue #45](https://github.com/arjitj2/open-pstack/issues/45).
+
+Claude workers verify the model from main-conversation assistant events. A requested model that appears only in helper usage no longer passes verification. Missing or conflicting primary evidence fails closed, and generic failure receipts omit the verbose transcript. See the [verification recipe and evidence](tests/claude-primary-model/README.md).
+
 ## 1.8.1 omits Claude authentication-status probes
 
 Cursor baseline: [0.15.5](https://github.com/cursor/plugins/tree/12d587dfb20741cafc376c42c696c5f6e2a64487/pstack). [Pull request #41](https://github.com/arjitj2/open-pstack/pull/41).

@@ -150,7 +150,8 @@ export function invocationCommand(options: RunnerOptions): CommandSpec {
           "--disallowed-tools",
           claudeDeniedTools(options.mode),
           "--output-format",
-          "json",
+          "stream-json",
+          "--verbose",
         ],
         stdin: "prompt",
       };

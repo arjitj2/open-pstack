@@ -5,6 +5,7 @@ Users inspect how a saved role resolves, while the parent owns execution and any
 ## Sub-features
 
 - `routing-resolve`: read the configured lane chains without dispatch.
+- `claude-primary-model`: verify the main Claude assistant model independently of helper usage.
 - `routing-live`: observe the exact approved descriptor and terminal outcome in a parent workflow.
 - `routing-recovery`: verify saved fallback transitions with authentic terminal evidence.
 
@@ -26,6 +27,14 @@ capture routing-unchanged diff -u "$VERIFY_EVIDENCE/routing-sheet-before.stdout"
 - **Inspect:** expect exit zero and JSON `status: resolved` with lane descriptors matching the saved `how explorer` row. Inspect authorization and route fields; successful parsing alone does not mean an executable route. `unconfigured` is an unmet precondition for this recipe.
 - **Live dispatch:** run the direct How entry in [workflows](workflows.md). Compare actual native launch metadata or external runner receipt with the resolved descriptor, parent, model, effort, access mode, and saved API-spend fact. Retain the final terminal outcome and output.
 - **Recovery:** follow the saved fallback-chain scenario in `tests/setup-selected-providers.md`. Require authentic terminal evidence, a visible failure/substitution notice, and any required writer inspection before the exact saved next attempt. A synthetic event passed to the `next` CLI proves a decision only, not a provider failure or parent recovery.
+
+### Claude primary-model evidence
+
+For a change to Claude output parsing, install the candidate in both parents and invoke setup's availability phase. Use an external Claude descriptor in each parent so both exercise the parser. An exact Haiku ID without a native agent definition can exercise the external route from Claude Code. Preserve the installed tree identity, parent tool transcript, runner receipt, and independent output-file check.
+
+Expect `stream-json` and `--verbose` in argv, `modelVerified: true`, and `modelEvidence: "provider-report"`. The reported model must come from main assistant events. A real probe establishes execution; a synthetic stream fixture establishes rejection behavior. Keep those claims separate.
+
+From each installed parent, run the [synthetic boundary checks](../../../../tests/claude-primary-model/verify-fixtures.py) with `--runner` pointing at that parent's installed runner, `--parent` matching the parent, and a fresh `--evidence` directory. The fixture covers valid primary plus helper usage, requested model used only by a helper, usage-only output, and conflicting primary models. Rejected cases must leave no output file and preserve the terminal-success veto against replay. Failure receipts must omit the private transcript marker.
 
 ## Gotchas
 

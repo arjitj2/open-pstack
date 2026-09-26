@@ -64,28 +64,88 @@ function modelFromUsage(
     ?? null;
 }
 
-function parseClaude(stdout: string, requestedModel: string): ParsedOutput {
-  let raw: unknown;
-  try {
-    raw = JSON.parse(stdout);
-  } catch {
-    throw new Error("claude did not emit valid JSON");
+// Claude stream-json output is the only shape that identifies the primary
+// model: each main-agent assistant event carries `message.model` with an
+// explicit null `parent_tool_use_id` in the result's session. Helper events
+// (nonempty string owner) are accounting only, and `init.model`, argv and
+// `modelUsage` never prove which model answered.
+function parseClaude(stdout: string): ParsedOutput {
+  const events: JsonObject[] = [];
+  let malformed = false;
+  for (const line of stdout.split("\n")) {
+    if (line.trim().length === 0) continue;
+    let raw: unknown;
+    try {
+      raw = JSON.parse(line);
+    } catch {
+      malformed = true;
+      continue;
+    }
+    const event = object(raw);
+    if (event === null) malformed = true;
+    else events.push(event);
   }
-  const value = object(raw);
-  if (value === null) throw new Error("claude emitted a non-object result");
 
-  if (value.is_error === true) {
-    throw new ProviderTerminalError("claude", "claude reported an error result", value);
+  let result: JsonObject | null = null;
+  let results = 0;
+  for (const event of events) {
+    if (event.type === "result") {
+      result = event;
+      results += 1;
+    }
   }
-  const text = nullableString(value.result);
+  if (result === null) {
+    throw new Error("claude stream did not contain a terminal result");
+  }
+  if (result.is_error === true) {
+    throw new ProviderTerminalError("claude", "claude reported an error result", result);
+  }
+  if (malformed) throw new Error("claude emitted a malformed stream event");
+  if (results !== 1 || events.at(-1) !== result) {
+    throw new Error("claude stream did not end with exactly one result");
+  }
+  if (result.subtype !== "success" || result.is_error !== false) {
+    throw new Error("claude result was not an explicit success");
+  }
+  const text = nullableString(result.result);
   if (text === null) throw new Error("claude result did not contain final text");
+  const sessionId = nullableString(result.session_id);
+  if (sessionId === null) throw new Error("claude result did not identify its session");
+
+  const primary = new Set<string>();
+  for (const event of events) {
+    if (event.type !== "assistant") continue;
+    const owner = event.parent_tool_use_id;
+    if (typeof owner === "string" && owner.length > 0) continue;
+    if (owner !== null) {
+      throw new Error("claude assistant event did not declare its owner");
+    }
+    if (event.session_id !== sessionId) {
+      throw new Error("claude assistant event belongs to another session");
+    }
+    const message = object(event.message);
+    if (message?.role !== "assistant") {
+      throw new Error("claude assistant event carried a non-assistant message");
+    }
+    const model = nullableString(message.model);
+    if (model === null) {
+      throw new Error("claude primary assistant event did not report a model");
+    }
+    primary.add(model);
+  }
+  if (primary.size === 0) {
+    throw new Error("claude did not report a primary assistant model");
+  }
+  if (primary.size > 1) {
+    throw new Error(`claude reported multiple primary models: ${[...primary].join(", ")}`);
+  }
 
   return {
     text,
-    reportedModel: modelFromUsage(value.modelUsage, "claude", requestedModel),
-    sessionId: nullableString(value.session_id ?? value.sessionId),
-    usage: normalizedUsage(value.usage),
-    costUsd: finiteNumber(value.total_cost_usd) ?? null,
+    reportedModel: [...primary][0],
+    sessionId,
+    usage: normalizedUsage(result.usage),
+    costUsd: finiteNumber(result.total_cost_usd) ?? null,
   };
 }
 
@@ -286,7 +346,7 @@ export function parseProviderOutput(
     case "cursor":
       return parseCursor(stdout);
     case "claude":
-      return parseClaude(stdout, requestedModel);
+      return parseClaude(stdout);
     case "codex":
       return parseCodex(stdout);
     case "grok":
