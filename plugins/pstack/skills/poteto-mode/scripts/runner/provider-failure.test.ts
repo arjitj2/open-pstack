@@ -830,30 +830,6 @@ describe("ambient credential and routing takeover guard", () => {
 });
 
 describe("subscription auth evidence", () => {
-  const claudeSubscription = JSON.stringify({
-    loggedIn: true,
-    authMethod: "claude.ai",
-    apiProvider: "firstParty",
-    subscriptionType: "pro",
-  });
-
-  it("accepts first-party claude.ai auth and rejects API/helper/alternate/unknown auth", () => {
-    expect(
-      subscriptionAuthEvidence("claude", claudeSubscription, "")
-    ).toMatchObject({ compatible: true });
-    for (const stdout of [
-      JSON.stringify({ loggedIn: true, authMethod: "apiKey", apiProvider: "firstParty" }),
-      JSON.stringify({ loggedIn: true, authMethod: "claude.ai", apiProvider: "bedrock" }),
-      JSON.stringify({ loggedIn: true, authMethod: "apiKeyHelper", apiProvider: "firstParty" }),
-      JSON.stringify({ loggedIn: true }),
-      JSON.stringify({ loggedIn: false }),
-      "not json",
-    ]) {
-      const verdict = subscriptionAuthEvidence("claude", stdout, "");
-      expect(verdict?.compatible, stdout).toBe(false);
-    }
-  });
-
   it("distinguishes ChatGPT auth from API-key auth for codex", () => {
     expect(
       subscriptionAuthEvidence("codex", "Logged in using ChatGPT", "")
@@ -876,8 +852,8 @@ describe("subscription auth evidence", () => {
     ).toBe(false);
   });
 
-  it("reports no separate auth-method evidence for devin and cursor", () => {
-    for (const provider of ["devin", "cursor"] as const) {
+  it("reports no separate auth-method evidence for Claude, Devin, Cursor, and Antigravity", () => {
+    for (const provider of ["claude", "devin", "cursor", "antigravity"] as const) {
       expect(subscriptionAuthEvidence(provider, "Logged in", "")).toBeNull();
     }
   });

@@ -1,0 +1,404 @@
+[
+  {
+    "binarySha256": "fcfd837103965c64de34a6b9b94370d77a347ea71819715a27d5f0ef01775ea4",
+    "expiresIn": -60,
+    "delay": 0.0,
+    "storeState": "valid",
+    "route": "subscription",
+    "printControl": false,
+    "newSaved": false,
+    "savedIn": [],
+    "keychainCanaryDenied": true,
+    "events": [
+      {
+        "event": "refresh_consumed",
+        "seconds": 0.3375
+      },
+      {
+        "event": "refresh_replied",
+        "seconds": 0.3376
+      },
+      {
+        "event": "process_exit",
+        "seconds": 0.3552,
+        "code": 0
+      },
+      {
+        "event": "follow_print_start",
+        "seconds": 0.3554
+      },
+      {
+        "event": "spent_refresh_rejected",
+        "seconds": 0.6405
+      },
+      {
+        "event": "mock_request_rejected",
+        "seconds": 2.039,
+        "path": "/v1/messages?beta=true"
+      },
+      {
+        "event": "follow_print_exit",
+        "seconds": 2.0527,
+        "code": 1
+      },
+      {
+        "event": "status_after_task",
+        "seconds": 2.2038,
+        "code": 1
+      }
+    ],
+    "coldConfig": true,
+    "configPaddingBytes": 1048576,
+    "offlinePreflight": false,
+    "preflightPreservedTokens": true,
+    "case": "refresh-0-offline-False",
+    "auth": {
+      "loggedIn": true,
+      "authMethod": "claude.ai",
+      "apiProvider": "firstParty"
+    },
+    "afterTask": {
+      "accessPresent": false,
+      "refreshPresent": false,
+      "auth": {
+        "loggedIn": false,
+        "authMethod": "none",
+        "apiProvider": "firstParty"
+      }
+    }
+  },
+  {
+    "binarySha256": "fcfd837103965c64de34a6b9b94370d77a347ea71819715a27d5f0ef01775ea4",
+    "expiresIn": -60,
+    "delay": 0.0,
+    "storeState": "valid",
+    "route": "subscription",
+    "printControl": false,
+    "newSaved": true,
+    "savedIn": [
+      "mock"
+    ],
+    "keychainCanaryDenied": true,
+    "events": [
+      {
+        "event": "process_exit",
+        "seconds": 0.3299,
+        "code": 0
+      },
+      {
+        "event": "follow_print_start",
+        "seconds": 0.3304
+      },
+      {
+        "event": "refresh_consumed",
+        "seconds": 0.6218
+      },
+      {
+        "event": "refresh_replied",
+        "seconds": 0.6219
+      },
+      {
+        "event": "mock_request_rejected",
+        "seconds": 2.0203,
+        "path": "/v1/messages?beta=true"
+      },
+      {
+        "event": "follow_print_exit",
+        "seconds": 2.0336,
+        "code": 1
+      },
+      {
+        "event": "status_after_task",
+        "seconds": 2.1891,
+        "code": 0
+      }
+    ],
+    "coldConfig": true,
+    "configPaddingBytes": 1048576,
+    "offlinePreflight": true,
+    "preflightPreservedTokens": true,
+    "case": "refresh-0-offline-True",
+    "auth": {
+      "loggedIn": true,
+      "authMethod": "claude.ai",
+      "apiProvider": "firstParty"
+    },
+    "afterTask": {
+      "accessPresent": true,
+      "refreshPresent": true,
+      "auth": {
+        "loggedIn": true,
+        "authMethod": "claude.ai",
+        "apiProvider": "firstParty"
+      }
+    }
+  },
+  {
+    "binarySha256": "fcfd837103965c64de34a6b9b94370d77a347ea71819715a27d5f0ef01775ea4",
+    "expiresIn": -60,
+    "delay": 0.5,
+    "storeState": "valid",
+    "route": "subscription",
+    "printControl": false,
+    "newSaved": false,
+    "savedIn": [],
+    "keychainCanaryDenied": true,
+    "events": [
+      {
+        "event": "refresh_consumed",
+        "seconds": 0.3213
+      },
+      {
+        "event": "process_exit",
+        "seconds": 0.335,
+        "code": 0
+      },
+      {
+        "event": "follow_print_start",
+        "seconds": 0.3352
+      },
+      {
+        "event": "spent_refresh_rejected",
+        "seconds": 0.6195
+      },
+      {
+        "event": "refresh_replied",
+        "seconds": 0.8289
+      },
+      {
+        "event": "mock_request_rejected",
+        "seconds": 2.0061,
+        "path": "/v1/messages?beta=true"
+      },
+      {
+        "event": "follow_print_exit",
+        "seconds": 2.0195,
+        "code": 1
+      },
+      {
+        "event": "status_after_task",
+        "seconds": 2.1759,
+        "code": 1
+      }
+    ],
+    "coldConfig": true,
+    "configPaddingBytes": 1048576,
+    "offlinePreflight": false,
+    "preflightPreservedTokens": true,
+    "case": "refresh-0.5-offline-False",
+    "auth": {
+      "loggedIn": true,
+      "authMethod": "claude.ai",
+      "apiProvider": "firstParty"
+    },
+    "afterTask": {
+      "accessPresent": false,
+      "refreshPresent": false,
+      "auth": {
+        "loggedIn": false,
+        "authMethod": "none",
+        "apiProvider": "firstParty"
+      }
+    }
+  },
+  {
+    "binarySha256": "fcfd837103965c64de34a6b9b94370d77a347ea71819715a27d5f0ef01775ea4",
+    "expiresIn": -60,
+    "delay": 0.5,
+    "storeState": "valid",
+    "route": "subscription",
+    "printControl": false,
+    "newSaved": true,
+    "savedIn": [
+      "mock"
+    ],
+    "keychainCanaryDenied": true,
+    "events": [
+      {
+        "event": "process_exit",
+        "seconds": 0.3501,
+        "code": 0
+      },
+      {
+        "event": "follow_print_start",
+        "seconds": 0.3504
+      },
+      {
+        "event": "refresh_consumed",
+        "seconds": 0.6433
+      },
+      {
+        "event": "refresh_replied",
+        "seconds": 1.1533
+      },
+      {
+        "event": "mock_request_rejected",
+        "seconds": 2.5992,
+        "path": "/v1/messages?beta=true"
+      },
+      {
+        "event": "follow_print_exit",
+        "seconds": 2.6136,
+        "code": 1
+      },
+      {
+        "event": "status_after_task",
+        "seconds": 2.7707,
+        "code": 0
+      }
+    ],
+    "coldConfig": true,
+    "configPaddingBytes": 1048576,
+    "offlinePreflight": true,
+    "preflightPreservedTokens": true,
+    "case": "refresh-0.5-offline-True",
+    "auth": {
+      "loggedIn": true,
+      "authMethod": "claude.ai",
+      "apiProvider": "firstParty"
+    },
+    "afterTask": {
+      "accessPresent": true,
+      "refreshPresent": true,
+      "auth": {
+        "loggedIn": true,
+        "authMethod": "claude.ai",
+        "apiProvider": "firstParty"
+      }
+    }
+  },
+  {
+    "binarySha256": "fcfd837103965c64de34a6b9b94370d77a347ea71819715a27d5f0ef01775ea4",
+    "expiresIn": -60,
+    "delay": 3.0,
+    "storeState": "valid",
+    "route": "subscription",
+    "printControl": false,
+    "newSaved": false,
+    "savedIn": [],
+    "keychainCanaryDenied": true,
+    "events": [
+      {
+        "event": "refresh_consumed",
+        "seconds": 0.3209
+      },
+      {
+        "event": "process_exit",
+        "seconds": 0.3364,
+        "code": 0
+      },
+      {
+        "event": "follow_print_start",
+        "seconds": 0.3366
+      },
+      {
+        "event": "spent_refresh_rejected",
+        "seconds": 0.6299
+      },
+      {
+        "event": "mock_request_rejected",
+        "seconds": 2.0496,
+        "path": "/v1/messages?beta=true"
+      },
+      {
+        "event": "follow_print_exit",
+        "seconds": 2.0629,
+        "code": 1
+      },
+      {
+        "event": "status_after_task",
+        "seconds": 2.2164,
+        "code": 1
+      },
+      {
+        "event": "refresh_replied",
+        "seconds": 3.3241
+      }
+    ],
+    "coldConfig": true,
+    "configPaddingBytes": 1048576,
+    "offlinePreflight": false,
+    "preflightPreservedTokens": true,
+    "case": "refresh-3-offline-False",
+    "auth": {
+      "loggedIn": true,
+      "authMethod": "claude.ai",
+      "apiProvider": "firstParty"
+    },
+    "afterTask": {
+      "accessPresent": false,
+      "refreshPresent": false,
+      "auth": {
+        "loggedIn": false,
+        "authMethod": "none",
+        "apiProvider": "firstParty"
+      }
+    }
+  },
+  {
+    "binarySha256": "fcfd837103965c64de34a6b9b94370d77a347ea71819715a27d5f0ef01775ea4",
+    "expiresIn": -60,
+    "delay": 3.0,
+    "storeState": "valid",
+    "route": "subscription",
+    "printControl": false,
+    "newSaved": true,
+    "savedIn": [
+      "mock"
+    ],
+    "keychainCanaryDenied": true,
+    "events": [
+      {
+        "event": "process_exit",
+        "seconds": 0.3565,
+        "code": 0
+      },
+      {
+        "event": "follow_print_start",
+        "seconds": 0.3569
+      },
+      {
+        "event": "refresh_consumed",
+        "seconds": 0.6407
+      },
+      {
+        "event": "refresh_replied",
+        "seconds": 3.6471
+      },
+      {
+        "event": "mock_request_rejected",
+        "seconds": 4.4852,
+        "path": "/v1/messages?beta=true"
+      },
+      {
+        "event": "follow_print_exit",
+        "seconds": 4.4973,
+        "code": 1
+      },
+      {
+        "event": "status_after_task",
+        "seconds": 4.649,
+        "code": 0
+      }
+    ],
+    "coldConfig": true,
+    "configPaddingBytes": 1048576,
+    "offlinePreflight": true,
+    "preflightPreservedTokens": true,
+    "case": "refresh-3-offline-True",
+    "auth": {
+      "loggedIn": true,
+      "authMethod": "claude.ai",
+      "apiProvider": "firstParty"
+    },
+    "afterTask": {
+      "accessPresent": true,
+      "refreshPresent": true,
+      "auth": {
+        "loggedIn": true,
+        "authMethod": "claude.ai",
+        "apiProvider": "firstParty"
+      }
+    }
+  }
+]

@@ -4,6 +4,12 @@ This file records what each version of the Open Pstack package changed. Versions
 
 Entries describe package versions. Published release checkpoints have tag links; installation follows `main` unless pinned. Validation belongs to the linked pull requests. Older reports remain available through immutable links.
 
+## 1.8.1 omits Claude authentication-status probes
+
+Cursor baseline: [0.15.5](https://github.com/cursor/plugins/tree/12d587dfb20741cafc376c42c696c5f6e2a64487/pstack). [Pull request #41](https://github.com/arjitj2/open-pstack/pull/41).
+
+Claude workers and setup skip the separate auth-status command because startup refresh can consume a token without saving its replacement. Authentication happens in the task. Known API environment guards and the empty settings-source list under `apiSpend: deny` remain, but Claude billing type is explicitly unverified. Other providers retain their checks. See [the recorded exception](https://github.com/arjitj2/open-pstack/issues/38) and [reproduction](tests/claude-auth-repro/README.md).
+
 ## 1.8.0 accepts newly available provider models
 
 Cursor baseline: [0.15.5](https://github.com/cursor/plugins/tree/12d587dfb20741cafc376c42c696c5f6e2a64487/pstack). [Pull request #46](https://github.com/arjitj2/open-pstack/pull/46).

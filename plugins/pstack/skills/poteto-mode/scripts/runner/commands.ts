@@ -17,7 +17,7 @@ export interface CommandSpec {
   readonly cwd?: string;
 }
 
-export function preflightCommand(provider: Provider, apiSpend: RunnerOptions["apiSpend"] = null): CommandSpec {
+export function preflightCommand(provider: Provider): CommandSpec | null {
   switch (provider) {
     case "opencode":
       return { command: "opencode", args: ["--pure", "debug", "config"], stdin: "none" };
@@ -30,11 +30,7 @@ export function preflightCommand(provider: Provider, apiSpend: RunnerOptions["ap
         stdin: "none",
       };
     case "claude":
-      return {
-        command: "claude",
-        args: [...(apiSpend === "deny" ? ["--setting-sources", ""] : []), "auth", "status", "--json"],
-        stdin: "none",
-      };
+      return null;
     case "codex":
       return {
         command: "codex",

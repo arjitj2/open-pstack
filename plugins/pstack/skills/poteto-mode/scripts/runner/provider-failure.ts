@@ -621,38 +621,6 @@ export interface SubscriptionAuthVerdict {
   readonly reason: string;
 }
 
-function claudeAuthVerdict(stdout: string): SubscriptionAuthVerdict {
-  let raw: unknown;
-  try {
-    raw = JSON.parse(stdout);
-  } catch {
-    return { compatible: false, reason: "claude auth status did not return JSON" };
-  }
-  const value = object(raw);
-  if (value === null || value.loggedIn !== true) {
-    return { compatible: false, reason: "claude auth status does not report a login" };
-  }
-  const authMethod = typeof value.authMethod === "string" ? value.authMethod : null;
-  const apiProvider = typeof value.apiProvider === "string" ? value.apiProvider : null;
-  if (authMethod !== "claude.ai") {
-    return {
-      compatible: false,
-      reason: authMethod === null
-        ? "claude auth status did not expose authMethod; cannot confirm subscription auth"
-        : `claude authMethod ${JSON.stringify(authMethod)} is not the subscription surface`,
-    };
-  }
-  if (apiProvider !== "firstParty") {
-    return {
-      compatible: false,
-      reason: apiProvider === null
-        ? "claude auth status did not expose apiProvider; cannot confirm first-party auth"
-        : `claude apiProvider ${JSON.stringify(apiProvider)} is not first-party`,
-    };
-  }
-  return { compatible: true, reason: "claude.ai first-party subscription auth" };
-}
-
 function codexAuthVerdict(stdout: string, stderr: string): SubscriptionAuthVerdict {
   const combined = `${stdout}\n${stderr}`.trim();
   if (/api[-\s]?key/i.test(combined)) {
@@ -673,8 +641,6 @@ export function subscriptionAuthEvidence(
   preflightStderr: string
 ): SubscriptionAuthVerdict | null {
   switch (provider) {
-    case "claude":
-      return claudeAuthVerdict(preflightStdout);
     case "codex":
       return codexAuthVerdict(preflightStdout, preflightStderr);
     case "grok":
@@ -684,6 +650,7 @@ export function subscriptionAuthEvidence(
       };
     case "opencode":
       return { compatible: false, reason: "OpenCode subscription-only routing cannot be verified" };
+    case "claude":
     case "devin":
     case "cursor":
     case "antigravity":

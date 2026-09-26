@@ -231,12 +231,11 @@ describe("invocationCommand", () => {
   });
 });
 
-it("disables file settings for Claude auth checks and invocations when API spending is denied", () => {
+it("omits Claude preflight while retaining its invocation settings restriction", () => {
+  expect(preflightCommand("claude")).toBeNull();
   const input = options({ provider: "claude", model: "opus", apiSpend: "deny" });
-  for (const spec of [preflightCommand("claude", "deny"), invocationCommand(input)]) {
-    expect(spec.args[spec.args.indexOf("--setting-sources") + 1]).toBe("");
-  }
-  expect(preflightCommand("claude", "deny").args).toEqual(["--setting-sources", "", "auth", "status", "--json"]);
+  const denied = invocationCommand(input);
+  expect(denied.args[denied.args.indexOf("--setting-sources") + 1]).toBe("");
   const approved = invocationCommand({ ...input, apiSpend: "approved" });
   expect(approved.args[approved.args.indexOf("--setting-sources") + 1]).toBe("project");
 });

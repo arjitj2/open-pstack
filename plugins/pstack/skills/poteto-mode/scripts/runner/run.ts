@@ -367,6 +367,7 @@ function preflightPassed(provider: Provider, model: string, result: ProcessResul
   if (result.exitCode !== 0 || result.timedOut) return false;
   const combined = `${result.stdout}\n${result.stderr}`;
   switch (provider) {
+    case "claude":
     case "opencode":
       return false;
     case "cursor": {
@@ -375,18 +376,6 @@ function preflightPassed(provider: Provider, model: string, result: ProcessResul
         const value: unknown = JSON.parse(result.stdout);
         return value !== null && typeof value === "object" &&
           (value as { isAuthenticated?: unknown }).isAuthenticated === true;
-      } catch {
-        return false;
-      }
-    }
-    case "claude": {
-      try {
-        const value: unknown = JSON.parse(result.stdout);
-        return (
-          value !== null &&
-          typeof value === "object" &&
-          (value as { loggedIn?: unknown }).loggedIn === true
-        );
       } catch {
         return false;
       }
@@ -616,7 +605,7 @@ async function executeLane(
   started: number,
   deadlineAt: number | null,
   invocation: CommandSpec,
-  preflight: CommandSpec,
+  preflight: CommandSpec | null,
   progress: LaneProgress,
   antigravityCreated: AntigravityCreatedFiles | null
 ): Promise<RunResult> {
@@ -640,7 +629,7 @@ async function executeLane(
       completedAt: new Date(completed).toISOString(),
       elapsedMs: completed - started,
       executable: null,
-      preflight: { argv: [preflight.command, ...preflight.args], status: "not-run", evidence: "" },
+      preflight: progress.preflight,
       argv: [invocation.command, ...invocation.args],
       exitCode: null,
       signal: null,
@@ -681,7 +670,7 @@ async function executeLane(
   ): RunResult => {
     const completed = Date.now();
     const receivedSignal = status === "cancelled" ? cancellation.signal : null;
-    const terminalPreflight = preflightState.status === "not-run"
+    const terminalPreflight = preflight !== null && preflightState.status === "not-run"
       ? { ...preflightState, status }
       : preflightState;
     receipt = completeReceipt(options, {
@@ -753,173 +742,126 @@ async function executeLane(
     return { exitCode: statusExitCode(receipt.status), receipt };
   }
 
-  const preflightExecutable = executable;
-  let activePreflight: CommandSpec = options.provider === "opencode"
-    ? { command: "opencode", args: ["--version"], stdin: "none" }
-    : preflight;
-  progress.preflight = { ...progress.preflight, argv: [preflightExecutable, ...activePreflight.args] };
-  let preflightResult = await runProcess(
-    preflightExecutable,
-    activePreflight,
-    options.cwd,
-    env,
-    "",
-    deadlineAt,
-    cancellation
-  );
-  let versionError: string | null = null;
-  if (options.provider === "opencode") {
-    versionError = preflightResult.exitCode === 0
-      ? openCodeVersionError(preflightResult.stdout)
-      : `OpenCode version check failed. Install OpenCode ${OPENCODE_MINIMUM_VERSION} or newer and check opencode --version.`;
-    if (versionError === null && preflightResult.cancelledBy === null && !preflightResult.timedOut) {
-      activePreflight = preflight;
-      progress.preflight = { ...progress.preflight, argv: [preflightExecutable, ...activePreflight.args] };
-      preflightResult = await runProcess(preflightExecutable, activePreflight, options.cwd, env, "", deadlineAt, cancellation);
-    }
-  }
-  let rawPreflightEvidence = versionError ?? (options.provider === "opencode"
-    ? "OpenCode effective agent preflight failed; configuration output withheld"
-    : evidence(`${preflightResult.stdout}\n${preflightResult.stderr}`));
-  let passed = options.provider === "opencode"
-    ? versionError === null && preflightResult.exitCode === 0 && openCodePreflightPassed(preflightResult.stdout, options, env)
-    : preflightPassed(options.provider, options.model, preflightResult, apiKeyAuth);
-  let preflightEvidence = passed
-    ? options.provider === "opencode" ? "effective agent model and tool policy verified; authentication deferred to execution" : successfulPreflightEvidence(options.provider, options.model, apiKeyAuth)
-    : rawPreflightEvidence;
-
-  if (
-    options.provider === "grok" &&
-    !passed &&
-    preflightResult.cancelledBy === null &&
-    !preflightResult.timedOut &&
-    preflightFailureStatus(options.provider, options.model, rawPreflightEvidence) ===
-      "unauthenticated"
-  ) {
-    preflightState = {
-      argv: [preflightExecutable, ...preflight.args],
-      status: "failed",
-      evidence: rawPreflightEvidence,
-    };
-    progress.preflight = preflightState;
-
-    const retryWait = await waitForGrokPreflightRetry(deadlineAt, cancellation);
-    if (retryWait !== "ready") {
-      preflightState = {
-        ...preflightState,
-        status: retryWait === "cancelled" ? "cancelled" : "timed-out",
-      };
-      progress.preflight = preflightState;
-      return finishWithoutChild(
-        retryWait === "cancelled" ? "cancelled" : "timed-out",
-        "during authentication preflight retry delay"
-      );
-    }
-
-    const firstPreflightEvidence = rawPreflightEvidence;
-    preflightResult = await runProcess(
+  if (preflight !== null) {
+    const preflightExecutable = executable;
+    let activePreflight: CommandSpec = options.provider === "opencode"
+      ? { command: "opencode", args: ["--version"], stdin: "none" }
+      : preflight;
+    progress.preflight = { ...progress.preflight, argv: [preflightExecutable, ...activePreflight.args] };
+    let preflightResult = await runProcess(
       preflightExecutable,
-      preflight,
+      activePreflight,
       options.cwd,
       env,
       "",
       deadlineAt,
       cancellation
     );
-    rawPreflightEvidence = evidence(`${preflightResult.stdout}\n${preflightResult.stderr}`);
-    passed = preflightPassed(options.provider, options.model, preflightResult, apiKeyAuth);
-    preflightEvidence = retriedPreflightEvidence(
-      firstPreflightEvidence,
-      passed
-        ? successfulPreflightEvidence(options.provider, options.model, apiKeyAuth)
-        : rawPreflightEvidence,
-      passed
-    );
-  }
+    let versionError: string | null = null;
+    if (options.provider === "opencode") {
+      versionError = preflightResult.exitCode === 0
+        ? openCodeVersionError(preflightResult.stdout)
+        : `OpenCode version check failed. Install OpenCode ${OPENCODE_MINIMUM_VERSION} or newer and check opencode --version.`;
+      if (versionError === null && preflightResult.cancelledBy === null && !preflightResult.timedOut) {
+        activePreflight = preflight;
+        progress.preflight = { ...progress.preflight, argv: [preflightExecutable, ...activePreflight.args] };
+        preflightResult = await runProcess(preflightExecutable, activePreflight, options.cwd, env, "", deadlineAt, cancellation);
+      }
+    }
+    let rawPreflightEvidence = versionError ?? (options.provider === "opencode"
+      ? "OpenCode effective agent preflight failed; configuration output withheld"
+      : evidence(`${preflightResult.stdout}\n${preflightResult.stderr}`));
+    let passed = options.provider === "opencode"
+      ? versionError === null && preflightResult.exitCode === 0 && openCodePreflightPassed(preflightResult.stdout, options, env)
+      : preflightPassed(options.provider, options.model, preflightResult, apiKeyAuth);
+    let preflightEvidence = passed
+      ? options.provider === "opencode" ? "effective agent model and tool policy verified; authentication deferred to execution" : successfulPreflightEvidence(options.provider, options.model, apiKeyAuth)
+      : rawPreflightEvidence;
 
-  preflightState = {
-    argv: [preflightExecutable, ...activePreflight.args],
-    status: preflightResult.cancelledBy !== null
-      ? "cancelled"
-      : preflightResult.timedOut
-        ? "timed-out"
-        : passed
-          ? "passed"
-          : "failed",
-    evidence: preflightEvidence,
-  };
-  progress.preflight = preflightState;
+    if (
+      options.provider === "grok" &&
+      !passed &&
+      preflightResult.cancelledBy === null &&
+      !preflightResult.timedOut &&
+      preflightFailureStatus(options.provider, options.model, rawPreflightEvidence) ===
+        "unauthenticated"
+    ) {
+      preflightState = {
+        argv: [preflightExecutable, ...preflight.args],
+        status: "failed",
+        evidence: rawPreflightEvidence,
+      };
+      progress.preflight = preflightState;
 
-  if (preflightState.status !== "passed") {
-    const completed = Date.now();
-    const preflightFailure = preflightFailureStatus(
-      options.provider,
-      options.model,
-      rawPreflightEvidence
-    );
-    const status: ReceiptStatus = preflightResult.cancelledBy !== null
-      ? "cancelled"
-      : preflightResult.timedOut
-        ? "timed-out"
-        : versionError !== null ? "unavailable-cli" : preflightFailure;
-    receipt = completeReceipt(options, {
-      status,
-      startedAt,
-      completedAt: new Date(completed).toISOString(),
-      elapsedMs: completed - started,
-      executable,
-      preflight: preflightState,
-      argv: [executable, ...invocation.args],
-      exitCode: preflightResult.exitCode,
-      signal: preflightResult.signal,
-      reportedModel: null,
-      modelVerified: false,
-      modelEvidence: null,
-      sessionId: null,
-      usage: null,
-      costUsd: null,
-      error: {
-        message: preflightResult.cancelledBy !== null
-          ? `launcher received ${preflightResult.cancelledBy} during preflight`
-          : preflightResult.timedOut
-            ? "authentication preflight timed out"
-            : versionError ?? "authentication or model preflight failed",
-        evidence: preflightEvidence,
-      },
-      failurePhase: "preflight",
-      processStarted: false,
-      apiSpend: options.apiSpend ?? "legacy",
-    });
-    removeIfExists(options.outputPath);
-    writeReceipt(options.receiptPath, receipt);
-    return { exitCode: statusExitCode(status), receipt };
-  }
+      const retryWait = await waitForGrokPreflightRetry(deadlineAt, cancellation);
+      if (retryWait !== "ready") {
+        preflightState = {
+          ...preflightState,
+          status: retryWait === "cancelled" ? "cancelled" : "timed-out",
+        };
+        progress.preflight = preflightState;
+        return finishWithoutChild(
+          retryWait === "cancelled" ? "cancelled" : "timed-out",
+          "during authentication preflight retry delay"
+        );
+      }
 
-  if (cancellation.signal !== null) {
-    return finishWithoutChild("cancelled", "before model execution");
-  }
-  if (deadlineAt !== null && Date.now() >= deadlineAt) {
-    return finishWithoutChild("timed-out", "before model execution");
-  }
+      const firstPreflightEvidence = rawPreflightEvidence;
+      preflightResult = await runProcess(
+        preflightExecutable,
+        preflight,
+        options.cwd,
+        env,
+        "",
+        deadlineAt,
+        cancellation
+      );
+      rawPreflightEvidence = evidence(`${preflightResult.stdout}\n${preflightResult.stderr}`);
+      passed = preflightPassed(options.provider, options.model, preflightResult, apiKeyAuth);
+      preflightEvidence = retriedPreflightEvidence(
+        firstPreflightEvidence,
+        passed
+          ? successfulPreflightEvidence(options.provider, options.model, apiKeyAuth)
+          : rawPreflightEvidence,
+        passed
+      );
+    }
 
-  if (options.apiSpend === "deny") {
-    const verdict = subscriptionAuthEvidence(
-      options.provider,
-      preflightResult.stdout,
-      preflightResult.stderr
-    );
-    if (verdict !== null && !verdict.compatible) {
+    preflightState = {
+      argv: [preflightExecutable, ...activePreflight.args],
+      status: preflightResult.cancelledBy !== null
+        ? "cancelled"
+        : preflightResult.timedOut
+          ? "timed-out"
+          : passed
+            ? "passed"
+            : "failed",
+      evidence: preflightEvidence,
+    };
+    progress.preflight = preflightState;
+
+    if (preflightState.status !== "passed") {
       const completed = Date.now();
+      const preflightFailure = preflightFailureStatus(
+        options.provider,
+        options.model,
+        rawPreflightEvidence
+      );
+      const status: ReceiptStatus = preflightResult.cancelledBy !== null
+        ? "cancelled"
+        : preflightResult.timedOut
+          ? "timed-out"
+          : versionError !== null ? "unavailable-cli" : preflightFailure;
       receipt = completeReceipt(options, {
-        status: "billing-policy-blocked",
+        status,
         startedAt,
         completedAt: new Date(completed).toISOString(),
         elapsedMs: completed - started,
         executable,
         preflight: preflightState,
         argv: [executable, ...invocation.args],
-        exitCode: null,
-        signal: null,
+        exitCode: preflightResult.exitCode,
+        signal: preflightResult.signal,
         reportedModel: null,
         modelVerified: false,
         modelEvidence: null,
@@ -927,17 +869,66 @@ async function executeLane(
         usage: null,
         costUsd: null,
         error: {
-          message: `subscription-only policy refused the observed authentication: ${verdict.reason}`,
-          evidence: "",
+          message: preflightResult.cancelledBy !== null
+            ? `launcher received ${preflightResult.cancelledBy} during preflight`
+            : preflightResult.timedOut
+              ? "authentication preflight timed out"
+              : versionError ?? "authentication or model preflight failed",
+          evidence: preflightEvidence,
         },
         failurePhase: "preflight",
         processStarted: false,
-        apiSpend: "deny",
+        apiSpend: options.apiSpend ?? "legacy",
       });
       removeIfExists(options.outputPath);
       writeReceipt(options.receiptPath, receipt);
-      return { exitCode: statusExitCode(receipt.status), receipt };
+      return { exitCode: statusExitCode(status), receipt };
     }
+
+    if (options.apiSpend === "deny") {
+      const verdict = subscriptionAuthEvidence(
+        options.provider,
+        preflightResult.stdout,
+        preflightResult.stderr
+      );
+      if (verdict !== null && !verdict.compatible) {
+        const completed = Date.now();
+        receipt = completeReceipt(options, {
+          status: "billing-policy-blocked",
+          startedAt,
+          completedAt: new Date(completed).toISOString(),
+          elapsedMs: completed - started,
+          executable,
+          preflight: preflightState,
+          argv: [executable, ...invocation.args],
+          exitCode: null,
+          signal: null,
+          reportedModel: null,
+          modelVerified: false,
+          modelEvidence: null,
+          sessionId: null,
+          usage: null,
+          costUsd: null,
+          error: {
+            message: `subscription-only policy refused the observed authentication: ${verdict.reason}`,
+            evidence: "",
+          },
+          failurePhase: "preflight",
+          processStarted: false,
+          apiSpend: "deny",
+        });
+        removeIfExists(options.outputPath);
+        writeReceipt(options.receiptPath, receipt);
+        return { exitCode: statusExitCode(receipt.status), receipt };
+      }
+    }
+  }
+
+  if (cancellation.signal !== null) {
+    return finishWithoutChild("cancelled", "before model execution");
+  }
+  if (deadlineAt !== null && Date.now() >= deadlineAt) {
+    return finishWithoutChild("timed-out", "before model execution");
   }
 
   progress.modelStarted = true;
@@ -1096,13 +1087,13 @@ export async function runLane(
   validateOptions(options);
   const deadlineAt = options.timeoutMs === null ? null : started + options.timeoutMs;
   const invocation = invocationCommand(options);
-  const preflight = preflightCommand(options.provider, options.apiSpend);
+  const preflight = preflightCommand(options.provider);
   const progress: LaneProgress = {
     executable: null,
     preflight: {
-      argv: [preflight.command, ...preflight.args],
+      argv: preflight === null ? [] : [preflight.command, ...preflight.args],
       status: "not-run",
-      evidence: "",
+      evidence: preflight === null ? "authentication deferred to invocation; billing route unverified" : "",
     },
     argv: [invocation.command, ...invocation.args],
     modelStarted: false,
@@ -1164,7 +1155,7 @@ export async function runLane(
           ? "timed-out"
           : "child-failed";
       const message = error instanceof Error ? error.message : String(error);
-      const terminalPreflight = progress.preflight.status === "not-run" && status !== "child-failed"
+      const terminalPreflight = preflight !== null && progress.preflight.status === "not-run" && status !== "child-failed"
         ? { ...progress.preflight, status }
         : progress.preflight;
       const receipt = completeReceipt(options, {

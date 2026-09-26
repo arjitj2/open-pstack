@@ -1,0 +1,167 @@
+[
+  {
+    "binarySha256": "fcfd837103965c64de34a6b9b94370d77a347ea71819715a27d5f0ef01775ea4",
+    "delay": 0.0,
+    "route": "subscription",
+    "coldConfig": true,
+    "configPaddingBytes": 1048576,
+    "keychainCanaryDenied": true,
+    "newSaved": true,
+    "savedIn": [
+      "mock"
+    ],
+    "events": [
+      {
+        "event": "refresh_consumed",
+        "seconds": 0.731
+      },
+      {
+        "event": "refresh_replied",
+        "seconds": 0.7312
+      },
+      {
+        "event": "mock_request_rejected",
+        "seconds": 2.4416,
+        "path": "/v1/messages?beta=true"
+      },
+      {
+        "event": "process_exit",
+        "seconds": 2.4627,
+        "code": 70
+      }
+    ],
+    "receipt": {
+      "provider": "claude",
+      "model": "opus",
+      "apiSpend": "deny",
+      "preflight": {
+        "argv": [],
+        "status": "not-run",
+        "evidence": "authentication deferred to invocation; billing route unverified"
+      },
+      "status": "child-failed",
+      "failurePhase": "invocation",
+      "processStarted": true
+    }
+  },
+  {
+    "binarySha256": "fcfd837103965c64de34a6b9b94370d77a347ea71819715a27d5f0ef01775ea4",
+    "delay": 0.5,
+    "route": "subscription",
+    "coldConfig": true,
+    "configPaddingBytes": 1048576,
+    "keychainCanaryDenied": true,
+    "newSaved": true,
+    "savedIn": [
+      "mock"
+    ],
+    "events": [
+      {
+        "event": "refresh_consumed",
+        "seconds": 0.7043
+      },
+      {
+        "event": "refresh_replied",
+        "seconds": 1.2095
+      },
+      {
+        "event": "mock_request_rejected",
+        "seconds": 3.2157,
+        "path": "/v1/messages?beta=true"
+      },
+      {
+        "event": "process_exit",
+        "seconds": 3.245,
+        "code": 70
+      }
+    ],
+    "receipt": {
+      "provider": "claude",
+      "model": "opus",
+      "apiSpend": "deny",
+      "preflight": {
+        "argv": [],
+        "status": "not-run",
+        "evidence": "authentication deferred to invocation; billing route unverified"
+      },
+      "status": "child-failed",
+      "failurePhase": "invocation",
+      "processStarted": true
+    }
+  },
+  {
+    "binarySha256": "fcfd837103965c64de34a6b9b94370d77a347ea71819715a27d5f0ef01775ea4",
+    "delay": 3.0,
+    "route": "subscription",
+    "coldConfig": true,
+    "configPaddingBytes": 1048576,
+    "keychainCanaryDenied": true,
+    "newSaved": true,
+    "savedIn": [
+      "mock"
+    ],
+    "events": [
+      {
+        "event": "refresh_consumed",
+        "seconds": 0.5999
+      },
+      {
+        "event": "refresh_replied",
+        "seconds": 3.6032
+      },
+      {
+        "event": "mock_request_rejected",
+        "seconds": 4.4298,
+        "path": "/v1/messages?beta=true"
+      },
+      {
+        "event": "process_exit",
+        "seconds": 4.4543,
+        "code": 70
+      }
+    ],
+    "receipt": {
+      "provider": "claude",
+      "model": "opus",
+      "apiSpend": "deny",
+      "preflight": {
+        "argv": [],
+        "status": "not-run",
+        "evidence": "authentication deferred to invocation; billing route unverified"
+      },
+      "status": "child-failed",
+      "failurePhase": "invocation",
+      "processStarted": true
+    }
+  },
+  {
+    "binarySha256": "fcfd837103965c64de34a6b9b94370d77a347ea71819715a27d5f0ef01775ea4",
+    "delay": 0.5,
+    "route": "api",
+    "coldConfig": true,
+    "configPaddingBytes": 1048576,
+    "keychainCanaryDenied": true,
+    "newSaved": false,
+    "savedIn": [],
+    "events": [
+      {
+        "event": "process_exit",
+        "seconds": 0.2502,
+        "code": 78
+      }
+    ],
+    "receipt": {
+      "provider": "claude",
+      "model": "opus",
+      "apiSpend": "deny",
+      "preflight": {
+        "argv": [],
+        "status": "not-run",
+        "evidence": "authentication deferred to invocation; billing route unverified"
+      },
+      "status": "billing-policy-blocked",
+      "failurePhase": "preflight",
+      "processStarted": false
+    }
+  }
+]
