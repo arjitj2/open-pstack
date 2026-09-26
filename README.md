@@ -1,14 +1,23 @@
 # Open Pstack, maintained by Arjit
 
-This Open Pstack distribution lets Codex and Claude Code coordinate coding work across the AI subscriptions you already have. Arjit Jaiswal maintains it as an intelligent model router built around Pstack's engineering workflows.
+**Stop bad code before your agents ship it.**
 
-Use **Anthropic Claude, OpenAI Codex, xAI Grok, Devin, Cursor, Antigravity, and OpenCode** as workers, coordinated from Codex or Claude Code. See the [provider table](#supported-parent-apps-and-worker-providers) for how each connects.
+Pstack helps you build a repo where agents must prove a change works before it can merge. `poteto-mode` gives them the engineering process; a repo-specific verification skill checks real features. Your codebase, static checks, CI, and merge rules make the requirements enforceable. When you catch a mistake, turn it into a check or constraint that prevents it from recurring.
 
-`setup-pstack` checks provider and model access, asks about subscriptions it cannot verify, and recommends models for implementation, investigation, and review. You approve the assignments and backup chains during setup. Pstack routes workers to those models and automatically uses approved backups when the saved policy allows recovery. It tells you what failed and which model is taking over, and inspects and preserves partial work before continuing.
+```mermaid
+flowchart LR
+    work["poteto-mode<br/>Understand · plan · build"] --> verify["Verify real behavior<br/>Feature map + app checks"]
+    verify --> gate["Required checks<br/>CI + review"]
+    gate -->|Pass| merge["Merge"]
+    verify -->|Fail| work
+    gate -->|Fail| work
+```
 
-This repository maintains its own provider integrations, recovery behavior, and tested releases while tracking Cursor's Pstack directly. It builds on Lauren Tan's original Pstack and Eric Litman's Open Pstack port, with their attribution preserved.
+To make it work in **your** repo, [configure your models](#1-set-up-the-models), [create a verification skill](#2-add-verification-for-your-repository), then [use poteto-mode for each change](#3-use-poteto-mode). The verification skill includes a **feature map**: what your app does and how to check it. Keep that map current with `maintain-verification-skill` as the app changes. The goal is to catch mistakes through repeatable checks instead of trusting an agent's claim that it is done.
 
-See [release evidence and recovery limits](docs/compatibility.md), [why use this distribution](docs/distribution.md), [release history and Cursor baselines](docs/releases.md), and [upstream status](UPSTREAM.md).
+This distribution brings Pstack to **Codex and Claude Code**, with **Anthropic Claude, OpenAI Codex, xAI Grok, Devin, Cursor, Antigravity, and OpenCode** workers. You choose which models handle each role and which backups may take over. See the [provider table](#supported-parent-apps-and-worker-providers).
+
+Arjit Jaiswal maintains this distribution's provider integrations and tested releases while tracking Lauren Tan's original Pstack directly. It builds on Eric Litman's Open Pstack port, with [attribution preserved](NOTICE.md).
 
 [![CI](https://github.com/arjitj2/open-pstack/actions/workflows/ci.yml/badge.svg)](https://github.com/arjitj2/open-pstack/actions/workflows/ci.yml)
 [![Latest release](https://img.shields.io/github/v/release/arjitj2/open-pstack)](https://github.com/arjitj2/open-pstack/releases/latest)
@@ -24,7 +33,7 @@ Choose based on where you run Pstack and how you want to use your model subscrip
 
 Routing follows the role assignments you approve. Setup recommends a mix based on task fit and confirmed access. The saved policy controls which models run and when a backup can take over.
 
-Recovery can cover recognized quota limits, unavailable routes, terminal backend failures, and explicitly configured deadlines. Existing configurations remain quota-only until a broader policy is saved. A quiet worker is not assumed to have failed; an exhausted parent or a chain with no safe, approved backup cannot recover automatically. See [tested behavior and limits](docs/compatibility.md).
+Recovery can cover recognized quota limits, unavailable routes, terminal backend failures, and explicitly configured deadlines. Existing configurations remain quota-only until a broader policy is saved. A quiet worker is not assumed to have failed; an exhausted parent or a chain with no safe, approved backup cannot recover automatically. See the [recovery contract](plugins/pstack/skills/poteto-mode/references/provider-dispatch.md#saved-fallback-and-backend-recovery).
 
 ## Supported parent apps and worker providers
 
@@ -42,33 +51,15 @@ The **parent** is the app where you start a task. It coordinates the work and ke
 
 **This distribution supports Codex (`codex`) and Claude Code (`claude`) as parents.** For Cursor as your parent app, use [Cursor's original Pstack](https://github.com/cursor/plugins/tree/main/pstack). Provider availability does not guarantee access to every model: setup checks the exact models you select.
 
-External workers use their own authentication and do not inherit the parent's MCP connections. Why and Reflect stay native so they retain those tools. See [compatibility](docs/compatibility.md) for supported models, permissions, and tested routes.
+External workers use their own authentication and do not inherit the parent's MCP connections. Why and Reflect stay native so they retain those tools. See the [provider dispatch contract](plugins/pstack/skills/poteto-mode/references/provider-dispatch.md) for supported models and permissions, and the [provider limits](plugins/pstack/skills/poteto-mode/references/provider-dispatch.md) for what each worker cannot do.
 
 OpenCode workers are opt-in. They require an exact `opencode:<provider>/<model>@default` assignment and explicit API-spend approval because subscription-only routing is unproven. Read-only workers inspect files. Writers edit a Git worktree root, but neither mode runs shell commands or builds. Initial support uses built-in OpenCode providers and native authentication. See [OpenCode worker limits](plugins/pstack/skills/poteto-mode/references/provider-dispatch.md#optional-opencode-models).
-
-## What pstack does
-
-pstack is a plugin for coding agents. It is not a new model or a hosted service. It gives your agent engineering rules, step-by-step workflows for different kinds of work, focused skills, and small local tools.
-
-The normal entry point is `poteto-mode`. You give it a task in plain language. It then:
-
-- reads the task and chooses a workflow that fits;
-- learns how the current system works before changing it;
-- compares designs when the choice matters;
-- favors small, simple changes over extra machinery;
-- asks several models to challenge important decisions when useful;
-- runs the code and checks real behavior instead of stopping at “the tests pass”; and
-- carries the work through review, continuous integration (CI), and a ready-to-merge pull request when asked.
-
-![How pstack routes a task through focused skills, real-app proof, and a review-ready pull request](assets/pstack-workflow.png)
-
-pstack does not ask you to trust an agent on day one. It helps the agent leave evidence you can inspect. Start with supervised work. Let it run more work in parallel only after its checks have earned that trust in your own repositories.
 
 ## Install
 
 Start with a current Claude Code or Codex installation. Install and sign in to the command-line tools for the external providers you choose; unused providers are optional. [Bun](https://bun.sh) runs Pstack's local routing tools. Setup checks access before saving your model choices.
 
-Install directly from this repository. Its default branch, `main`, contains changes validated and ready for users. You do not need GitHub CLI, a version tag, or a separate release channel. See [updates and migration](docs/fork-maintenance.md#install-or-migrate) if you already installed from a tag or another distribution.
+Install directly from this repository. Its default branch, `main`, contains changes validated and ready for users. You do not need GitHub CLI, a version tag, or a separate release channel. If you already installed from a tag or another distribution, see [Update, switch, or roll back](#update-switch-or-roll-back).
 
 ### Claude Code
 
@@ -101,7 +92,7 @@ Start a new Codex task after installation so it can discover the new skills and 
 
 ## Get started
 
-Configure your model access once for each parent app you use. Then start a task. Repository-specific verification is a separate step below.
+Configure model access, establish verification for your repository, then start a task.
 
 ### 1. Set up the models
 
@@ -115,15 +106,23 @@ In the Codex app, type `/` and select `pstack:setup-pstack` from the skill list.
 
 Setup discovers the models you can run, asks about subscriptions it cannot verify, and recommends assignments for each role. It shows which models will run natively and which will use external workers, then asks before saving. Included subscription access and permission for metered API spending are recorded separately; unknown remaining capacity stays unknown.
 
-You can save an ordered backup chain for each role, with up to three attempts. During a run, Pstack follows those approved choices and reports substitutions. Recovery depends on the installed release and saved policy; see [recovery support and validation](docs/compatibility.md). If a failed worker may have changed files, the parent inspects and preserves that work before continuing in a fresh workspace. An unsafe or ambiguous result stops that lane with a checkpoint.
+You can save an ordered backup chain for each role, with up to three attempts. During a run, Pstack follows those approved choices and reports substitutions. Recovery depends on the installed release and saved policy. See the [recovery contract](plugins/pstack/skills/poteto-mode/references/provider-dispatch.md#saved-fallback-and-backend-recovery). If a failed worker may have changed files, the parent inspects and preserves that work before continuing in a fresh workspace. An unsafe or ambiguous result stops that lane with a checkpoint.
 
-Only selected providers need to pass setup. You can mix providers across implementation, investigation, and review or keep the configuration small. See the [model matrix](plugins/pstack/skills/poteto-mode/references/provider-dispatch.md#model-matrix) for recommended defaults and effort levels; a provider's own listing or a successful probe decides which model IDs run, not matrix membership.
+Only selected providers need to pass setup. You can mix providers across implementation, investigation, and review or keep the configuration small. See the [model matrix](plugins/pstack/skills/poteto-mode/references/provider-dispatch.md#model-matrix) for recommended defaults and effort levels. Setup checks other model IDs through the provider’s listing or a successful probe.
 
-For Antigravity, install and sign in to `agy`, then run `agy models`. Ask setup to assign an exact listed slug such as `antigravity:gemini-3.1-pro-high@default` and record your API-spend choice. Antigravity workers use file tools only, including in writer mode; the parent runs tests. See [Antigravity compatibility and limits](docs/compatibility.md#antigravity-workers).
+For Antigravity, install and sign in to `agy`, then run `agy models`. Ask setup to assign an exact listed slug such as `antigravity:gemini-3.1-pro-high@default` and record your API-spend choice. Antigravity workers use file tools only, including in writer mode; the parent runs tests. See [Antigravity models](plugins/pstack/skills/poteto-mode/references/provider-dispatch.md#optional-antigravity-models).
 
-Setup also migrates older versioned Fable, Opus, and Sonnet entries to rolling aliases while preserving role assignments and effort. Run setup after an update to persist that migration.
+### 2. Add verification for your repository
 
-### 2. Use poteto-mode
+`setup-pstack` verifies model access, saves your approved model sheet and parent integration, reads them back, and runs a small worker-and-reviewer smoke test. It does **not** create an app feature map or schedule repository maintenance.
+
+For a repository without a repeatable way to test real behavior, invoke `pstack:create-verification-skill`. It inspects how the app starts and can be driven, creates a project-local verification skill, and seeds a feature map with the first few user-facing features. Each entry describes how to reach the feature, exercise it, and recognize success. The generated skill must prove one mapped feature live before handoff; that initial map is a starting point, not a claim of complete coverage.
+
+Use `pstack:maintain-verification-skill` as the app changes. It checks the map against source and live behavior and can propose a PR correcting drift. These skills work through the same picker or mention mechanism described above. Use `/pstack:create-verification-skill` and `/pstack:maintain-verification-skill` in Claude Code.
+
+This release includes the creation and maintenance workflows, but no automatic feature-map maintenance schedule. Recurring upkeep must be configured separately in your parent app or another scheduler. Installing Pstack does not silently start background jobs.
+
+### 3. Use poteto-mode
 
 Start any task that needs careful engineering with `poteto-mode`.
 
@@ -139,21 +138,11 @@ In the Codex app, type `/`, select `pstack:poteto-mode`, and add your task. A sk
 $pstack:poteto-mode Add saved filters to search. Keep the design simple, verify it in the real app, and open a pull request.
 ```
 
-For that feature, poteto-mode should first understand how search works today. It should decide how the data should be represented before writing code, implement the smallest complete version, run the feature the way a user would, review the result, and prepare the pull request.
+In this example, poteto-mode first examines the existing search implementation before deciding how to add saved filters. It settles how saved filters are stored before writing code, then implements the smallest complete version. It runs the feature the way a user would, reviews the result, and prepares the pull request.
 
 The skill name is `poteto-mode`, spelled with an “e”. Claude Code also loads this distribution's startup instruction for non-trivial engineering work. In Codex, select the skill explicitly or add a standing instruction if you want it used by default. Model setup saves routing preferences; it does not install an always-on Codex workflow instruction.
 
-That is the main workflow. The other skills are there when poteto-mode needs them or when you want to call one directly.
-
-### 3. Add verification for your repository
-
-`setup-pstack` verifies model access, saves your approved model sheet and parent integration, reads them back, and runs a small worker-and-reviewer smoke test. It does **not** create an app feature map or schedule repository maintenance.
-
-For a repository without a repeatable way to test real behavior, invoke `pstack:create-verification-skill`. It inspects how the app starts and can be driven, creates a project-local verification skill, and seeds a feature map with the first few user-facing features. Each entry describes how to reach the feature, exercise it, and recognize success. The generated skill must prove one mapped feature live before handoff; that initial map is a starting point, not a claim of complete coverage.
-
-Use `pstack:maintain-verification-skill` as the app changes. It checks the map against source and live behavior and can propose a PR correcting drift. These skills work through the same picker or mention mechanism described above. Use `/pstack:create-verification-skill` and `/pstack:maintain-verification-skill` in Claude Code.
-
-This release includes the creation and maintenance workflows, but no automatic feature-map maintenance schedule. Recurring upkeep must be configured separately in your parent app or another scheduler. Installing Pstack does not silently start background jobs.
+Use the verification skill for each change. If you add or change a feature, update its entry in the feature map too. The other skills are there when poteto-mode needs them or when you want to call one directly.
 
 ## Useful skills
 
@@ -179,23 +168,72 @@ Some pstack workflows use one model. Skills such as `architect`, `arena`, and `i
 
 ## Learn from the original
 
+[Lauren's talk on building trustworthy coding agents](https://x.com/poteto/status/2102050467505430555) explains how verification, engineering skills, and repo design work together.
+
 Lauren's [pstack guide](https://github.com/cursor/plugins/tree/main/pstack/docs/guide) walks through a real task, verification, and longer unattended runs. It uses Cursor's interface, but the ideas are the same. Use the translated skill invocations above in Claude Code or Codex.
 
-This repository also keeps:
+More about this repository:
 
-- [the original README](README-UPSTREAM.md), unchanged;
-- [the technical reference](docs/reference.md) for every skill, dependency, and Claude Code or Codex detail;
-- [the upstream sync record](UPSTREAM.md) and update process;
-- [the change record](CHANGES.md) for every adaptation; and
-- [the attribution record](NOTICE.md) for pstack and the imported Cursor Team Kit skills.
+- [the original README at the incorporated Cursor commit](UPSTREAM.md#current-sync-point);
+- [the contributor guide](CONTRIBUTING.md) for development tools and validation;
+- [the upstream sync record](UPSTREAM.md) and maintainer procedure;
+- [the change history](CHANGELOG.md) with each release's Cursor baseline and validation evidence; and
+- [the attribution record](NOTICE.md) for Pstack, the imported Cursor Team Kit skills, and other contributions.
 
 ## How releases track Cursor’s Pstack
 
-This distribution has its own release numbers. Each release records the Cursor Pstack version and exact source commit it incorporates, along with adaptations and exclusions. Find those details in the [release history](docs/releases.md), [release notes](https://github.com/arjitj2/open-pstack/releases), and [upstream sync record](UPSTREAM.md).
+This distribution has its own release numbers. Each version in the [change history](CHANGELOG.md) records the Cursor Pstack version and exact source commit it incorporates. [UPSTREAM.md](UPSTREAM.md) lists the current adaptations and exclusions, and the [release notes](https://github.com/arjitj2/open-pstack/releases) describe each tagged checkpoint.
 
-Scheduled checks detect changes in Cursor’s original Pstack and prepare proposals. Adoption work reviews those changes, adapts them to the shared Codex and Claude Code skill tree, and validates affected behavior in the real parent apps before release. Pending changes remain visible until they are adopted, adapted, or excluded with a reason. Detection does not imply immediate inclusion.
+Scheduled checks detect changes in Cursor’s original Pstack and propose them for review. Each adoption adapts the change to the shared Codex and Claude Code skill tree and tests the affected behavior in the real parent apps before release. Pending changes remain visible until they are adopted, adapted, or excluded with a reason. Detection does not mean the change is included.
 
-Provider discovery, model routing, and recovery evolve independently in this distribution. Useful fixes from Eric’s port and other sources are reviewed separately. See the [maintenance policy](docs/fork-maintenance.md) for the process and release gates.
+Provider discovery, model routing, and recovery are developed in this distribution. Useful fixes from Eric’s port and other sources are reviewed separately.
+
+## Update, switch, or roll back
+
+Your model sheet and parent integration are separate from the plugin files. Updating, switching, or pinning a release does not rewrite them.
+
+### Update an installation that follows main
+
+In Claude Code, run `/plugin marketplace update open-pstack`, or run `claude plugin update pstack@open-pstack` in your terminal. To update automatically, open `/plugin`, select **Marketplaces**, and turn on automatic updates for `open-pstack`. Then run `/reload-plugins` or start a new session.
+
+In Codex, run `codex plugin marketplace upgrade open-pstack` to refresh the catalog. Apply the available plugin update through Codex's plugin management, then start a new task. Refreshing the catalog does not reload the plugin in a task that is already running.
+
+After an update, run `setup-pstack` once. It migrates older versioned Fable, Opus, and Sonnet entries to rolling aliases and keeps your role assignments and efforts. Until you run it, Pstack applies the same migration at run time without saving it.
+
+### Switch from a pinned tag or another distribution
+
+Register the marketplace again without a ref. For Codex, run:
+
+```shell
+codex plugin remove pstack@open-pstack
+codex plugin marketplace remove open-pstack
+codex plugin marketplace add arjitj2/open-pstack
+codex plugin add pstack@open-pstack
+```
+
+For Claude Code, run:
+
+```shell
+claude plugin uninstall pstack@open-pstack
+claude plugin marketplace remove open-pstack
+claude plugin marketplace add arjitj2/open-pstack
+claude plugin install pstack@open-pstack
+```
+
+If a command fails, fix the reported problem, then retry from the step that failed. These commands use the default user scope. If you installed the Claude Code plugin in project or local scope, keep that scope.
+
+Then run `/reload-plugins` in Claude Code or start a new session. In Codex, open a new task. The marketplace name stays `open-pstack`, and the skills stay under `pstack:`.
+
+### Pin a release or roll back
+
+Pick a tag from the [change history](CHANGELOG.md). Remove the plugin and marketplace as shown above, then register the marketplace at that tag:
+
+```shell
+codex plugin marketplace add arjitj2/open-pstack --ref <release-tag>
+claude plugin marketplace add arjitj2/open-pstack#<release-tag>
+```
+
+Install the plugin again with the same command as before. A pinned installation stays on that tag until you register the marketplace again without a ref. A release does not include worker providers added after it. If your model sheet assigns one, run `setup-pstack` and assign a provider that release supports.
 
 ## Contributing
 
@@ -205,4 +243,4 @@ Read [CONTRIBUTING.md](CONTRIBUTING.md) and [UPSTREAM.md](UPSTREAM.md) before ch
 
 ## License
 
-MIT. pstack was created by Lauren Tan. Open Pstack builds on Michael Denyer's [pstack-claude](https://github.com/michael-denyer/pstack-claude) port and includes attributed MIT-licensed work from Cursor Team Kit and Superpowers. See [NOTICE.md](NOTICE.md) and the preserved license files for details.
+MIT. pstack was created by Lauren Tan. Open Pstack builds on Michael Denyer's [pstack-claude](https://github.com/michael-denyer/pstack-claude) port and includes attributed MIT-licensed work from Cursor Team Kit and Superpowers. See [NOTICE.md](NOTICE.md) for attribution and [LICENSES/](LICENSES/) for the Cursor Team Kit and Superpowers license texts.

@@ -14,7 +14,7 @@ Codex uses shell plugin commands and the app skill picker or CLI `/skills`. Clau
 
 ## Driving it with the parent apps
 
-Preconditions: a dedicated test profile/session with working authentication. These commands install public `main`; they do not install arbitrary unmerged checkout changes. For a candidate release, follow the validation policy in `docs/fork-maintenance.md`: establish a candidate installation using the host's supported local marketplace controls and prove loaded-tree equality before continuing. This starter map does not automate candidate installation; if identity cannot be established, report the candidate lane blocked.
+Preconditions: a dedicated test profile/session with working authentication. These commands install public `main`; they do not install arbitrary unmerged checkout changes. For a candidate release, follow the validation policy in `UPSTREAM.md` and `AGENTS.md`: establish a candidate installation using the host's supported local marketplace controls and prove loaded-tree equality before continuing. This starter map does not automate candidate installation; if identity cannot be established, report the candidate lane blocked.
 
 - **Codex install:** run `codex plugin marketplace add arjitj2/open-pstack`, then `codex plugin add pstack@open-pstack`. Capture stdout, stderr, and status. Open a new task in the test checkout. In the app type `/` and select `pstack:how`; in CLI use `/skills` and select the same skill. Each entry point must show the skill.
 - **Claude install:** inside Claude Code enter `/plugin marketplace add arjitj2/open-pstack`, `/plugin install pstack@open-pstack`, then `/reload-plugins`. Enter `/pstack:how`. Capture the invoked skill identity and loaded path.

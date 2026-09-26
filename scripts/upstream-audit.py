@@ -25,8 +25,6 @@ def tree(ref, prefix):
 
 def port_path(path):
     relative = path.removeprefix("pstack/")
-    if relative == "README.md":
-        return "README-UPSTREAM.md"
     if relative.startswith(("skills/", "agents/", "assets/")):
         return "plugins/pstack/" + relative
     return None
@@ -47,7 +45,7 @@ base = match.group(1)
 subprocess.run(["git", "merge-base", "--is-ancestor", base, target], cwd=ROOT, check=True)
 before = tree(base, "pstack/")
 after = tree(target, "pstack/")
-local = tree(port, "plugins/pstack/") | tree(port, "README-UPSTREAM.md")
+local = tree(port, "plugins/pstack/")
 
 changes = []
 for path in sorted(before.keys() | after.keys()):
