@@ -1,15 +1,16 @@
 # Open Pstack, maintained by Arjit
 
-**Keep AI coding agents on the rails.**
+**Stop bad code before your agents ship it.**
 
-Pstack is a plugin that gives your coding agent a repeatable engineering process: understand the repo, plan the change, build it, and prove it works before merge. `poteto-mode` guides that process. Your repo's rules, static checks, and CI provide the guardrails; a repo-specific verification skill teaches the agent how to test real behavior.
+Pstack helps you build a repo where agents must prove a change works before it can merge. `poteto-mode` gives them the engineering process; a repo-specific verification skill checks real features. Your codebase, static checks, CI, and merge rules make the requirements enforceable. When you catch a mistake, turn it into a check or constraint that prevents it from recurring.
 
 ```mermaid
 flowchart LR
-    rules["Repo rules, checks & CI"] --> work["poteto-mode<br/>Understand · plan · build"]
-    work --> verify["Verification skill<br/>Test real behavior"]
-    verify -->|Pass| review["Review & merge"]
+    work["poteto-mode<br/>Understand · plan · build"] --> verify["Verify real behavior<br/>Feature map + app checks"]
+    verify --> gate["Required checks<br/>CI + review"]
+    gate -->|Pass| merge["Merge"]
     verify -->|Fail| work
+    gate -->|Fail| work
 ```
 
 To make it work in **your** repo, [configure your models](#1-set-up-the-models), [create a verification skill](#2-add-verification-for-your-repository), then [use poteto-mode for each change](#3-use-poteto-mode). The verification skill includes a **feature map**: what your app does and how to check it. Keep that map current with `maintain-verification-skill` as the app changes. The goal is to catch mistakes through repeatable checks instead of trusting an agent's claim that it is done.
@@ -166,6 +167,8 @@ Some pstack workflows use one model. Skills such as `architect`, `arena`, and `i
 `setup-pstack` lets you choose the models, one requested effort per assigned provider and model, and how many run in parallel. Choose role assignments first; setup checks only the models those roles use. Unused providers need no CLI or subscription. If a selected model fails, repair its availability or explicitly change the affected roles before saving. A model from the app you are using runs inside that app when a shipped native lane covers it. Other models run through their own command-line tools. Open Pstack does not quietly replace a failed model with a weaker one.
 
 ## Learn from the original
+
+[Lauren's talk on building trustworthy coding agents](https://x.com/poteto/status/2102050467505430555) explains how verification, engineering skills, and repo design work together.
 
 Lauren's [pstack guide](https://github.com/cursor/plugins/tree/main/pstack/docs/guide) walks through a real task, verification, and longer unattended runs. It uses Cursor's interface, but the ideas are the same. Use the translated skill invocations above in Claude Code or Codex.
 
