@@ -49,6 +49,11 @@ function fakeDevin(response: string, exitCode = 0, auth = "Logged in (via Devin)
 import { statSync, unlinkSync } from "node:fs";
 import { dirname } from "node:path";
 const args = process.argv.slice(2);
+const stage = args[0] === "auth" ? "auth" : "model";
+await Bun.write(
+  ${JSON.stringify(join(scratch, "captured-env"))} + "-" + stage + ".json",
+  JSON.stringify({ DEVIN_REFUSAL_FALLBACK: process.env.DEVIN_REFUSAL_FALLBACK ?? null })
+);
 if (args[0] === "auth") {
   console.log(${JSON.stringify(auth)});
   process.exit(0);
@@ -63,6 +68,9 @@ if (args.includes("--sandbox")) {
 const promptPath = args[args.indexOf("--prompt-file") + 1];
 await Bun.write(${JSON.stringify(join(scratch, "captured-prompt.txt"))}, await Bun.file(promptPath).text());
 if (args.includes("--sandbox") && (statSync(promptPath).mode & 0o777) !== 0o600) throw new Error("prompt not private");
+const descendant = Bun.spawn([process.execPath, "-e", 'console.log(JSON.stringify({fallbackPresent: Object.hasOwn(process.env, "DEVIN_REFUSAL_FALLBACK")}))'], { stdout: "pipe", stderr: "ignore" });
+await Bun.write(${JSON.stringify(join(scratch, "descendant-env.txt"))}, await new Response(descendant.stdout).text());
+await descendant.exited;
 const exportPath = args[args.indexOf("--export") + 1];
 if ((statSync(exportPath).mode & 0o777) !== 0o600) throw new Error("export file not private");
 if ((statSync(dirname(exportPath)).mode & 0o777) !== 0o700) throw new Error("export directory not private");
@@ -406,5 +414,75 @@ describe("Devin external provider", () => {
   it("removes both parent identity sets from Devin's environment", () => {
     const env = childEnvironment("devin", { CODEX_THREAD_ID: "c", CLAUDECODE: "1", PATH: "/bin" });
     expect(env).toEqual({ PATH: "/bin" });
+  });
+
+  it("drops DEVIN_REFUSAL_FALLBACK from the Devin child environment whether absent, blank, or set", () => {
+    for (const value of [undefined, "", "synthetic-unapproved-model"]) {
+      const source: Record<string, string> = { PATH: "/bin" };
+      if (value !== undefined) source.DEVIN_REFUSAL_FALLBACK = value;
+      const env = childEnvironment("devin", source);
+      expect(env).toEqual({ PATH: "/bin" });
+      expect("DEVIN_REFUSAL_FALLBACK" in env).toBe(false);
+      if (value !== undefined) expect(source.DEVIN_REFUSAL_FALLBACK).toBe(value);
+    }
+  });
+
+  it("keeps an inherited DEVIN_REFUSAL_FALLBACK for other providers", () => {
+    const source = {
+      PATH: "/bin",
+      CODEX_THREAD_ID: "c",
+      DEVIN_REFUSAL_FALLBACK: "synthetic-unapproved-model",
+    };
+    expect(childEnvironment("claude", source)).toEqual({
+      PATH: "/bin",
+      DEVIN_REFUSAL_FALLBACK: "synthetic-unapproved-model",
+    });
+    expect(childEnvironment("codex", source)).toEqual({
+      PATH: "/bin",
+      CODEX_THREAD_ID: "c",
+      DEVIN_REFUSAL_FALLBACK: "synthetic-unapproved-model",
+    });
+    expect(childEnvironment("grok", source)).toEqual({
+      PATH: "/bin",
+      DEVIN_REFUSAL_FALLBACK: "synthetic-unapproved-model",
+    });
+    expect(childEnvironment("devin", source)).toEqual({ PATH: "/bin" });
+    expect(source.DEVIN_REFUSAL_FALLBACK).toBe("synthetic-unapproved-model");
+  });
+
+  it("leaves the parent environment untouched while scrubbing the Devin child copy", () => {
+    const previous = process.env.DEVIN_REFUSAL_FALLBACK;
+    process.env.DEVIN_REFUSAL_FALLBACK = "synthetic-unapproved-model";
+    try {
+      const env = childEnvironment("devin");
+      expect("DEVIN_REFUSAL_FALLBACK" in env).toBe(false);
+      expect(process.env.DEVIN_REFUSAL_FALLBACK).toBe("synthetic-unapproved-model");
+    } finally {
+      if (previous === undefined) delete process.env.DEVIN_REFUSAL_FALLBACK;
+      else process.env.DEVIN_REFUSAL_FALLBACK = previous;
+    }
+  });
+
+  it("does not leak DEVIN_REFUSAL_FALLBACK into the Devin workload or its descendants", async () => {
+    const previous = process.env.DEVIN_REFUSAL_FALLBACK;
+    process.env.DEVIN_REFUSAL_FALLBACK = "synthetic-unapproved-model";
+    try {
+      fakeDevin("DEVIN_RESULT");
+      const result = await runLane(options);
+      expect(result.exitCode).toBe(0);
+      for (const stage of ["auth", "model"]) {
+        const captured = JSON.parse(readFileSync(join(scratch, `captured-env-${stage}.json`), "utf8"));
+        expect(captured.DEVIN_REFUSAL_FALLBACK, stage).toBeNull();
+      }
+      expect(JSON.parse(readFileSync(join(scratch, "descendant-env.txt"), "utf8"))).toEqual({ fallbackPresent: false });
+      expect(process.env.DEVIN_REFUSAL_FALLBACK).toBe("synthetic-unapproved-model");
+      expect(readFileSync(options.outputPath, "utf8")).toBe("DEVIN_RESULT");
+      expect(result.receipt.argv).toContain("swe-2-high");
+      expect(result.receipt.modelEvidence).toBe("pinned-argv");
+      expect(result.receipt.modelVerified).toBe(false);
+    } finally {
+      if (previous === undefined) delete process.env.DEVIN_REFUSAL_FALLBACK;
+      else process.env.DEVIN_REFUSAL_FALLBACK = previous;
+    }
   });
 });
