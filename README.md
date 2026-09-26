@@ -1,14 +1,22 @@
 # Open Pstack, maintained by Arjit
 
-This Open Pstack distribution lets Codex and Claude Code coordinate coding work across the AI subscriptions you already have. Arjit Jaiswal maintains it. It runs Pstack's engineering workflows and sends each piece of work to a model you approved for that role.
+**Keep AI coding agents on the rails.**
 
-Use **Anthropic Claude, OpenAI Codex, xAI Grok, Devin, Cursor, Antigravity, and OpenCode** as workers, coordinated from Codex or Claude Code. See the [provider table](#supported-parent-apps-and-worker-providers) for how each connects.
+Pstack is a plugin that gives your coding agent a repeatable engineering process: understand the repo, plan the change, build it, and prove it works before merge. `poteto-mode` guides that process. Your repo's rules, static checks, and CI provide the guardrails; a repo-specific verification skill teaches the agent how to test real behavior.
 
-`setup-pstack` checks provider and model access, asks about subscriptions it cannot verify, and recommends models for implementation, investigation, and review. You approve the assignments and backup chains during setup. Pstack routes workers to those models and automatically uses approved backups when the saved policy allows recovery. It tells you what failed and which model is taking over, and inspects and preserves partial work before continuing.
+```mermaid
+flowchart LR
+    rules["Repo rules, checks & CI"] --> work["poteto-mode<br/>Understand · plan · build"]
+    work --> verify["Verification skill<br/>Test real behavior"]
+    verify -->|Pass| review["Review & merge"]
+    verify -->|Fail| work
+```
 
-This repository maintains its own provider integrations, recovery behavior, and tested releases while tracking Cursor's Pstack directly. It builds on Lauren Tan's original Pstack and Eric Litman's Open Pstack port, with their attribution preserved.
+To make it work in **your** repo, [configure your models](#1-set-up-the-models), [create a verification skill](#2-add-verification-for-your-repository), then [use poteto-mode for each change](#3-use-poteto-mode). The verification skill includes a **feature map**: what your app does and how to check it. Keep that map current with `maintain-verification-skill` as the app changes. The goal is to catch mistakes through repeatable checks instead of trusting an agent's claim that it is done.
 
-See [why use this distribution](#why-use-this-distribution), [provider limits](plugins/pstack/skills/poteto-mode/references/provider-dispatch.md), [release history and Cursor baselines](CHANGELOG.md), and [upstream status](UPSTREAM.md).
+This distribution brings Pstack to **Codex and Claude Code**, with **Anthropic Claude, OpenAI Codex, xAI Grok, Devin, Cursor, Antigravity, and OpenCode** workers. You choose which models handle each role and which backups may take over. See the [provider table](#supported-parent-apps-and-worker-providers).
+
+Arjit Jaiswal maintains this distribution's provider integrations and tested releases while tracking Lauren Tan's original Pstack directly. It builds on Eric Litman's Open Pstack port, with [attribution preserved](NOTICE.md).
 
 [![CI](https://github.com/arjitj2/open-pstack/actions/workflows/ci.yml/badge.svg)](https://github.com/arjitj2/open-pstack/actions/workflows/ci.yml)
 [![Latest release](https://img.shields.io/github/v/release/arjitj2/open-pstack)](https://github.com/arjitj2/open-pstack/releases/latest)
@@ -45,24 +53,6 @@ The **parent** is the app where you start a task. It coordinates the work and ke
 External workers use their own authentication and do not inherit the parent's MCP connections. Why and Reflect stay native so they retain those tools. See the [provider dispatch contract](plugins/pstack/skills/poteto-mode/references/provider-dispatch.md) for supported models and permissions, and the [provider limits](plugins/pstack/skills/poteto-mode/references/provider-dispatch.md) for what each worker cannot do.
 
 OpenCode workers are opt-in. They require an exact `opencode:<provider>/<model>@default` assignment and explicit API-spend approval because subscription-only routing is unproven. Read-only workers inspect files. Writers edit a Git worktree root, but neither mode runs shell commands or builds. Initial support uses built-in OpenCode providers and native authentication. See [OpenCode worker limits](plugins/pstack/skills/poteto-mode/references/provider-dispatch.md#optional-opencode-models).
-
-## What pstack does
-
-pstack is a plugin for coding agents. It is not a new model or a hosted service. It gives your agent engineering rules, step-by-step workflows for different kinds of work, focused skills, and small local tools.
-
-The normal entry point is `poteto-mode`. You give it a task in plain language. It then:
-
-- reads the task and chooses a workflow that fits;
-- learns how the current system works before changing it;
-- compares designs when the choice matters;
-- favors small, simple changes over extra machinery;
-- asks several models to challenge important decisions when useful;
-- runs the code and checks real behavior instead of stopping at “the tests pass”; and
-- carries the work through review, continuous integration (CI), and a ready-to-merge pull request when asked.
-
-![How pstack routes a task through focused skills, real-app proof, and a review-ready pull request](assets/pstack-workflow.png)
-
-pstack does not ask you to trust an agent on day one. It helps the agent leave evidence you can inspect. Start with supervised work. Let it run more work in parallel only after its checks have earned that trust in your own repositories.
 
 ## Install
 
@@ -101,7 +91,7 @@ Start a new Codex task after installation so it can discover the new skills and 
 
 ## Get started
 
-Configure your model access once for each parent app you use. Then start a task. Repository-specific verification is a separate step below.
+Configure model access, establish verification for your repository, then start a task.
 
 ### 1. Set up the models
 
@@ -121,7 +111,17 @@ Only selected providers need to pass setup. You can mix providers across impleme
 
 For Antigravity, install and sign in to `agy`, then run `agy models`. Ask setup to assign an exact listed slug such as `antigravity:gemini-3.1-pro-high@default` and record your API-spend choice. Antigravity workers use file tools only, including in writer mode; the parent runs tests. See [Antigravity models](plugins/pstack/skills/poteto-mode/references/provider-dispatch.md#optional-antigravity-models).
 
-### 2. Use poteto-mode
+### 2. Add verification for your repository
+
+`setup-pstack` verifies model access, saves your approved model sheet and parent integration, reads them back, and runs a small worker-and-reviewer smoke test. It does **not** create an app feature map or schedule repository maintenance.
+
+For a repository without a repeatable way to test real behavior, invoke `pstack:create-verification-skill`. It inspects how the app starts and can be driven, creates a project-local verification skill, and seeds a feature map with the first few user-facing features. Each entry describes how to reach the feature, exercise it, and recognize success. The generated skill must prove one mapped feature live before handoff; that initial map is a starting point, not a claim of complete coverage.
+
+Use `pstack:maintain-verification-skill` as the app changes. It checks the map against source and live behavior and can propose a PR correcting drift. These skills work through the same picker or mention mechanism described above. Use `/pstack:create-verification-skill` and `/pstack:maintain-verification-skill` in Claude Code.
+
+This release includes the creation and maintenance workflows, but no automatic feature-map maintenance schedule. Recurring upkeep must be configured separately in your parent app or another scheduler. Installing Pstack does not silently start background jobs.
+
+### 3. Use poteto-mode
 
 Start any task that needs careful engineering with `poteto-mode`.
 
@@ -141,17 +141,7 @@ In this example, poteto-mode first examines the existing search implementation b
 
 The skill name is `poteto-mode`, spelled with an “e”. Claude Code also loads this distribution's startup instruction for non-trivial engineering work. In Codex, select the skill explicitly or add a standing instruction if you want it used by default. Model setup saves routing preferences; it does not install an always-on Codex workflow instruction.
 
-That is the main workflow. The other skills are there when poteto-mode needs them or when you want to call one directly.
-
-### 3. Add verification for your repository
-
-`setup-pstack` verifies model access, saves your approved model sheet and parent integration, reads them back, and runs a small worker-and-reviewer smoke test. It does **not** create an app feature map or schedule repository maintenance.
-
-For a repository without a repeatable way to test real behavior, invoke `pstack:create-verification-skill`. It inspects how the app starts and can be driven, creates a project-local verification skill, and seeds a feature map with the first few user-facing features. Each entry describes how to reach the feature, exercise it, and recognize success. The generated skill must prove one mapped feature live before handoff; that initial map is a starting point, not a claim of complete coverage.
-
-Use `pstack:maintain-verification-skill` as the app changes. It checks the map against source and live behavior and can propose a PR correcting drift. These skills work through the same picker or mention mechanism described above. Use `/pstack:create-verification-skill` and `/pstack:maintain-verification-skill` in Claude Code.
-
-This release includes the creation and maintenance workflows, but no automatic feature-map maintenance schedule. Recurring upkeep must be configured separately in your parent app or another scheduler. Installing Pstack does not silently start background jobs.
+Use the verification skill for each change. If you add or change a feature, update its entry in the feature map too. The other skills are there when poteto-mode needs them or when you want to call one directly.
 
 ## Useful skills
 

@@ -22,7 +22,8 @@ Use the parent skill's Launch variables and `capture` function. Set `VERIFY_PATC
 capture maintenance-plugin-diff git diff --exit-code "$VERIFY_PATCH_BASE" -- plugins/pstack
 capture maintenance-docs python3 "$VERIFY_REPO/scripts/check-docs.py" --root "$VERIFY_REPO"
 capture maintenance-ledger python3 "$VERIFY_REPO/scripts/fork-maintenance.py" check-ledger
-capture maintenance-tests python3 -m unittest discover -s "$VERIFY_REPO/tests" -p 'test-*.py'
+capture maintenance-tests python3 "$VERIFY_REPO/tests/test-fork-maintenance.py"
+capture docs-tests python3 "$VERIFY_REPO/tests/test-check-docs.py"
 ```
 
 Fetch Cursor into a dedicated review ref, then capture the real audit and preview commands. `preview` prints the proposed PR body, commit, and branch when new `pstack/` commits exist. It prints a no-op message when the ledger already covers the source. Use the exact full commit SHAs shown in the output for a reproducible rerun.
