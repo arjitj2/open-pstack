@@ -9,7 +9,7 @@
     "route": "native Agent pstack:pstack-opus-high",
     "status": "completed",
     "workerToolUses": 1,
-    "workerElapsedMs": 3832,
+    "workerElapsedMs": 3945,
     "markerMatched": true
   },
   "codexParent": {
@@ -18,6 +18,7 @@
     "route": "external candidate runner to Claude CLI",
     "status": "completed",
     "exactMarkerMatched": true,
+    "finalReceiptIndex": 2,
     "receipts": [
       {
         "parent": "codex",
@@ -52,11 +53,29 @@
         "elapsedMs": 5272,
         "processStarted": true,
         "modelVerified": true
+      },
+      {
+        "parent": "codex",
+        "provider": "claude",
+        "model": "opus",
+        "reportedModel": "claude-opus-5-5",
+        "effort": "high",
+        "apiSpend": "deny",
+        "status": "complete",
+        "preflight": {
+          "argv": [],
+          "status": "not-run",
+          "evidence": "authentication deferred to invocation; billing route unverified"
+        },
+        "elapsedMs": 4906,
+        "processStarted": true,
+        "modelVerified": true
       }
     ]
   },
+  "parentInstructions": "Final parent runs followed the installed setup instructions without a test-specific prohibition on auth-status commands.",
   "scope": "Setup availability phase and worker dispatch only; no model sheet was saved. Existing normal provider authentication was used; no direct credential inspection or manipulation. Billing type remains unverified.",
-  "fixtureNote": "The first Codex probe returned the correct marker without the fixture trailing newline. The second used a marker file without a trailing newline and passed exact-byte comparison. No product change was made for this fixture adjustment.",
+  "fixtureNote": "The first Codex probe returned the correct marker without the fixture trailing newline. The subsequent probes used a marker file without a trailing newline and passed exact-byte comparison. No product change was made for this fixture adjustment.",
   "checks": {
     "bunTests": 519,
     "docCheckerTests": 16,
