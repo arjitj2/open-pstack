@@ -2,6 +2,12 @@
 
 This port applies the Cursor → Claude Code substitutions in skill bodies. Earlier drafts left them flagged; this revision resolves them. A later pass added a Codex build that shares the same skills; see [Codex port](#codex-port) below.
 
+## 1.8.0 candidate
+
+Supported external providers accept newly published model IDs without an Open Pstack release. A model descriptor's `model` segment is an opaque provider ID, not membership in a packaged catalog. Setup validates the selected ID through the provider's own model listing where one exists (plus a one-turn probe), and the external runner passes the exact ID unchanged to the provider CLI. The model matrix remains the recommended starting point; it is never an allowlist.
+
+Native versus external routing follows actually shipped native capabilities through one shared decision, not provider equality: a same-parent Claude descriptor with no shipped `pstack-<model>-<effort>` agent runs externally, while covered lanes stay native. Devin accepts exact CLI model UIDs at `@default` effort alongside the legacy `swe-2@medium|high|max` and `swe-1.6@default` mappings. Receipt identity, API-spend policy, quota fail-closed semantics, and fallback groups are unchanged. Listing metadata is advisory and does not prove entitlement.
+
 ## 1.7.0 candidate
 
 Add opt-in OpenCode external workers for Claude Code and Codex parents. Assign an exact `opencode:<provider>/<model>@default` descriptor. Existing model assignments and default panels stay unchanged. OpenCode requires explicit API-spend approval because the runner cannot prove subscription-only routing.

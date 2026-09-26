@@ -123,6 +123,29 @@ describe("parseProviderOutput", () => {
     expect(reportedModelMatches("grok", "fable", "claude-fable-9-9")).toBe(false);
   });
 
+  it("matches new Claude family revisions without accepting another family", () => {
+    expect(reportedModelMatches("claude", "haiku", "claude-haiku-4-5")).toBe(true);
+    expect(reportedModelMatches("claude", "haiku", "claude-haiku-4-5-1")).toBe(true);
+    expect(reportedModelMatches("claude", "haiku", "claude-sonnet-4-5")).toBe(false);
+    expect(reportedModelMatches("claude", "haiku", "claude-haiku-beta")).toBe(false);
+    expect(reportedModelMatches("claude", "haiku", "haiku")).toBe(true);
+    expect(reportedModelMatches("claude", "haiku", "claude-haiku")).toBe(false);
+  });
+
+  it("accepts exact future model IDs without interpreting their spelling as an alias", () => {
+    expect(reportedModelMatches("claude", "nova", "nova")).toBe(true);
+    expect(reportedModelMatches("claude", "nova2", "claude-nova2-1-0")).toBe(true);
+    expect(reportedModelMatches("claude", "nova-pro", "claude-nova-pro-2-1")).toBe(true);
+    expect(reportedModelMatches("claude", "nova-pro", "claude-nova-pro-beta")).toBe(false);
+    expect(reportedModelMatches("claude", "nova-pro", "claude-other-2-1")).toBe(false);
+  });
+
+  it("keeps exact Claude IDs exact instead of widening them", () => {
+    expect(reportedModelMatches("claude", "claude-haiku-4-5", "claude-haiku-4-5")).toBe(true);
+    expect(reportedModelMatches("claude", "claude-haiku-4-5", "claude-haiku-4-6")).toBe(false);
+    expect(reportedModelMatches("claude", "claude-haiku-4-5", "claude-opus-4-5")).toBe(false);
+  });
+
   it("rejects malformed or textless responses", () => {
     expect(() =>
       parseProviderOutput("claude", "not-json", "", "fable")

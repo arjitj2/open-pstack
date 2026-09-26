@@ -81,11 +81,19 @@ describe("Devin external provider", () => {
       expect(devinModel("swe-2", effort)).toBe(`swe-2-${effort}`);
     }
     expect(devinModel("swe-1.6", "default")).toBe("swe-1-6");
-    for (const effort of ["low", "xhigh", "default"] as const) {
+    for (const effort of ["low", "xhigh"] as const) {
       expect(() => devinModel("swe-2", effort)).toThrow("Devin supports");
     }
     expect(() => devinModel("swe-1.6", "high")).toThrow("Devin supports");
-    expect(() => devinModel("swe", "high")).toThrow("Devin supports");
+    expect(() => devinModel("swe", "high")).toThrow("no separate effort flag");
+  });
+
+  it("passes an exact CLI UID through unchanged at default effort only", () => {
+    expect(devinModel("swe-2", "default")).toBe("swe-2");
+    expect(devinModel("swe-1.7-lightning", "default")).toBe("swe-1.7-lightning");
+    expect(devinModel("claude-opus-5-5-high-fast", "default")).toBe("claude-opus-5-5-high-fast");
+    expect(() => devinModel("swe-1.7-lightning", "high")).toThrow("no separate effort flag");
+    expect(() => devinModel("swe-1.7-lightning", "low")).toThrow("no separate effort flag");
   });
 
   it("accepts SWE-1.6's fixed effort through the public CLI", () => {
@@ -139,6 +147,25 @@ describe("Devin external provider", () => {
       });
     }
   }
+
+  it("invokes an exact unlisted-in-matrix UID verbatim with pinned-argv evidence", async () => {
+    fakeDevin("DEVIN_RESULT");
+    const input = { ...options, model: "swe-1.7-lightning", effort: "default" as const };
+    const result = await runLane(input);
+    expect(result.exitCode).toBe(0);
+    expect(result.receipt.model).toBe("swe-1.7-lightning");
+    expect(result.receipt.effort).toBe("default");
+    const modelIndex = result.receipt.argv.indexOf("--model");
+    expect(result.receipt.argv[modelIndex + 1]).toBe("swe-1.7-lightning");
+    expect(result.receipt.modelEvidence).toBe("pinned-argv");
+    expect(result.receipt.modelVerified).toBe(false);
+  });
+
+  it("rejects a non-default effort on an exact UID before any invocation", async () => {
+    await expect(
+      runLane({ ...options, model: "swe-1.7-lightning", effort: "high" })
+    ).rejects.toThrow("no separate effort flag");
+  });
 
   for (const mode of ["read-only", "isolated-write"] as const) {
     it(`completes ${mode} tasks with exec available only to writers`, async () => {
@@ -373,7 +400,7 @@ describe("Devin external provider", () => {
   });
 
   it("does not allow fixed effort for existing providers", async () => {
-    await expect(runLane({ ...options, provider: "claude", model: "fable", effort: "default" })).rejects.toThrow("only for Cursor, Antigravity, OpenCode, or Devin SWE-1.6");
+    await expect(runLane({ ...options, provider: "claude", model: "fable", effort: "default" })).rejects.toThrow("only for Cursor, Antigravity, OpenCode, or a Devin model UID");
   });
 
   it("removes both parent identity sets from Devin's environment", () => {
