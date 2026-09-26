@@ -6,6 +6,7 @@ Users inspect how a saved role resolves, while the parent owns execution and any
 
 - `routing-resolve`: read the configured lane chains without dispatch.
 - `claude-primary-model`: verify the main Claude assistant model independently of helper usage.
+- `devin-refusal-fallback`: exclude inherited provider-side fallback from an assigned Devin lane.
 - `routing-live`: observe the exact approved descriptor and terminal outcome in a parent workflow.
 - `routing-recovery`: verify saved fallback transitions with authentic terminal evidence.
 
@@ -35,6 +36,16 @@ For a change to Claude output parsing, install the candidate in both parents and
 Expect `stream-json` and `--verbose` in argv, `modelVerified: true`, and `modelEvidence: "provider-report"`. The reported model must come from main assistant events. A real probe establishes execution; a synthetic stream fixture establishes rejection behavior. Keep those claims separate.
 
 From each installed parent, run the [synthetic boundary checks](../../../../tests/claude-primary-model/verify-fixtures.py) with `--runner` pointing at that parent's installed runner, `--parent` matching the parent, and a fresh `--evidence` directory. The fixture covers valid primary plus helper usage, requested model used only by a helper, usage-only output, and conflicting primary models. Rejected cases must leave no output file and preserve the terminal-success veto against replay. Failure receipts must omit the private transcript marker.
+
+### Devin refusal-fallback isolation
+
+Install the exact candidate in isolated Codex and Claude Code sessions. In each parent, invoke `pstack:setup-pstack` for the selected Devin availability probe only. Retain the frozen approved model sheet and use its model, effort, and API-spend policy. Do not save a new sheet.
+
+Set `DEVIN_REFUSAL_FALLBACK` to a synthetic value in the test parent's environment. Put a transparent recorder before the real Devin executable on that session's `PATH`. The recorder must abort before invoking Devin if the variable reaches it. Otherwise, record only the variable's absence, the requested model argument, and the temporary permission configuration, then forward the original arguments and environment to the real executable. Do not record credentials or the full environment.
+
+Have the parent launch the installed runner without unsetting the synthetic variable. Ask the read-only worker to return a unique marker from a file, then independently compare the output with that file. Retain the parent skill invocation, installed-tree identity, boundary records, receipt, and output. Expect the control to be absent from preflight and workload, the assigned model to remain pinned, and the permission configuration to retain its deny rules. Devin receipts must still report `modelEvidence: "pinned-argv"`, `modelVerified: false`, and the saved API-spend policy.
+
+Run the Devin Bun regressions for absent, blank, and nonblank controls, unchanged parent input, and descendant inheritance at the synthetic executable boundary. Capture `devin --version` and `devin acp --help` to confirm the current CLI's fallback contract. These synthetic tests prove environment propagation. The real marker probe proves ordinary execution from each installed parent. Neither requires inducing a refusal or executing a backup model.
 
 ## Gotchas
 
