@@ -301,8 +301,9 @@ export function reportedModelMatches(
 ): boolean {
   if (reported === null) return false;
   if (provider === "cursor" || provider === "antigravity") return reported === requested;
-  if (provider === "claude" && isRollingClaudeAlias(requested)) {
-    return concreteModelMatchesRollingAlias(requested, reported);
+  if (provider === "claude") {
+    const matchesRevision = concreteModelMatchesRollingAlias(requested, reported);
+    if (isRollingClaudeAlias(requested) || matchesRevision) return matchesRevision;
   }
   if (reported === requested || reported.startsWith(`${requested}-`)) {
     return true;

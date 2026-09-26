@@ -349,7 +349,8 @@ describe("model matrix", () => {
       previous = current;
     }
     expect(setup).toContain("Do not invent precedence.");
-    expect(setup).toContain("resolve them through an explicit matrix family or alias replacement before probing or writing.");
+    expect(setup).toContain("resolve them through an explicit provider-qualified descriptor or alias replacement before probing or writing.");
+    expect(setup).toContain("recommended defaults and effort guidance, never an allowlist");
     expect(setup).toContain("A failed probe writes nothing.");
     expect(setup).toContain("Probe each distinct assigned `provider:model@effort` pair once");
     expect(setup).toContain("There is no requirement to assign every matrix family.");
@@ -394,7 +395,7 @@ describe("model matrix", () => {
     expect(smoke).toContain("Wait for all candidates to finish and verify their results before launching the independent judge");
   });
 
-  it("binds Claude-native dispatch to the matrix mapping", () => {
+  it("binds Claude-native dispatch to shipped agent frontmatter", () => {
     const dispatch = readFileSync(DISPATCH_PATH, "utf8");
     const nativeStart = dispatch.indexOf("## Native lanes");
     const externalStart = dispatch.indexOf("## External lanes");
@@ -402,9 +403,10 @@ describe("model matrix", () => {
     expect(externalStart).toBeGreaterThan(nativeStart);
     const nativeLanes = dispatch.slice(nativeStart, externalStart);
     expect(nativeLanes).toContain(
-      "match the descriptor's `(provider, model)` to one model-matrix row"
+      "a shipped agent's frontmatter `model` and `effort` match"
     );
     expect(nativeLanes).toContain("`pstack-<stem>-<effort>`");
+    expect(dispatch).toContain("not an allowlist");
   });
 
   it("normalizes old rolling-family pins before any runtime route", () => {

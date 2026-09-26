@@ -21,7 +21,9 @@ pstack model choices are provider-qualified descriptors:
 
 For the model matrix, the allowed effort universe is exactly `low`, `medium`, `high`, `xhigh`, `max`. A `-` in Upstream pstack choice means the portable build added that family. First run activates only rows whose First-run active cell is `yes`, in matrix order, and uses each active row's Default effort. Later runs derive the active family set from the non-alias descriptors in the normalized final role map. No separate active-family setting exists. A Claude-native agent stem of `-` means the family has no Claude-native agent. Otherwise the shipped agent name is `pstack-<stem>-<effort>`.
 
-`fable`, `opus`, and `sonnet` are Claude Code's rolling aliases. Claude resolves each alias to the latest available family revision. A runner receipt keeps the requested alias in `model` and the concrete provider-reported revision in `reportedModel`; verification accepts only a numeric `claude-fable-*`, `claude-opus-*`, or `claude-sonnet-*` revision from the matching family.
+The matrix records recommended defaults and effort guidance. It is not an allowlist. Use the provider's current model listing where available and probe the exact selected model and effort. A listing alone does not prove account access. Claude and Codex models can be checked through the current host's capabilities and actual execution without matching a matrix row.
+
+A runner receipt keeps the requested model in `model` and the provider's report in `reportedModel`. For the legacy rolling aliases `fable`, `opus`, and `sonnet`, verification requires a numeric revision from the same family. Other IDs can match the provider report directly or with a hyphenated revision suffix, and new aliases can match a numeric `claude-<requested-family>-<revision>` report without a package update. A report naming a different family fails verification. Exact IDs outside the legacy migration rules pass through unchanged.
 
 ## Optional Devin models
 
@@ -32,7 +34,9 @@ Devin is an external provider from either parent, not a parent harness. These op
 | swe-2 | devin | swe-2 | high | medium high max | swe-2-<effort> |
 | swe-1.6 | devin | swe-1.6 | default | default | swe-1-6 |
 
-Use descriptors such as `devin:swe-2@high` or `devin:swe-1.6@default`. `default` records that SWE-1.6 has no selectable effort; it is also used for Cursor slugs without a separate effort flag. An explicit or stored SWE-2 descriptor with unsupported `low` or `xhigh` is invalid. Never clamp it during dispatch or after a failed probe. Setup may propose a supported effort below a user-requested budget ceiling for an already valid descriptor, but must show the change and obtain confirmation before saving. The runner pins the exact CLI UID instead of a rolling family alias or Fusion pairing.
+Use descriptors such as `devin:swe-2@high` or `devin:swe-1.6@default`. `default` records that SWE-1.6 has no selectable effort; it is also used for Cursor slugs without a separate effort flag. An explicit or stored SWE-2 descriptor with unsupported `low` or `xhigh` is invalid. Never clamp it during dispatch or after a failed probe. Setup may propose a supported effort below a user-requested budget ceiling for an already valid descriptor, but must show the change and obtain confirmation before saving. The runner maps these legacy descriptors to the exact CLI UID shown above.
+
+For any other selected model, save `devin:<uid>@default`. Discover exact UIDs in `families[].variants[].model_uid` from `devin models list --format json`. The runner passes the selected UID to `--model` unchanged. Effort is part of that UID, so a non-`default` effort on an unmapped ID is invalid. `devin:swe-2@default` passes `swe-2` itself. Do not guess variant suffixes. If discovery is unavailable or its output format changes, retain an explicitly selected ID and let the probe establish whether it runs.
 
 Install and sign in to [Devin CLI](https://docs.devin.ai/cli). Inspect `devin models list --format json` and probe each selected pair: listing a model does not prove the account can execute it. An upgrade-required response is an unavailable-model failure, never permission to substitute another model.
 
@@ -114,7 +118,7 @@ The parent owns `<lane-state.json>` with this exact shape:
 
 Normalize configured descriptors before matching them to the matrix or choosing a route. If a provider-qualified Claude model starts with `claude-fable-`, `claude-opus-`, or `claude-sonnet-` and its remaining revision contains only digits and hyphens, replace that model component in memory with `fable`, `opus`, or `sonnet`. Preserve provider, effort, role, and lane order. Use only the normalized descriptor for native dispatch or runner argv. Never pass the versioned predecessor to Claude.
 
-This read-time rule makes an older installed sheet use the latest family revision immediately without writing user files. Once per parent run, report that the persisted sheet is stale and that `/setup-pstack` will rewrite it after its normal probes and confirmation. Unknown versioned Claude models remain invalid. The external runner rejects a missed Fable, Opus, or Sonnet version pin instead of silently executing it.
+This read-time rule makes an older installed sheet use the latest family revision immediately without writing user files. Once per parent run, report that the persisted sheet is stale and that `/setup-pstack` will rewrite it after its normal probes and confirmation. Versioned Claude IDs outside the three migration families are ordinary exact IDs and pass through unchanged. The external runner rejects a missed Fable, Opus, or Sonnet version pin instead of silently executing it.
 
 `fast` is part of Cursor's Grok selector, not a Grok Build CLI model or effort flag. Upstream's current Grok default `grok-4.7-xhigh-fast` names that selector; the portable Grok route pins `grok-4.7`, as advertised by Grok Build CLI. A model listing does not prove authenticated execution; setup still probes every selected route. The first-run Grok effort is `xhigh`. Update the pin only when `grok` CLI reports a newer model.
 
@@ -124,7 +128,7 @@ The top-level harness freezes the sheet once and asks the helper for each attemp
 
 | Parent | `claude:*` | `codex:*` | `grok:*` | `devin:*` | `cursor:*` | `antigravity:*` | `opencode:*` |
 |---|---|---|---|---|---|---|---|
-| Claude Code | native `Agent` | external runner | external runner | external runner | external runner | external runner | external runner |
+| Claude Code | native `Agent` when a shipped lane covers it, else external runner | external runner | external runner | external runner | external runner | external runner | external runner |
 | Codex | external runner | native `spawn_agent` | external runner | external runner | external runner | external runner | external runner |
 
 `inherit-parent` and `auto` remain aliases. They use the parent's current model and effort through its native subagent primitive. In a panel they still consume one lane, but they reduce provider diversity; say so in the synthesis record.
@@ -133,10 +137,10 @@ The top-level harness freezes the sheet once and asks the helper for each attemp
 
 Native dispatch avoids a second CLI startup and its base context.
 
-- Claude Code: match the descriptor's `(provider, model)` to one model-matrix row, then dispatch it through `pstack-<stem>-<effort>` using that row's Claude-native agent stem and the descriptor's effort. Those definitions select the rolling model alias, requested effort, and `background: true`. `pstack-fable-max` and `pstack-opus-xhigh` remain in that set. Pass the complete task, grounding paths, access mode, and unique output location in the `Agent` prompt. Retain the task handle and drain it only after fan-out.
+- Claude Code: the shipped `agents/pstack-*.md` definitions are the native capability. A `claude:<model>@<effort>` descriptor is native exactly when a shipped agent's frontmatter `model` and `effort` match it; dispatch that lane through the matching `pstack-<stem>-<effort>` agent, which selects the model alias, effort, and `background: true`. `pstack-fable-max` and `pstack-opus-xhigh` remain in that set. Any other Claude model on a Claude parent — an unlisted family alias or an exact ID — uses the external runner with the model passed unchanged. Pass the complete task, grounding paths, access mode, and unique output location in the `Agent` prompt. Retain the task handle and drain it only after fan-out.
 - Codex: call `spawn_agent` with the descriptor's model and `reasoning_effort`, the complete task, grounding paths, access mode, and unique output location. Use an isolated worktree for a writer. Codex subagents already run concurrently.
 
-Do not send a same-provider descriptor to the external runner. It rejects that call because the native route is cheaper and already available.
+Send a same-provider descriptor to the external runner only when no shipped native lane covers that exact model and effort; the runner rejects a same-provider call a native lane covers because that route is cheaper and already available. A Codex parent always covers `codex:*` natively. Policy resolution and runner validation share this route decision. An external route still requires successful authorization, authentication, and execution. Choose the route before launching the attempt; do not retry a failed native attempt through the external CLI.
 
 ## External lanes
 
@@ -192,7 +196,7 @@ Success requires all of these:
 
 1. Exit status `0`.
 2. Receipt status `complete`.
-3. Either `modelVerified: true` with `modelEvidence: "provider-report"`, or a Codex, Devin, Cursor, or OpenCode receipt with `reportedModel: null`, `modelVerified: false`, and `modelEvidence: "pinned-argv"`, or an Antigravity receipt with its requested slug echoed in `reportedModel`, `modelVerified: false`, and `modelEvidence: "pinned-argv"`. Antigravity's `init.model` must exactly match the request but merely echoes the CLI override; it does not verify the backend model. For Claude's `fable`, `opus`, and `sonnet` aliases, the concrete provider report must belong to the requested family. For pinned-argv evidence, verify the receipt provider, model, and effort match the assignment and its argv pins the expected CLI model. Codex, Cursor, and OpenCode pin the assigned model directly; Cursor, Antigravity, and OpenCode require `effort: "default"`; Devin uses the exact UID mapping in Optional Devin models (for example, `swe-2@high` pins `--model swe-2-high`).
+3. Either `modelVerified: true` with `modelEvidence: "provider-report"`, or a Codex, Devin, Cursor, or OpenCode receipt with `reportedModel: null`, `modelVerified: false`, and `modelEvidence: "pinned-argv"`, or an Antigravity receipt with its requested slug echoed in `reportedModel`, `modelVerified: false`, and `modelEvidence: "pinned-argv"`. Antigravity's `init.model` must exactly match the request but merely echoes the CLI override; it does not verify the backend model. Claude model-report matching follows the alias and exact-ID rules in [Model matrix](#model-matrix). For pinned-argv evidence, verify the receipt provider, model, and effort match the assignment and its argv pins the expected CLI model. Codex, Cursor, and OpenCode pin the assigned model directly; Cursor, Antigravity, and OpenCode require `effort: "default"`; Devin uses the exact UID mapping in Optional Devin models (for example, `swe-2@high` pins `--model swe-2-high`).
 4. A non-empty output file.
 
 The receipt also carries elapsed time, token usage when the CLI exposes it, and cost when available. Cursor returns session IDs and may return token usage; missing model identity, usage, or cost stays null. Keep it with the arena or review artifacts so parent-harness comparisons are evidence-based.

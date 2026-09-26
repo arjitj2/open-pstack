@@ -33,9 +33,9 @@ The **parent** is the app where you start a task. It coordinates the work and ke
 | Worker provider | Descriptor prefix | From a Codex parent | From a Claude Code parent |
 | --- | --- | --- | --- |
 | OpenAI / Codex | `codex` | Native Codex subagent | External `codex` CLI |
-| Anthropic / Claude | `claude` | External `claude` CLI | Native Claude Code subagent |
+| Anthropic / Claude | `claude` | External `claude` CLI | Native Claude Code subagent for a shipped lane; external `claude` CLI for other models |
 | xAI / Grok | `grok` | External `grok` CLI | External `grok` CLI |
-| Devin SWE-2 / SWE-1.6 | `devin` | External `devin` CLI | External `devin` CLI |
+| Devin models | `devin` | External `devin` CLI | External `devin` CLI |
 | Cursor models | `cursor` | External `cursor-agent` CLI | External `cursor-agent` CLI |
 | Antigravity models | `antigravity` | External `agy` CLI | External `agy` CLI |
 | OpenCode models | `opencode` | External `opencode` CLI | External `opencode` CLI |
@@ -117,7 +117,7 @@ Setup discovers the models you can run, asks about subscriptions it cannot verif
 
 You can save an ordered backup chain for each role, with up to three attempts. During a run, Pstack follows those approved choices and reports substitutions. Recovery depends on the installed release and saved policy; see [recovery support and validation](docs/compatibility.md). If a failed worker may have changed files, the parent inspects and preserves that work before continuing in a fresh workspace. An unsafe or ambiguous result stops that lane with a checkpoint.
 
-Only selected providers need to pass setup. You can mix providers across implementation, investigation, and review or keep the configuration small. See the [model matrix](plugins/pstack/skills/poteto-mode/references/provider-dispatch.md#model-matrix) for supported models and effort levels.
+Only selected providers need to pass setup. You can mix providers across implementation, investigation, and review or keep the configuration small. See the [model matrix](plugins/pstack/skills/poteto-mode/references/provider-dispatch.md#model-matrix) for recommended defaults and effort levels; a provider's own listing or a successful probe decides which model IDs run, not matrix membership.
 
 For Antigravity, install and sign in to `agy`, then run `agy models`. Ask setup to assign an exact listed slug such as `antigravity:gemini-3.1-pro-high@default` and record your API-spend choice. Antigravity workers use file tools only, including in writer mode; the parent runs tests. See [Antigravity compatibility and limits](docs/compatibility.md#antigravity-workers).
 
@@ -175,7 +175,7 @@ Plugin skills include `pstack:` in their name. In Claude Code, invoke `/pstack:a
 
 Some pstack workflows use one model. Skills such as `architect`, `arena`, and `interrogate` can run several models in parallel. Each model run uses the access configured for its native app or external CLI: included subscription capacity or explicitly approved API spending.
 
-`setup-pstack` lets you choose the models, one requested effort per assigned model family, and how many run in parallel. Choose role assignments first; setup checks only the models those roles use. Unused providers need no CLI or subscription. If a selected model fails, repair its availability or explicitly change the affected roles before saving. A model from the app you are using runs inside that app. Other models run through their own command-line tools. Open Pstack does not quietly replace a failed model with a weaker one.
+`setup-pstack` lets you choose the models, one requested effort per assigned provider and model, and how many run in parallel. Choose role assignments first; setup checks only the models those roles use. Unused providers need no CLI or subscription. If a selected model fails, repair its availability or explicitly change the affected roles before saving. A model from the app you are using runs inside that app when a shipped native lane covers it. Other models run through their own command-line tools. Open Pstack does not quietly replace a failed model with a weaker one.
 
 ## Learn from the original
 

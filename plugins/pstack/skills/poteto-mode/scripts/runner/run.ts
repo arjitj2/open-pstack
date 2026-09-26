@@ -11,6 +11,7 @@ import {
 } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { invocationCommand, preflightCommand, type CommandSpec } from "./commands.ts";
+import { nativeLane } from "./native-route.ts";
 import { openCodeConfig, openCodeDirectory, openCodeEnvironment, openCodePreflightPassed, openCodeVersionError, OPENCODE_MINIMUM_VERSION, validateOpenCodeModel } from "./opencode.ts";
 import { cursorConfigDirectory, cursorConfig, cursorHasApiKey, cursorUserConfigPath, validateCursorModel } from "./cursor.ts";
 import { antigravityLaneFiles, antigravitySettingsPath, antigravitySettingsTakeover, antigravityStdin, auditAntigravityStream, createAntigravityLaneFiles, validateAntigravityModel, type AntigravityCreatedFiles } from "./antigravity.ts";
@@ -148,11 +149,9 @@ export function childEnvironment(
   source: NodeJS.ProcessEnv = process.env
 ): NodeJS.ProcessEnv {
   const result = { ...source };
-  const remove = provider === "claude"
-    ? CODEX_IDENTITY
-    : provider === "codex"
-      ? CLAUDE_IDENTITY
-      : [...CODEX_IDENTITY, ...CLAUDE_IDENTITY];
+  const remove = provider === "codex"
+    ? CLAUDE_IDENTITY
+    : [...CODEX_IDENTITY, ...CLAUDE_IDENTITY];
   for (const key of remove) delete result[key];
   return result;
 }
@@ -564,17 +563,6 @@ export function validateOptions(options: RunnerOptions): void {
     validateAntigravityModel(options.model, options.effort);
     if (options.apiSpend === null) throw new UsageError("Antigravity requires explicit --api-spend deny or approved");
   }
-  if (options.parent === options.provider) {
-    throw new UsageError(
-      `provider ${options.provider} is native to parent ${options.parent}; use the parent subagent primitive`
-    );
-  }
-  if (options.model.trim().length === 0) throw new UsageError("model must not be empty");
-  if (options.provider === "devin") {
-    devinModel(options.model, options.effort);
-  } else if (options.provider !== "cursor" && options.provider !== "antigravity" && options.provider !== "opencode" && options.effort === "default") {
-    throw new UsageError("default effort is supported only for Cursor, Antigravity, OpenCode, or Devin SWE-1.6");
-  }
   const staleAlias = options.provider === "claude"
     ? versionedClaudeAlias(options.model)
     : null;
@@ -582,6 +570,18 @@ export function validateOptions(options: RunnerOptions): void {
     throw new UsageError(
       `Claude model ${options.model} is a version pin; normalize it to ${staleAlias} before invoking the runner`
     );
+  }
+  const native = nativeLane(options.parent, options);
+  if (native !== null) {
+    throw new UsageError(
+      `provider ${options.provider} is native to parent ${options.parent} for ${options.model}@${options.effort} via ${native}; use the parent subagent primitive`
+    );
+  }
+  if (options.model.trim().length === 0) throw new UsageError("model must not be empty");
+  if (options.provider === "devin") {
+    devinModel(options.model, options.effort);
+  } else if (options.provider !== "cursor" && options.provider !== "antigravity" && options.provider !== "opencode" && options.effort === "default") {
+    throw new UsageError("default effort is supported only for Cursor, Antigravity, OpenCode, or a Devin model UID");
   }
   if (
     options.timeoutMs !== null &&
