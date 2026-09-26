@@ -24,6 +24,7 @@ import {
   classifyProcessOutcome,
   classifyTerminalEnvelope,
   hasTerminalSuccess,
+  failureStdoutEvidence,
   subscriptionAuthEvidence,
 } from "./provider-failure.ts";
 import type {
@@ -954,7 +955,7 @@ async function executeLane(
   } as const;
 
   if (result.cancelledBy !== null || result.timedOut || result.exitCode !== 0) {
-    const rawFailureEvidence = `${result.stderr}\n${result.stdout}`;
+    const rawFailureEvidence = `${result.stderr}\n${failureStdoutEvidence(options.provider, result.stdout)}`;
     const failureEvidence = evidence(rawFailureEvidence);
     const status: ReceiptStatus = result.cancelledBy !== null
       ? "cancelled"
@@ -1067,7 +1068,7 @@ async function executeLane(
         message,
         evidence: terminal?.evidence
           ? evidence(terminal.evidence)
-          : evidence(`${result.stderr}\n${result.stdout}`),
+          : evidence(`${result.stderr}\n${failureStdoutEvidence(options.provider, result.stdout)}`),
       },
       failurePhase: "postprocess",
       processStarted: true,

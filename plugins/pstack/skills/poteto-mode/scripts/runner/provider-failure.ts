@@ -320,6 +320,12 @@ function claudeTerminalResult(events: readonly JsonObject[]): JsonObject | null 
   return result;
 }
 
+export function failureStdoutEvidence(provider: Provider, stdout: string): string {
+  if (provider !== "claude") return stdout;
+  const result = claudeTerminalResult(jsonObjects(stdout));
+  return result === null ? "" : JSON.stringify(result);
+}
+
 const claudeAdapter: QuotaAdapter = {
   classify(outcome) {
     if (outcome.terminalEnvelope !== undefined) {

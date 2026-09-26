@@ -319,6 +319,28 @@ describe("claude terminal quota classification", () => {
     ).toBeNull();
   });
 
+  it("reads quota proof only from the terminal result in a stream", () => {
+    const assistant = JSON.stringify({
+      type: "assistant",
+      session_id: "s1",
+      parent_tool_use_id: null,
+      message: {
+        role: "assistant",
+        model: "claude-opus-9",
+        content: [{ type: "text", text: CLAUDE_REAL_QUOTA.result }],
+      },
+    });
+    expect(
+      classifyProcessOutcome(
+        "claude",
+        outcome({ stdout: `${assistant}\n${JSON.stringify(CLAUDE_REAL_QUOTA)}` })
+      ).status
+    ).toBe("usage-exhausted");
+    expect(
+      classifyProcessOutcome("claude", outcome({ stdout: assistant })).status
+    ).toBeNull();
+  });
+
   it("requires the message end or the composer's ` \u00b7 ` separator after the diagnostic", () => {
     for (const result of [
       "You've hit your session limitless requests",

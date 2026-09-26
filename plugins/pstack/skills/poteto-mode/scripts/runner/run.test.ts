@@ -134,11 +134,13 @@ if (stage === "model" && process.env.FAKE_GENERIC_429 === "1") {
   process.exit(1);
 }
 if (stage === "model" && process.env.FAKE_QUOTA_RESULT === "1") {
-  console.log(JSON.stringify({result:"",is_error:true,subtype:"error_during_execution",errors:[JSON.stringify({type:"error",error:{type:"insufficient_quota",message:"Your usage quota is exhausted"}})]}));
+  console.log(JSON.stringify({type:"result",subtype:"error_during_execution",is_error:true,result:"",errors:[JSON.stringify({type:"error",error:{type:"insufficient_quota",message:"Your usage quota is exhausted"}})]}));
   process.exit(0);
 }
 if (stage === "model" && process.env.FAKE_QUOTA_TEXT === "1") {
-  console.log(JSON.stringify({result:"You have exceeded your quota and cannot proceed",session_id:"c1",is_error:false,modelUsage:{[reportedModel]:{}}}));
+  console.log(JSON.stringify({type:"system",subtype:"init",session_id:"c1",model}));
+  console.log(JSON.stringify({type:"assistant",session_id:"c1",parent_tool_use_id:null,message:{role:"assistant",model:reportedModel,content:[{type:"text",text:"You have exceeded your quota and cannot proceed"}]}}));
+  console.log(JSON.stringify({type:"result",subtype:"success",is_error:false,result:"You have exceeded your quota and cannot proceed",session_id:"c1",modelUsage:{[reportedModel]:{}}}));
   process.exit(0);
 }
 if (stage === "model" && process.env.FAKE_QUOTA_WORDS_STDERR === "1") {
@@ -178,13 +180,14 @@ if (name === "grok" && stage === "model" && process.env.FAKE_GROK_FREE_USAGE ===
   process.exit(Number(process.env.FAKE_GROK_FREE_USAGE_EXIT ?? "0"));
 }
 if (name === "claude" && stage === "model" && process.env.FAKE_CLAUDE_API_ERROR === "1") {
+  const apiErrorText = process.env.FAKE_CLAUDE_RESULT_TEXT ?? "You've hit your session limit \u00b7 resets 4pm (America/New_York)";
   console.log(JSON.stringify({
     type:"result",
     subtype:"success",
     is_error:true,
     api_error_status:Number(process.env.FAKE_CLAUDE_API_ERROR_STATUS ?? "429"),
     terminal_reason:process.env.FAKE_CLAUDE_TERMINAL_REASON ?? "api_error",
-    result:process.env.FAKE_CLAUDE_RESULT_TEXT ?? "You've hit your session limit \u00b7 resets 4pm (America/New_York)",
+    result:apiErrorText,
   }));
   process.exit(Number(process.env.FAKE_CLAUDE_API_ERROR_EXIT ?? "1"));
 }
@@ -199,8 +202,12 @@ if (name === "cursor-agent" && stage === "model" && process.env.FAKE_CURSOR_STDE
   console.error(process.env.FAKE_CURSOR_STDERR);
   process.exit(Number(process.env.FAKE_CURSOR_EXIT ?? "1"));
 }
-if (name === "claude") {
-  console.log(JSON.stringify({result:"CLAUDE_OK",session_id:"c1",usage:{input_tokens:10,output_tokens:2},total_cost_usd:0.01,modelUsage:{[reportedModel]:{}}}));
+if (name === "claude" && stage === "model" && process.env.FAKE_CLAUDE_STREAM) {
+  process.stdout.write(process.env.FAKE_CLAUDE_STREAM);
+} else if (name === "claude") {
+  console.log(JSON.stringify({type:"system",subtype:"init",session_id:"c1",model}));
+  console.log(JSON.stringify({type:"assistant",session_id:"c1",parent_tool_use_id:null,message:{role:"assistant",model:reportedModel,content:[{type:"text",text:"CLAUDE_OK"}]}}));
+  console.log(JSON.stringify({type:"result",subtype:"success",is_error:false,result:"CLAUDE_OK",session_id:"c1",usage:{input_tokens:10,output_tokens:2},total_cost_usd:0.01,modelUsage:{[reportedModel]:{}}}));
 } else if (name === "codex") {
   console.log(JSON.stringify({type:"thread.started",thread_id:"o1"}));
   console.log(JSON.stringify({type:"item.completed",item:{type:"agent_message",text:"CODEX_OK"}}));
@@ -359,6 +366,7 @@ beforeEach(() => {
   delete process.env.FAKE_CLAUDE_TERMINAL_REASON;
   delete process.env.FAKE_CLAUDE_API_ERROR_STATUS;
   delete process.env.FAKE_CLAUDE_API_ERROR;
+  delete process.env.FAKE_CLAUDE_STREAM;
   delete process.env.CURSOR_API_KEY;
   delete process.env.ANTHROPIC_API_KEY;
   delete process.env.ANTHROPIC_AUTH_TOKEN;
@@ -419,6 +427,7 @@ afterEach(() => {
   delete process.env.FAKE_CLAUDE_TERMINAL_REASON;
   delete process.env.FAKE_CLAUDE_API_ERROR_STATUS;
   delete process.env.FAKE_CLAUDE_API_ERROR;
+  delete process.env.FAKE_CLAUDE_STREAM;
   delete process.env.CURSOR_API_KEY;
   delete process.env.ANTHROPIC_API_KEY;
   delete process.env.ANTHROPIC_AUTH_TOKEN;
@@ -1186,6 +1195,68 @@ describe("runLane", () => {
     expect(result.receipt.status).toBe("malformed-output");
     expect(result.receipt.error?.message).toContain("was not reported");
     expect(existsSync(input.outputPath)).toBe(false);
+  });
+
+  it("rejects a Claude run whose requested model only ran as a helper", async () => {
+    const session = "helper-only-session";
+    process.env.FAKE_CLAUDE_STREAM = [
+      JSON.stringify({ type: "system", subtype: "init", session_id: session, model: "opus" }),
+      JSON.stringify({ type: "assistant", session_id: session, parent_tool_use_id: null, message: { role: "assistant", model: "claude-sonnet-9-9", content: [{ type: "text", text: "CLAUDE_OK" }] } }),
+      JSON.stringify({ type: "assistant", session_id: session, parent_tool_use_id: "toolu_helper", message: { role: "assistant", model: "claude-opus-9", content: [{ type: "text", text: "helper output" }] } }),
+      JSON.stringify({ type: "result", subtype: "success", is_error: false, result: "CLAUDE_OK", session_id: session, modelUsage: { "claude-sonnet-9-9": {}, "claude-opus-9": {} } }),
+    ].join("\n") + "\n";
+    const input = { ...options("claude", "helper-only"), model: "opus" };
+    const result = await runLane(input);
+    expect(result.receipt.status).toBe("malformed-output");
+    expect(result.receipt.error?.message).toContain("was not reported");
+    expect(result.receipt.terminalSuccess).toBe(true);
+    expect(existsSync(input.outputPath)).toBe(false);
+  });
+
+  it("completes a Claude run when a helper reports alongside the valid primary", async () => {
+    const session = "primary-with-helper-session";
+    process.env.FAKE_CLAUDE_STREAM = [
+      JSON.stringify({ type: "system", subtype: "init", session_id: session, model: "fable" }),
+      JSON.stringify({ type: "assistant", session_id: session, parent_tool_use_id: "toolu_helper", message: { role: "assistant", model: "claude-haiku-4-5", content: [{ type: "text", text: "helper output" }] } }),
+      JSON.stringify({ type: "assistant", session_id: session, parent_tool_use_id: null, message: { role: "assistant", model: "claude-fable-9-9", content: [{ type: "text", text: "CLAUDE_OK" }] } }),
+      JSON.stringify({ type: "result", subtype: "success", is_error: false, result: "CLAUDE_OK", session_id: session, usage: { input_tokens: 10, output_tokens: 2 }, modelUsage: { "claude-fable-9-9": {}, "claude-haiku-4-5": {} } }),
+    ].join("\n") + "\n";
+    const input = options("claude", "primary-with-helper");
+    const result = await runLane(input);
+    expect(result.exitCode).toBe(0);
+    expect(receipt(input.receiptPath)).toMatchObject({
+      status: "complete",
+      reportedModel: "claude-fable-9-9",
+      modelVerified: true,
+      modelEvidence: "provider-report",
+      usage: { inputTokens: 10, outputTokens: 2 },
+    });
+    expect(readFileSync(input.outputPath, "utf8")).toBe("CLAUDE_OK");
+  });
+
+  it("keeps Claude transcript content out of generic failure evidence", async () => {
+    const marker = "PRIVATE_TRANSCRIPT_SENTINEL";
+    const session = "sentinel-session";
+    process.env.FAKE_CLAUDE_STREAM = [
+      JSON.stringify({ type: "system", subtype: "init", session_id: session, model: "fable" }),
+      JSON.stringify({ type: "assistant", session_id: session, parent_tool_use_id: null, message: { role: "assistant", model: "claude-fable-9-9", content: [{ type: "text", text: `reading ${marker}` }] } }),
+      JSON.stringify({ type: "result", subtype: "success", is_error: false, result: "CLAUDE_OK", session_id: session }),
+    ].join("\n") + "\n";
+    process.env.FAKE_MODEL_EXIT = "1";
+    const invocation = options("claude", "transcript-nonzero");
+    const invocationResult = await runLane(invocation);
+    expect(invocationResult.receipt.status).toBe("child-failed");
+    expect(invocationResult.receipt.terminalSuccess).toBe(true);
+    expect(invocationResult.receipt.error?.evidence ?? "").not.toContain(marker);
+    expect(invocationResult.receipt.error?.evidence).toContain("CLAUDE_OK");
+    delete process.env.FAKE_MODEL_EXIT;
+
+    process.env.FAKE_CLAUDE_STREAM = `${JSON.stringify({ type: "assistant", session_id: session, parent_tool_use_id: null, message: { role: "assistant", model: "claude-fable-9-9", content: [{ type: "text", text: `reading ${marker}` }] } })}\n`;
+    const malformed = options("claude", "transcript-malformed");
+    const malformedResult = await runLane(malformed);
+    expect(malformedResult.receipt.status).toBe("malformed-output");
+    expect(malformedResult.receipt.error?.message).toContain("terminal result");
+    expect(malformedResult.receipt.error?.evidence ?? "").not.toContain(marker);
   });
 
   it("passes an exact Claude ID through unchanged when no native lane covers it", async () => {
