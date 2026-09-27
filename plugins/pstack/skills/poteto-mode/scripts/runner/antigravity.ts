@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { lstatSync, mkdirSync, readFileSync, rmdirSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { type AccessMode, type Effort, type RunnerOptions, UsageError } from "./types.ts";
+import { type AccessMode, type Effort, OutputValidationError, type RunnerOptions, UsageError } from "./types.ts";
 
 export const ANTIGRAVITY_READ_TOOLS = ["view_file", "list_dir", "grep_search"] as const;
 export const ANTIGRAVITY_WRITE_TOOLS = ["write_to_file", "replace_file_content", "multi_replace_file_content"] as const;
@@ -77,11 +77,11 @@ export function createAntigravityLaneFiles(options: RunnerOptions): AntigravityC
     throw error;
   }
   const assertUnchanged = (): void => {
-    if (identity === null) throw new Error("antigravity agent definition is missing");
+    if (identity === null) throw new OutputValidationError("antigravity agent definition is missing");
     const stat = lstatSync(files.agentPath);
     if (!stat.isFile() || stat.dev !== identity.dev || stat.ino !== identity.ino ||
         readFileSync(files.agentPath, "utf8") !== definition) {
-      throw new Error("antigravity agent definition changed during execution");
+      throw new OutputValidationError("antigravity agent definition changed during execution");
     }
   };
   return {
@@ -144,10 +144,10 @@ export function antigravityEvents(stdout: string): AntigravityEvent[] {
   for (const line of stdout.split("\n")) {
     if (line.trim().length === 0) continue;
     let parsed: unknown;
-    try { parsed = JSON.parse(line); } catch { throw new Error("antigravity emitted a non-JSON event"); }
+    try { parsed = JSON.parse(line); } catch { throw new OutputValidationError("antigravity emitted a non-JSON event"); }
     if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed) ||
         typeof (parsed as Record<string, unknown>).event !== "string") {
-      throw new Error("antigravity emitted a non-object event");
+      throw new OutputValidationError("antigravity emitted a non-object event");
     }
     events.push(parsed as AntigravityEvent);
   }
@@ -167,17 +167,17 @@ export function auditAntigravityStream(stdout: string, files: AntigravityLaneFil
   const init = first?.event === "init" && first.init !== null && typeof first.init === "object" && !Array.isArray(first.init)
     ? first.init as Record<string, unknown> : null;
   if (init?.model !== requestedModel || init?.agent !== files.agentName) {
-    throw new Error("antigravity init did not match the requested model and agent");
+    throw new OutputValidationError("antigravity init did not match the requested model and agent");
   }
   const allowed = new Set(antigravityTools(mode));
   for (const [index, event] of events.entries()) {
-    if (index > 0 && event.event === "init") throw new Error("antigravity emitted more than one init");
+    if (index > 0 && event.event === "init") throw new OutputValidationError("antigravity emitted more than one init");
     if (event.event !== "step_update") continue;
     const step = event.step_update;
-    if (step === null || typeof step !== "object" || Array.isArray(step)) throw new Error("antigravity emitted a malformed step");
+    if (step === null || typeof step !== "object" || Array.isArray(step)) throw new OutputValidationError("antigravity emitted a malformed step");
     const detail = step as Record<string, unknown>;
     if (detail.step_type === "tool" && (typeof detail.tool_name !== "string" || !allowed.has(detail.tool_name))) {
-      throw new Error("antigravity used a tool outside its assigned allowlist");
+      throw new OutputValidationError("antigravity used a tool outside its assigned allowlist");
     }
   }
 }
