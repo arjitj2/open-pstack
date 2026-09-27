@@ -9,6 +9,7 @@ import {
   isRollingClaudeAlias,
 } from "./model-aliases.ts";
 import { ProviderTerminalError } from "./provider-failure.ts";
+import { assessCodexTranscript } from "./codex.ts";
 import { antigravityEvents, antigravitySuccessfulResult } from "./antigravity.ts";
 
 type JsonObject = Record<string, unknown>;
@@ -180,56 +181,22 @@ function parseGrok(stdout: string, requestedModel: string): ParsedOutput {
 }
 
 function parseCodex(stdout: string): ParsedOutput {
-  let text: string | null = null;
-  let usage: NormalizedUsage | null = null;
-  let sessionId: string | null = null;
-  // The last terminal event decides the outcome: a turn.completed after an
-  // earlier turn.failed or stream `error` event means the turn recovered, and
-  // nonterminal events never terminalize the result.
-  let terminal: JsonObject | null = null;
-
-  for (const line of stdout.split("\n")) {
-    if (line.trim().length === 0) continue;
-    let raw: unknown;
-    try {
-      raw = JSON.parse(line);
-    } catch {
-      throw new Error("codex emitted a non-JSON event");
-    }
-    const event = object(raw);
-    if (event === null) continue;
-    if (event.type === "thread.started") {
-      sessionId = nullableString(event.thread_id) ?? sessionId;
-    }
-    if (event.type === "item.completed") {
-      const item = object(event.item);
-      if (item?.type === "agent_message") {
-        text = nullableString(item.text) ?? text;
-      }
-    }
-    if (event.type === "turn.completed") {
-      usage = normalizedUsage(event.usage) ?? usage;
-      terminal = null;
-    }
-    if (event.type === "turn.failed" || event.type === "error") {
-      terminal = event;
-    }
-  }
-
-  if (terminal !== null) {
-    const detail = terminal.type === "turn.failed" ? object(terminal.error) : terminal;
+  const assessment = assessCodexTranscript(stdout);
+  if (assessment.kind === "failed") {
     throw new ProviderTerminalError(
       "codex",
-      nullableString(detail?.message) ?? "codex reported a failed turn",
-      terminal
+      assessment.terminal.message ?? "codex reported a failed turn",
+      assessment.terminal.event
     );
   }
-  if (text === null) throw new Error("codex result did not contain a final agent message");
+  if (assessment.kind === "rejected") {
+    throw new Error(assessment.reason);
+  }
   return {
-    text,
+    text: assessment.text,
     reportedModel: null,
-    sessionId,
-    usage,
+    sessionId: assessment.sessionId,
+    usage: normalizedUsage(assessment.terminal.event.usage),
     costUsd: null,
   };
 }

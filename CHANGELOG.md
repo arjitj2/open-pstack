@@ -4,6 +4,12 @@ This file records what each version of the Open Pstack package changed. Versions
 
 Entries describe package versions. Published release checkpoints have tag links; installation follows `main` unless pinned. Validation belongs to the linked pull requests. Older reports remain available through immutable links.
 
+## 1.8.4 requires Codex final-turn completion
+
+Cursor baseline: [0.15.5](https://github.com/cursor/plugins/tree/12d587dfb20741cafc376c42c696c5f6e2a64487/pstack). [Issue #51](https://github.com/arjitj2/open-pstack/issues/51).
+
+Codex workers publish output only when the final turn completes with valid text and consistent available framing. A shared assessment preserves recovery from intermediate errors and keeps protocol completion as a replay veto when output validation or process exit fails.
+
 ## 1.8.3 disables inherited Devin refusal fallback
 
 Cursor baseline: [0.15.5](https://github.com/cursor/plugins/tree/12d587dfb20741cafc376c42c696c5f6e2a64487/pstack). [PR #56](https://github.com/arjitj2/open-pstack/pull/56).
