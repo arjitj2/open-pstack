@@ -141,6 +141,8 @@ export function assessCodexTranscript(stdout: string): CodexAssessment {
       typeof event.type === "string" &&
       event.type.startsWith("item.")
     ) {
+      const item = object(event.item);
+      if (event.type === "item.completed" && item?.type === "error") continue;
       if (framed && !open) {
         fail("codex emitted an item event outside an open turn");
       } else {
@@ -150,7 +152,6 @@ export function assessCodexTranscript(stdout: string): CodexAssessment {
           turnText = undefined;
         }
         if (event.type === "item.completed") {
-          const item = object(event.item);
           if (item?.type === "agent_message") {
             turnText =
               typeof item.text === "string" ? item.text : undefined;

@@ -24,6 +24,10 @@ const tool = {
   type: "item.completed",
   item: { type: "command_execution", aggregated_output: "tool" },
 };
+const diagnostic = {
+  type: "item.completed",
+  item: { type: "error", message: "Ignoring malformed agent role definition" },
+};
 const itemStarted = { type: "item.started", item: { type: "agent_message" } };
 const complete = (usage?: unknown) =>
   usage === undefined
@@ -49,6 +53,45 @@ interface TranscriptCase {
 }
 
 const cases: readonly TranscriptCase[] = [
+  {
+    name: "error item inside a turn preserves its final text",
+    events: [start, message("answer"), diagnostic, complete()],
+    parse: "accept",
+    text: "answer",
+    terminalSuccess: true,
+    quota: null,
+  },
+  {
+    name: "startup error items do not open an implicit turn",
+    events: [thread("t1"), diagnostic, diagnostic, start, tool, message("answer"), complete()],
+    parse: "accept",
+    text: "answer",
+    sessionId: "t1",
+    terminalSuccess: true,
+    quota: null,
+  },
+  {
+    name: "error item after completion does not open a new turn",
+    events: [start, message("answer"), complete(), diagnostic],
+    parse: "accept",
+    text: "answer",
+    terminalSuccess: true,
+    quota: null,
+  },
+  {
+    name: "error items alone are not completed work",
+    events: [thread("t1"), diagnostic],
+    parse: "reject",
+    terminalSuccess: false,
+    quota: null,
+  },
+  {
+    name: "error item in a new turn cannot reuse earlier text",
+    events: [start, message("old"), complete(), start, diagnostic, complete()],
+    parse: "reject",
+    terminalSuccess: true,
+    quota: null,
+  },
   {
     name: "minimal unframed message and completion",
     events: [message("answer"), complete()],
