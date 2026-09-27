@@ -115,39 +115,192 @@ describe("parseProviderOutput", () => {
     });
   });
 
-  it("accepts Grok's reported build suffix", () => {
-    const parsed = parseProviderOutput(
-      "grok",
-      [
-        JSON.stringify({
-          type: "assistant",
-          message: { content: [{ type: "text", text: "progress" }] },
-        }),
-        JSON.stringify({
-          type: "result",
-          subtype: "success",
-          is_error: false,
-          result: "GROK_OK",
-          session_id: "grok-session",
-          usage: {
-            input_tokens: 30,
-            cache_read_input_tokens: 6,
-            output_tokens: 7,
-            reasoning_tokens: 3,
-            total_tokens: 43,
-          },
-          total_cost_usd: 0.02,
-          modelUsage: { "grok-4.7-build": {} },
-        }),
-      ].join("\n"),
-      "",
-      "grok-4.7"
-    );
-    expect(parsed.text).toBe("GROK_OK");
-    expect(parsed.reportedModel).toBe("grok-4.7-build");
-    expect(reportedModelMatches("grok", "grok-4.7", parsed.reportedModel)).toBe(
-      true
-    );
+  describe("Grok provenance on synthetic fixtures", () => {
+    const grokResult = (extra: Record<string, unknown> = {}): string =>
+      JSON.stringify({
+        type: "result",
+        subtype: "success",
+        is_error: false,
+        result: "GROK_OK",
+        session_id: "grok-session",
+        modelUsage: { "grok-4.7": {} },
+        ...extra,
+      });
+    const grokAssistant = (frame: Record<string, unknown>): string =>
+      JSON.stringify({ type: "assistant", ...frame });
+    const grokMainAssistant = (model: unknown, session?: unknown): string =>
+      grokAssistant({
+        session_id: session === undefined ? "grok-session" : session,
+        parent_tool_use_id: null,
+        message: {
+          role: "assistant",
+          model,
+          content: [{ type: "text", text: "work" }],
+        },
+      });
+
+    it("keeps usage and cost as accounting while reporting no model proof", () => {
+      const parsed = parseProviderOutput(
+        "grok",
+        [
+          grokAssistant({
+            message: { content: [{ type: "text", text: "progress" }] },
+          }),
+          grokResult({
+            usage: {
+              input_tokens: 30,
+              cache_read_input_tokens: 6,
+              output_tokens: 7,
+              reasoning_tokens: 3,
+              total_tokens: 43,
+            },
+            total_cost_usd: 0.02,
+            modelUsage: { "grok-4.7-build": { outputTokens: 7 } },
+          }),
+        ].join("\n"),
+        "",
+        "grok-4.7"
+      );
+      expect(parsed).toMatchObject({
+        text: "GROK_OK",
+        reportedModel: null,
+        sessionId: "grok-session",
+        usage: {
+          inputTokens: 30,
+          cachedInputTokens: 6,
+          outputTokens: 7,
+          reasoningTokens: 3,
+          totalTokens: 43,
+        },
+        costUsd: 0.02,
+      });
+    });
+
+    const provenanceCases: Array<{
+      name: string;
+      lines: string[];
+      sessionId: string | null;
+    }> = [
+      {
+        name: "a usage ledger naming only a build-suffixed model",
+        lines: [grokResult({ modelUsage: { "grok-4.7-build": {} } })],
+        sessionId: "grok-session",
+      },
+      {
+        name: "the requested model appearing only on a helper-owned frame",
+        lines: [
+          grokAssistant({
+            session_id: "grok-session",
+            parent_tool_use_id: "toolu_helper",
+            message: {
+              role: "assistant",
+              model: "grok-4.7",
+              content: [{ type: "text", text: "helper output" }],
+            },
+          }),
+          grokResult(),
+        ],
+        sessionId: "grok-session",
+      },
+      {
+        name: "conflicting models on main assistant frames",
+        lines: [
+          grokMainAssistant("grok-4.7"),
+          grokMainAssistant("grok-3"),
+          grokResult(),
+        ],
+        sessionId: "grok-session",
+      },
+      {
+        name: "assistant frames from another session",
+        lines: [
+          grokMainAssistant("grok-4.7", "other-session"),
+          grokResult(),
+        ],
+        sessionId: "grok-session",
+      },
+      {
+        name: "no model on frames and no session on the result",
+        lines: [grokAssistant({}), grokResult({ session_id: undefined })],
+        sessionId: null,
+      },
+      {
+        name: "the session-selected model echoed on init, frames, and the ledger",
+        lines: [
+          JSON.stringify({
+            type: "system",
+            subtype: "init",
+            session_id: "grok-session",
+            model: "grok-4.7",
+          }),
+          grokMainAssistant("grok-4.7"),
+          grokResult({ modelUsage: { "grok-4.7": { outputTokens: 4 } } }),
+        ],
+        sessionId: "grok-session",
+      },
+      {
+        name: "no usage ledger at all",
+        lines: [
+          grokAssistant({
+            message: { content: [{ type: "text", text: "progress" }] },
+          }),
+          grokResult({ modelUsage: undefined }),
+        ],
+        sessionId: "grok-session",
+      },
+    ];
+
+    for (const { name, lines, sessionId } of provenanceCases) {
+      it(`reports no model proof for ${name}`, () => {
+        const parsed = parseProviderOutput(
+          "grok",
+          lines.join("\n"),
+          "",
+          "grok-4.7"
+        );
+        expect(parsed.text).toBe("GROK_OK");
+        expect(parsed.reportedModel).toBeNull();
+        expect(parsed.sessionId).toBe(sessionId);
+      });
+    }
+
+    it("still rejects malformed lines, a missing result, and missing text", () => {
+      expect(() =>
+        parseProviderOutput("grok", `not-json\n${grokResult()}`, "", "grok-4.7")
+      ).toThrow("non-JSON event");
+      expect(() =>
+        parseProviderOutput("grok", grokAssistant({}), "", "grok-4.7")
+      ).toThrow("terminal event");
+      expect(() =>
+        parseProviderOutput(
+          "grok",
+          grokResult({ result: undefined }),
+          "",
+          "grok-4.7"
+        )
+      ).toThrow("final text");
+    });
+
+    it("keeps the canonical free-usage terminal error a typed failure", async () => {
+      const { ProviderTerminalError } = await import("./provider-failure.ts");
+      const envelope = {
+        type: "result",
+        subtype: "error_during_execution",
+        is_error: true,
+        errors: [
+          "You\u2019ve reached your free Grok Build usage limit for now. Get SuperGrok for much higher limits, or try again later: https://grok.com/supergrok?referrer=grok-build",
+        ],
+      };
+      try {
+        parseProviderOutput("grok", JSON.stringify(envelope), "", "grok-4.7");
+        throw new Error("expected a throw");
+      } catch (error) {
+        expect(error).toBeInstanceOf(ProviderTerminalError);
+        expect(
+          (error as InstanceType<typeof ProviderTerminalError>).envelope
+        ).toEqual(envelope);
+      }
+    });
   });
 
   it("verifies a valid Claude primary that reports alongside helpers", () => {

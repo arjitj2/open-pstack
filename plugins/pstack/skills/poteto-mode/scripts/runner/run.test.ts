@@ -480,6 +480,22 @@ describe("runLane", () => {
     it(`executes and receipts the ${provider} external lane`, async () => {
       const input = options(provider);
       const result = await runLane(input);
+      if (provider === "grok") {
+        expect(result.exitCode).toBe(65);
+        expect(existsSync(input.outputPath)).toBe(false);
+        expect(receipt(input.receiptPath)).toMatchObject({
+          status: "malformed-output",
+          provider,
+          model: input.model,
+          reportedModel: null,
+          modelVerified: false,
+          modelEvidence: null,
+          preflight: { status: "passed" },
+          failurePhase: "postprocess",
+          terminalSuccess: true,
+        });
+        return;
+      }
       expect(result.exitCode).toBe(0);
       expect(readFileSync(input.outputPath, "utf8")).toContain(
         provider.toUpperCase()
@@ -495,6 +511,87 @@ describe("runLane", () => {
       if (provider === "claude") {
         expect(receipt(input.receiptPath).reportedModel).toBe("claude-fable-9-9");
       }
+    });
+  }
+
+  const syntheticGrokFrame = (model: string | null, session = "g1", owner: string | null = null) => ({
+    type: "assistant", session_id: session, parent_tool_use_id: owner,
+    message: { role: "assistant", model, content: [
+      { type: "text", text: "CANARY_NARRATION" },
+      { type: "tool_use", name: "bash", input: "CANARY_TOOL_ARGUMENTS" },
+    ] },
+  });
+  const grokProvenanceCases = [
+    { name: "accounting-only", frames: [] },
+    { name: "helper-only match", frames: [syntheticGrokFrame("grok-other"), syntheticGrokFrame("grok-4.7", "g1", "helper")] },
+    { name: "conflicting models", frames: [syntheticGrokFrame("grok-4.7"), syntheticGrokFrame("grok-other")] },
+    { name: "mixed sessions", frames: [syntheticGrokFrame("grok-4.7", "other-session")] },
+    { name: "missing model", frames: [syntheticGrokFrame(null)] },
+    { name: "missing session", frames: [syntheticGrokFrame("grok-4.7", "")] },
+    { name: "matching selected-model echo", frames: [syntheticGrokFrame("grok-4.7")] },
+  ];
+  for (const { name, frames } of grokProvenanceCases) {
+    it(`rejects synthetic Grok ${name} without independent model proof`, async () => {
+      process.env.FAKE_STDOUT = [
+        JSON.stringify({ type: "system", subtype: "init", session_id: "g1", model: "grok-4.7" }),
+        JSON.stringify({ type: "user", session_id: "g1", message: { role: "user", content: "CANARY_PROMPT_EVENT" } }),
+        ...frames.map((frame) => JSON.stringify(frame)),
+        JSON.stringify({ type: "user", session_id: "g1", message: { role: "user", content: [{ type: "tool_result", content: "CANARY_TOOL_RESULT" }] } }),
+        JSON.stringify({ type: "result", subtype: "success", is_error: false, result: "GROK_OK", session_id: "g1", usage: { input_tokens: 30, output_tokens: 4, total_tokens: 34 }, total_cost_usd: 0.02, modelUsage: { "grok-other": {}, "grok-4.7": {} } }),
+      ].join("\n") + "\n";
+      process.env.FAKE_STDERR = "CANARY_STDERR";
+      const input = options("grok", "grok-unverified-success");
+      const result = await runLane(input);
+
+      expect(result.exitCode).toBe(65);
+      expect(existsSync(input.outputPath)).toBe(false);
+      expect(result.receipt).toMatchObject({
+        status: "malformed-output",
+        provider: "grok",
+        model: "grok-4.7",
+        reportedModel: null,
+        modelVerified: false,
+        modelEvidence: null,
+        sessionId: null,
+        usage: null,
+        costUsd: null,
+        failurePhase: "postprocess",
+        processStarted: true,
+        terminalSuccess: true,
+        preflight: { status: "passed" },
+      });
+      expect(result.receipt.error?.message).toContain("was not reported");
+      const serialized = JSON.stringify(result.receipt);
+      for (const canary of [
+        "CANARY_PROMPT_EVENT",
+        "CANARY_NARRATION",
+        "CANARY_TOOL_ARGUMENTS",
+        "CANARY_TOOL_RESULT",
+        "CANARY_STDERR",
+      ]) {
+        expect(serialized).not.toContain(canary);
+      }
+
+      const event = normalizeReceiptEvent(result.receipt, {
+        parent: input.parent,
+        provider: input.provider,
+        model: input.model,
+        effort: input.effort,
+        mode: input.mode,
+        apiSpend: "unset",
+      });
+      expect(event.status).toBe("failed");
+      const broadLane: LanePolicy = {
+        id: "how explorer#1",
+        fallback: { on: ["usage-exhausted", "route-unavailable", "terminal-failure", "deadline-exceeded"] },
+        attempts: [
+          { descriptor: "grok:grok-4.7@xhigh", attempt: { kind: "descriptor", provider: "grok", model: "grok-4.7", effort: "xhigh" }, exhaustionGroup: "grok", funding: "included", apiSpend: "deny", route: "external", authorization: { state: "allowed" } },
+          { descriptor: "codex:gpt-5.6-sol@max", attempt: { kind: "descriptor", provider: "codex", model: "gpt-5.6-sol", effort: "max" }, exhaustionGroup: "codex", funding: "included", apiSpend: "deny", route: "external", authorization: { state: "allowed" } },
+        ],
+      };
+      expect(
+        nextAttempt(broadLane, [{ attemptIndex: 0, status: event.status, processStarted: event.processStarted }], new Set(), "read-only")
+      ).toMatchObject({ kind: "stop", reason: "not-eligible" });
     });
   }
 
@@ -587,12 +684,14 @@ describe("runLane", () => {
     const input = options("grok", "grok-transient-unauth");
     const result = await runLane(input);
 
-    expect(result.exitCode).toBe(0);
+    expect(result.exitCode).toBe(65);
     expect(readFileSync(preflightLog, "utf8")).toBe("attempt\nattempt\n");
     expect(existsSync(modelStarted)).toBe(true);
+    expect(existsSync(input.outputPath)).toBe(false);
     expect(receipt(input.receiptPath)).toMatchObject({
-      status: "complete",
+      status: "malformed-output",
       preflight: { status: "passed" },
+      terminalSuccess: true,
     });
     expect(receipt(input.receiptPath).preflight.evidence).not.toContain(
       "You are not authenticated."
@@ -1103,13 +1202,21 @@ describe("runLane", () => {
   });
 
   it("runs simultaneous same-provider lanes only into their unique paths", async () => {
-    const first = options("grok", "first");
-    const second = options("grok", "second");
+    const first = options("claude", "first");
+    const second = options("claude", "second");
     const results = await Promise.all([runLane(first), runLane(second)]);
     expect(results.map((result) => result.exitCode)).toEqual([0, 0]);
     expect(first.outputPath).not.toBe(second.outputPath);
-    expect(receipt(first.receiptPath).sessionId).toBe("g1");
-    expect(receipt(second.receiptPath).sessionId).toBe("g1");
+    expect(first.receiptPath).not.toBe(second.receiptPath);
+    for (const lane of [first, second]) {
+      expect(readFileSync(lane.outputPath, "utf8")).toContain("CLAUDE");
+      expect(receipt(lane.receiptPath)).toMatchObject({
+        status: "complete",
+        provider: "claude",
+        outputPath: lane.outputPath,
+        modelVerified: true,
+      });
+    }
   });
 
   it("refuses a second writer for an already-reserved path", async () => {
