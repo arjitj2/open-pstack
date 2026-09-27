@@ -4,7 +4,7 @@
 
 Pstack helps you build a repo where agents must prove a change works before it can merge. `poteto-mode` gives them the engineering process; a repo-specific verification skill checks real features. Your codebase, static checks, CI, and merge rules make the requirements enforceable. When you catch a mistake, turn it into a check or constraint that prevents it from recurring.
 
-Pstack is a collection of **skills with distinct responsibilities**. `poteto-mode` is the entry point: it selects the skills a task needs and coordinates subagents for work such as code exploration (`how`), design (`architect`), implementation, and adversarial review (`interrogate`). In this distribution, you can [assign providers and models by role](#1-set-up-the-models), so explorers, implementers, and reviewers can use different models, including several models working in parallel.
+Pstack is a collection of **skills with distinct responsibilities**. `poteto-mode` is the entry point: it selects the skills a task needs and coordinates subagents for work such as code exploration (`how`), design (`architect`), implementation, and adversarial review (`interrogate`). Unlike Cursor’s original Pstack, which runs within Cursor, Open Pstack lets you [assign providers and models by role](#1-set-up-the-models)—so exploration, implementation, and review can each use a different provider and model.
 
 ```mermaid
 flowchart LR
