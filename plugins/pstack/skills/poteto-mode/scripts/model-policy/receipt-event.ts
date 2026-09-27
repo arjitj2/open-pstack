@@ -17,11 +17,14 @@ import {
   type AttemptApiSpend,
   type AttemptOutcomeStatus,
   type DeniedCause,
+  type ExecutionIdentity,
 } from "./model-policy.ts";
 import { PARENT_OPERATION_KINDS, type ParentOperationKind } from "../runner/types.ts";
+import { isAbsolute, resolve } from "node:path";
 
 export const RECEIPT_EVENT_STATUS: Readonly<Record<ReceiptStatus, AttemptOutcomeStatus>> = {
   complete: "complete",
+  "needs-parent-operation": "needs-parent-operation",
   cancelled: "failed",
   "unavailable-cli": "route-unavailable",
   unauthenticated: "route-unavailable",
@@ -31,7 +34,7 @@ export const RECEIPT_EVENT_STATUS: Readonly<Record<ReceiptStatus, AttemptOutcome
   "timed-out": "deadline-exceeded",
   "child-failed": "terminal-failure",
   "malformed-output": "terminal-failure",
-  "unsupported-capability": "route-unavailable",
+  "unsupported-capability": "failed",
 };
 
 const FAILURE_PHASES = ["preflight", "invocation", "postprocess"] as const;
@@ -44,6 +47,8 @@ export interface ReceiptIdentity {
   readonly effort: Effort;
   readonly mode: AccessMode;
   readonly apiSpend: AttemptApiSpend;
+  readonly contract?: "legacy" | "strict";
+  readonly receiptPath?: string;
 }
 
 export interface NormalizedReceiptEvent {
@@ -58,6 +63,14 @@ export interface NormalizedReceiptEvent {
     readonly checkpointId: string;
     readonly ref?: string;
   };
+  readonly execution?: ExecutionIdentity;
+}
+
+function canonicalPath(value: unknown, field: string): string {
+  if (typeof value !== "string" || !isAbsolute(value) || value !== resolve(value) || value.includes("\0")) {
+    fail([`${field} must be a normalized absolute path`]);
+  }
+  return value;
 }
 
 function fail(issues: readonly string[]): never {
@@ -84,8 +97,8 @@ export function normalizeReceiptEvent(
     fail(["receipt must be a JSON object"]);
   }
   const receipt = value as Record<string, unknown>;
-  if (receipt.schemaVersion !== 1) {
-    fail([`receipt schemaVersion must be 1, found ${JSON.stringify(receipt.schemaVersion)}`]);
+  if (receipt.schemaVersion !== 1 && receipt.schemaVersion !== 2) {
+    fail([`receipt schemaVersion must be 1 or 2, found ${JSON.stringify(receipt.schemaVersion)}`]);
   }
   const status = receipt.status;
   if (
@@ -141,6 +154,7 @@ export function normalizeReceiptEvent(
   if (receipt.effort !== expected.effort) mismatched.push("effort");
   if (receipt.mode !== expected.mode) mismatched.push("mode");
   if (receiptApiSpend !== expectedApiSpend) mismatched.push("apiSpend");
+  if (expected.contract !== undefined && (receipt.contract ?? "legacy") !== expected.contract) mismatched.push("contract");
   if (mismatched.length > 0) {
     fail([
       `receipt identity mismatch on ${mismatched.join(", ")}: ` +
@@ -149,6 +163,33 @@ export function normalizeReceiptEvent(
         `expected ${expected.parent}/${expected.provider}:${expected.model}@${expected.effort} ` +
         `(mode ${expected.mode}, apiSpend ${expectedApiSpend})`,
     ]);
+  }
+
+  let execution: ExecutionIdentity | undefined;
+  if (receipt.schemaVersion === 2) {
+    const id = receipt.executionId;
+    if (typeof id !== "string" || !id.trim()) fail(["receipt executionId must be nonempty"]);
+    canonicalPath(receipt.outputPath, "receipt outputPath");
+    const rawReceiptPath = canonicalPath(receipt.receiptPath, "receipt receiptPath");
+    canonicalPath(receipt.cwd, "receipt cwd");
+    if (expected.receiptPath !== undefined && canonicalPath(expected.receiptPath, "expected receipt path") !== rawReceiptPath) {
+      fail(["receipt path differs from the normalized file path"]);
+    }
+    const paths = receipt.canonicalPaths;
+    if (paths === null || typeof paths !== "object" || Array.isArray(paths)) {
+      fail(["schema 2 receipt requires canonicalPaths"]);
+    }
+    const canonical = paths as Record<string, unknown>;
+    const outputPath = canonicalPath(canonical.output, "canonical output path");
+    const receiptPath = canonicalPath(canonical.receipt, "canonical receipt path");
+    const workspacePath = canonicalPath(canonical.cwd, "canonical cwd");
+    const contract = receipt.contract ?? "legacy";
+    if (contract !== "legacy" && contract !== "strict") fail(["receipt contract is invalid"]);
+    execution = {
+      id, outputPath, receiptPath, workspacePath,
+      descriptor: `${expected.provider}:${expected.model}@${expected.effort}`,
+      apiSpend: expected.apiSpend, access: expected.mode, contract,
+    };
   }
 
   if (
@@ -206,6 +247,7 @@ export function normalizeReceiptEvent(
   }
 
   let toolDenialVerified = false;
+  let toolDenialCause: "permission" | "unknown" = "unknown";
   if (receipt.toolDenial !== undefined) {
     const denial = receipt.toolDenial;
     if (denial === null || typeof denial !== "object" || Array.isArray(denial)) {
@@ -215,6 +257,10 @@ export function normalizeReceiptEvent(
     if (typeof entry.verified !== "boolean") {
       fail(["receipt toolDenial.verified must be a boolean"]);
     }
+    if (entry.cause !== undefined && entry.cause !== "permission" && entry.cause !== "unknown") {
+      fail(["receipt toolDenial.cause must be permission or unknown"]);
+    }
+    toolDenialCause = entry.cause === "permission" ? "permission" : "unknown";
     if (
       entry.tool !== null &&
       (typeof entry.tool !== "string" || entry.tool.trim().length === 0)
@@ -267,11 +313,11 @@ export function normalizeReceiptEvent(
   if (receipt.handoffMalformed !== undefined && typeof receipt.handoffMalformed !== "boolean") {
     fail(["receipt handoffMalformed must be a boolean when present"]);
   }
-  if (handoff !== undefined && receiptStatus !== "complete") {
-    fail(["only a complete receipt may carry a handoff"]);
+  if (handoff !== undefined && (receipt.schemaVersion !== 2 || receiptStatus !== "needs-parent-operation")) {
+    fail(["only a schema 2 needs-parent-operation receipt may carry a handoff"]);
   }
-  if (toolDenialVerified && receiptStatus === "complete") {
-    fail(["a complete receipt cannot carry verified tool-denial evidence"]);
+  if (toolDenialVerified && (receiptStatus === "complete" || receiptStatus === "needs-parent-operation")) {
+    fail(["a delivered terminal receipt cannot carry verified tool-denial evidence"]);
   }
 
   if (
@@ -289,22 +335,21 @@ export function normalizeReceiptEvent(
     fail(["receipt terminalSuccess must be a boolean when present"]);
   }
 
-  if (receiptStatus === "complete") {
+  if (receiptStatus === "complete" || receiptStatus === "needs-parent-operation") {
     if (
       exitCode !== 0 ||
       receipt.error !== null ||
       receipt.failurePhase !== null ||
-      receipt.terminalSuccess === true
+      (receiptStatus === "complete" && receipt.terminalSuccess === true)
     ) {
       fail(["a complete receipt requires exitCode 0 and no error, failure phase, or success conflict"]);
     }
-    if (receipt.handoffMalformed === true) {
-      return { status: "failed", processStarted };
-    }
+    if (receipt.handoffMalformed === true) fail(["malformed handoff cannot be a delivered terminal status"]);
+    if (receiptStatus === "needs-parent-operation" && handoff === undefined) fail(["handoff status requires handoff"]);
     if (handoff !== undefined) {
-      return { status: "needs-parent-operation", processStarted, handoff };
+      return { status: "needs-parent-operation", processStarted, handoff, execution };
     }
-    return { status: "complete", processStarted };
+    return { status: "complete", processStarted, execution };
   }
   if (receipt.error === null) {
     fail(["a non-complete receipt requires an error record"]);
@@ -362,10 +407,12 @@ export function normalizeReceiptEvent(
   } else if (receiptStatus === "child-failed" || receiptStatus === "malformed-output") {
     if (receipt.terminalSuccess !== false) {
       mapped = "failed";
-    } else if (toolDenialVerified) {
+    } else if (toolDenialVerified && toolDenialCause === "permission") {
       // Provider-owned denial evidence upgrades the ambiguous terminal
       // status to a verified permission interruption.
       mapped = "permission-blocked";
+    } else if (toolDenialVerified) {
+      mapped = "failed";
     }
   } else if (receiptStatus === "unsupported-capability") {
     if (processStarted !== false || receipt.failurePhase !== "preflight") {
@@ -373,14 +420,11 @@ export function normalizeReceiptEvent(
     }
   }
   const deniedCause: DeniedCause | undefined =
-    mapped === "permission-blocked"
-      ? "other"
-      : mapped === "route-unavailable" && receiptStatus === "unsupported-capability"
-        ? "unsupported-tool"
-        : undefined;
+    mapped === "permission-blocked" ? "permission" : undefined;
   return {
     status: mapped,
     processStarted,
+    execution,
     ...(deniedCause === undefined ? {} : { deniedCause }),
   };
 }

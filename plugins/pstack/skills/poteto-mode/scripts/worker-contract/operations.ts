@@ -1,4 +1,6 @@
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { closeSync, existsSync, fsyncSync, mkdirSync, openSync, readFileSync, renameSync, rmdirSync, statSync, unlinkSync, writeFileSync } from "node:fs";
+import { basename, dirname, join } from "node:path";
+import { randomUUID } from "node:crypto";
 import { PARENT_OPERATION_KINDS, type ParentOperationKind } from "../runner/types.ts";
 
 export class OperationLedgerError extends Error {
@@ -127,11 +129,15 @@ export function parseLedger(text: string, source: string): OperationLedger {
   if (!Array.isArray(value.operations)) fail([`operation ledger requires an operations array: ${source}`]);
   const operations = value.operations.map((entry, index) => parseOperationRecord(entry, index));
   const ids = new Set<string>();
+  const scopes = new Set<string>();
   for (const operation of operations) {
     if (ids.has(operation.id)) {
       fail([`operation ledger repeats operation id ${JSON.stringify(operation.id)}`]);
     }
     ids.add(operation.id);
+    const scope = JSON.stringify([operation.task, operation.checkpoint, operation.kind]);
+    if (scopes.has(scope)) fail([`operation ledger repeats checkpoint operation ${scope}`]);
+    scopes.add(scope);
   }
   return { version: 1, operations };
 }
@@ -142,7 +148,50 @@ export function readLedger(path: string): OperationLedger {
 }
 
 export function writeLedger(path: string, ledger: OperationLedger): void {
-  writeFileSync(path, `${JSON.stringify(ledger, null, 2)}\n`, { encoding: "utf8", mode: 0o600 });
+  const parent = dirname(path);
+  const temporary = join(parent, `.${basename(path)}.${randomUUID()}.tmp`);
+  let fd: number | undefined;
+  try {
+    fd = openSync(temporary, "wx", 0o600);
+    writeFileSync(fd, `${JSON.stringify(ledger, null, 2)}\n`, "utf8");
+    fsyncSync(fd);
+    closeSync(fd);
+    fd = undefined;
+    renameSync(temporary, path);
+    const directory = openSync(parent, "r");
+    try { fsyncSync(directory); } finally { closeSync(directory); }
+  } finally {
+    if (fd !== undefined) closeSync(fd);
+    if (existsSync(temporary)) unlinkSync(temporary);
+  }
+}
+
+// A lock protects the read/check/write transaction across independent CLI
+// processes. A crashed owner leaves the lock for explicit reconciliation;
+// stealing it could allow the same checkpoint to run twice.
+export function recordOperationFile(path: string, input: OperationInput, now: string): RecordOutcome {
+  const lock = `${path}.lock`;
+  const sleeper = new Int32Array(new SharedArrayBuffer(4));
+  let acquired = false;
+  for (let attempt = 0; attempt < 500; attempt += 1) {
+    try {
+      mkdirSync(lock, { mode: 0o700 });
+      acquired = true;
+      break;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+      Atomics.wait(sleeper, 0, 0, 20);
+    }
+  }
+  if (!acquired) fail([`operation ledger lock ${lock} is held; reconcile its owner before retrying`]);
+  try {
+    const ledger = readLedger(path);
+    const outcome = recordOperation(ledger, input, now);
+    if (outcome.kind !== "idempotent") writeLedger(path, ledger);
+    return outcome;
+  } finally {
+    rmdirSync(lock);
+  }
 }
 
 // Record an operation or transition it. The record is idempotent: repeating
@@ -163,8 +212,7 @@ export function recordOperation(
       entry.id !== input.id &&
       entry.task === input.task &&
       entry.checkpoint === input.checkpoint &&
-      entry.kind === input.kind &&
-      entry.state !== "rejected"
+      entry.kind === input.kind
   );
   if (duplicate !== undefined) {
     fail([
@@ -176,6 +224,9 @@ export function recordOperation(
 
   const existing = ledger.operations.find((entry) => entry.id === input.id);
   if (existing === undefined) {
+    if (input.state !== "pending") {
+      fail([`operation ${JSON.stringify(input.id)} must be reserved as pending before a terminal result is recorded`]);
+    }
     const operation: OperationRecord = {
       id: input.id,
       task: input.task,

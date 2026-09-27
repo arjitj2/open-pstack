@@ -54,7 +54,7 @@ describe("worker-contract prepare", () => {
     }
   });
 
-  it("supports strict claude external only when the host probe passed", async () => {
+  it("reports strict Claude unsupported without live boundary evidence", async () => {
     const denied = io();
     expect(
       await main(
@@ -64,17 +64,8 @@ describe("worker-contract prepare", () => {
     ).toBe(0);
     expect(JSON.parse(denied.stdout.join("")).kind).toBe("unsupported");
 
-    const allowed = io();
-    expect(
-      await main(
-        ["prepare", "--parent", "codex", "--provider", "claude", "--route", "external", "--mode", "isolated-write", "--contract", "strict", "--host-verified"],
-        allowed.capture
-      )
-    ).toBe(0);
-    const prepared = JSON.parse(allowed.stdout.join(""));
-    expect(prepared.kind).toBe("prepared");
-    expect(prepared.enforcement).toBe("provider-controls");
-    expect(prepared.instructions).toContain("pstack-handoff");
+    const invalid = io();
+    expect(await main(["prepare", "--host-verified"], invalid.capture)).toBe(64);
   });
 
   it("rejects missing and invalid arguments", async () => {

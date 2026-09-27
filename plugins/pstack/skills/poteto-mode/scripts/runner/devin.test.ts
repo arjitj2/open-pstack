@@ -117,7 +117,8 @@ describe("Devin external provider", () => {
   it("keeps metacharacters in prompt paths as argv data", () => {
     const promptPath = join(scratch, "prompt $(touch BAD).md");
     const command = invocationCommand({ ...options, promptPath });
-    expect(command.args).toContain(promptPath);
+    expect(command.args).toContain(devinPromptPath({ ...options, promptPath }));
+    expect(command.args).not.toContain(promptPath);
     expect(command.args).toContain("swe-2-high");
     expect(command.args).not.toContain("--effort");
     expect(command.stdin).toBe("none");
@@ -297,7 +298,7 @@ describe("Devin external provider", () => {
       apiSpend: "unset",
     });
     expect(event.status).toBe("permission-blocked");
-    expect(event.deniedCause).toBe("other");
+    expect(event.deniedCause).toBe("permission");
     expect(existsSync(input.outputPath)).toBe(false);
   });
 

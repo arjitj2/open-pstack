@@ -12,31 +12,29 @@ import {
 } from "../runner/types.ts";
 import {
   interpretWorkerResult,
+  parseHandoffBlock,
   prepareAssignment,
 } from "./worker-contract.ts";
 import {
   OperationLedgerError,
   readLedger,
-  recordOperation,
-  writeLedger,
+  recordOperationFile,
   type OperationInput,
 } from "./operations.ts";
 import {
   PARENT_OPERATION_KINDS,
   type ParentOperationKind,
 } from "../runner/types.ts";
+import { CheckpointError, validateCheckpoint } from "./checkpoint.ts";
 
 const HELP = `Usage: pstack-worker-contract <command> [options]
 
 Commands:
   prepare --parent <claude|codex> --provider <provider> --route <native|external> \
-          --mode <read-only|isolated-write> --contract <legacy|strict> [--host-verified]
+          --mode <read-only|isolated-write> --contract <legacy|strict>
       Print the prepared assignment or the unsupported-capability verdict as
       JSON. A strict contract reports "unsupported" with the missing
-      capabilities when the route cannot carry it; --host-verified asserts
-      the caller already probed the host control (the installed claude CLI
-      advertising --restricted and --permission-prompts) for the claude
-      external route. This command never launches a worker.
+      capabilities when the route cannot carry it. This command never launches a worker.
   interpret --response <file>
       Parse one worker final response and print the typed outcome as JSON:
       complete, needs-parent-operation, or failed with a malformed handoff.
@@ -51,6 +49,12 @@ Commands:
       checkpoint, and kind, is an ambiguous duplicate that exits nonzero.
   op-status --ledger <file>
       Print the recorded operations and the pending set as JSON.
+  op-validate --response <file> --repo <worktree> --task <id> --checkpoint <id> \
+              --expected-head <sha> [--file <allowed relative path>]... \
+              [--check <allowed check id>]...
+      Validate one final-response handoff against the parent's fixed scope,
+      canonical worktree, Git metadata, file contents, and expected HEAD.
+      Return a checkpoint digest for the parent to recheck before acting.
 
 This helper renders contracts, parses worker output, and keeps the operation
 ledger. It never runs the recorded operation itself: the parent performs
@@ -100,7 +104,6 @@ function commandPrepare(argv: readonly string[], io: Io): number {
   let route: string | undefined;
   let mode: string | undefined;
   let contract: string | undefined;
-  let hostVerified = false;
   for (let i = 0; i < argv.length; i += 1) {
     switch (argv[i]) {
       case "--parent":
@@ -123,9 +126,6 @@ function commandPrepare(argv: readonly string[], io: Io): number {
         contract = optionValue("--contract", argv, i);
         i += 1;
         break;
-      case "--host-verified":
-        hostVerified = true;
-        break;
       default:
         throw new UsageError(`unknown argument: ${argv[i]}`);
     }
@@ -146,8 +146,7 @@ function commandPrepare(argv: readonly string[], io: Io): number {
       contract: (contract === undefined
         ? "legacy"
         : oneOf("--contract", contract, WORKER_CONTRACT_MODES)) as WorkerContractMode,
-    },
-    hostVerified
+    }
   );
   io.stdout(`${JSON.stringify(result, null, 2)}\n`);
   return 0;
@@ -247,9 +246,7 @@ function commandOpRecord(argv: readonly string[], io: Io): number {
     expected: expected as Record<string, unknown>,
     result,
   };
-  const ledger = readLedger(ledgerPath);
-  const outcome = recordOperation(ledger, input, new Date().toISOString());
-  writeLedger(ledgerPath, ledger);
+  const outcome = recordOperationFile(ledgerPath, input, new Date().toISOString());
   io.stdout(`${JSON.stringify(outcome, null, 2)}\n`);
   return 0;
 }
@@ -281,6 +278,35 @@ function commandOpStatus(argv: readonly string[], io: Io): number {
   return 0;
 }
 
+function commandOpValidate(argv: readonly string[], io: Io): number {
+  const values = new Map<string, string>();
+  const files: string[] = [];
+  const checks: string[] = [];
+  for (let index = 0; index < argv.length; index += 2) {
+    const key = argv[index];
+    if (!["--response", "--repo", "--task", "--checkpoint", "--expected-head", "--file", "--check"].includes(key)) {
+      throw new UsageError(`unknown argument: ${key}`);
+    }
+    const value = optionValue(key, argv, index);
+    if (key === "--file") files.push(value);
+    else if (key === "--check") checks.push(value);
+    else if (values.has(key)) throw new UsageError(`${key} may be supplied once`);
+    else values.set(key, value);
+  }
+  for (const key of ["--response", "--repo", "--task", "--checkpoint", "--expected-head"]) {
+    if (!values.has(key)) throw new UsageError(`${key} is required`);
+  }
+  const parsed = parseHandoffBlock(readFileSync(values.get("--response")!, "utf8"));
+  if (parsed.kind !== "ok") throw new CheckpointError(`handoff is ${parsed.kind}`);
+  const result = validateCheckpoint({
+    repository: values.get("--repo")!, request: parsed.handoff,
+    task: values.get("--task")!, checkpoint: values.get("--checkpoint")!,
+    allowedFiles: files, allowedChecks: checks, expectedHead: values.get("--expected-head")!,
+  });
+  io.stdout(`${JSON.stringify({ kind: "validated", operation: parsed.handoff.operation, ...result }, null, 2)}\n`);
+  return 0;
+}
+
 export function main(argv: readonly string[], io: Io = defaultIo): number {
   try {
     const command = argv[0];
@@ -292,9 +318,10 @@ export function main(argv: readonly string[], io: Io = defaultIo): number {
     if (command === "interpret") return commandInterpret(argv.slice(1), io);
     if (command === "op-record") return commandOpRecord(argv.slice(1), io);
     if (command === "op-status") return commandOpStatus(argv.slice(1), io);
+    if (command === "op-validate") return commandOpValidate(argv.slice(1), io);
     throw new UsageError(`unknown command: ${command}`);
   } catch (error) {
-    if (error instanceof OperationLedgerError) {
+    if (error instanceof OperationLedgerError || error instanceof CheckpointError) {
       io.stderr(`invalid operation:\n${error.message}\n`);
       return 65;
     }

@@ -539,8 +539,8 @@ describe("provider-owned tool denial evidence", () => {
 
   it("classifies antigravity denied_actions as verified denial evidence", () => {
     const stream = [
-      JSON.stringify({ event: "init", conversation_id: "c1", model: "gemini-3.1-pro-high" }),
-      JSON.stringify({ event: "result", conversation_id: "c1", num_turns: 1, denied_actions: [{ tool: "run_command", action: "git commit" }], response: "", is_error: true }),
+      JSON.stringify({ event: "init", conversation_id: "c1", init: { model: "gemini-3.1-pro-high" } }),
+      JSON.stringify({ event: "result", conversation_id: "c1", result: { conversation_id: "c1", num_turns: 1, denied_actions: [{ tool: "run_command", action: "git commit" }], response: "", is_error: true } }),
     ].join("\n");
     try {
       parseProviderOutput("antigravity", stream, "", "gemini-3.1-pro-high");
@@ -549,8 +549,31 @@ describe("provider-owned tool denial evidence", () => {
       expect(error).toBeInstanceOf(ProviderToolDeniedError);
       const denied = error as InstanceType<typeof ProviderToolDeniedError>;
       expect(denied.denial.verified).toBe(true);
+      expect(denied.denial.cause).toBe("unknown");
       expect(denied.denial.evidence).toContain("run_command");
       expect(denied.receiptStatus).toBe("child-failed");
+    }
+  });
+
+  it("does not convert empty or malformed Antigravity denials into permission recovery", () => {
+    for (const actions of [null, [], [null], ["guard"]]) {
+      const stream = [
+        JSON.stringify({ event: "init", conversation_id: "c1", init: { model: "gemini-3.1-pro-high" } }),
+        JSON.stringify({ event: "result", conversation_id: "c1", result: { conversation_id: "c1", num_turns: 1, denied_actions: actions, response: "", is_error: true } }),
+      ].join("\n");
+      expect(() => parseProviderOutput("antigravity", stream, "", "gemini-3.1-pro-high"))
+        .toThrow();
+    }
+    const guarded = [
+      JSON.stringify({ event: "init", conversation_id: "c1", init: { model: "gemini-3.1-pro-high" } }),
+      JSON.stringify({ event: "result", conversation_id: "c1", result: { conversation_id: "c1", num_turns: 1, denied_actions: [{ reason: "safety_guard" }], response: "", is_error: true } }),
+    ].join("\n");
+    try {
+      parseProviderOutput("antigravity", guarded, "", "gemini-3.1-pro-high");
+      throw new Error("expected denial");
+    } catch (error) {
+      expect(error).toBeInstanceOf(ProviderToolDeniedError);
+      expect((error as ProviderToolDeniedError).denial.cause).toBe("unknown");
     }
   });
 });

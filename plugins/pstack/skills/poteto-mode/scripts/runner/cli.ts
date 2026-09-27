@@ -54,10 +54,8 @@ on-demand credits, or account billing controls are not guaranteed locally.
 --contract selects the worker contract. legacy (the default) renders the
 shared ownership and handoff instructions only; nothing extra is enforced.
 strict requires a verified provider control surface and fails before dispatch
-with an explicit reason when the route cannot carry it: currently only an
-external Claude lane whose installed CLI advertises --restricted and
---permission-prompts can run a strict writer, as a file-only worker with no
-shell, test, or network tool. Every other route is unsupported for strict.
+with an explicit unsupported-capability receipt. No current native or external
+route has passed the required live boundary test, including Claude.
 `;
 
 interface Io {
@@ -109,6 +107,7 @@ export function parseArgs(argv: readonly string[]): RunnerOptions | null {
         cwd: { type: "string" },
         output: { type: "string" },
         receipt: { type: "string" },
+        "execution-id": { type: "string" },
         timeout: { type: "string" },
         "api-spend": { type: "string" },
         contract: { type: "string" },
@@ -150,6 +149,7 @@ export function parseArgs(argv: readonly string[]): RunnerOptions | null {
     cwd: required("cwd", stringValue(parsed.values.cwd)),
     outputPath: required("output", stringValue(parsed.values.output)),
     receiptPath: required("receipt", stringValue(parsed.values.receipt)),
+    executionId: stringValue(parsed.values["execution-id"]),
     timeoutMs: timeoutSeconds === null ? null : timeoutSeconds * 1_000,
     apiSpend,
     contract,

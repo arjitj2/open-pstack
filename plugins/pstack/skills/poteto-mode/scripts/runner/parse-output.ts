@@ -256,12 +256,17 @@ function parseAntigravity(stdout: string): ParsedOutput {
     throw new Error("antigravity conversation id changed");
   }
   if (Object.hasOwn(result, "denied_actions")) {
+    if (!Array.isArray(result.denied_actions) || result.denied_actions.length === 0 ||
+        result.denied_actions.some((action) => object(action) === null)) {
+      throw new ProviderTerminalError("antigravity", "antigravity reported malformed denied actions", result);
+    }
     throw new ProviderToolDeniedError(
       "antigravity",
       "antigravity reported denied actions",
       result,
       {
         verified: true,
+        cause: "unknown",
         tool: null,
         requestedAction: null,
         evidence: JSON.stringify(result.denied_actions).slice(0, 2_000),

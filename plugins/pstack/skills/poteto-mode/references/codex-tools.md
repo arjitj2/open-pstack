@@ -30,6 +30,8 @@ multi_agent = true
 
 Without it, record the unavailable native route from explicit host metadata and consult the same saved fallback policy. If no approved continuation is available, the lane is a named dropout. Independent external lanes still run, and the parent records the reduced provider count. Never collapse a panel into a sequential single-model pass, and never substitute a lane outside the saved chain and `# fallback` policy in `provider-dispatch.md`.
 
+Before every native `spawn_agent`, run `pstack-worker-contract prepare --parent codex --provider codex --route native --mode <read-only|isolated-write> --contract legacy` and prepend its `instructions` to the task prompt. This supplies the same parent-owned Git and handoff rule as the external runner. It is guidance only; native full-access tools are not confined by it. A strict capability request returns unsupported and stops the assignment.
+
 ## Subagent policy
 
 poteto-mode's Subagents section sets Claude-specific defaults (`subagent_type: "poteto-agent"`, `run_in_background: true`). On Codex:

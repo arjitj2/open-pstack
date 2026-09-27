@@ -3,6 +3,7 @@ import {
   ACCESS_MODES,
   PARENTS,
   PROVIDERS,
+  WORKER_CONTRACT_MODES,
   UsageError,
   type AccessMode,
   type Parent,
@@ -42,8 +43,14 @@ Commands:
       permission-blocked|needs-parent-operation",
       "processStarted":true,"inspection":{"state":"clear|unsafe|none",
       "evidenceRef":"..."},"receiptPath":"...",
-      "continuationOrdinal":0,"deniedCause":"unsupported-tool|changed-files|
-      guard|other","correction":"...",
+      "continuationOrdinal":0,"deniedCause":"permission|unsupported-tool|
+      changed-files|guard|other","execution":{"id":"...","outputPath":"...",
+      "receiptPath":"...","workspacePath":"...","descriptor":"...",
+      "apiSpend":"deny|approved|unset","access":"read-only|isolated-write",
+      "contract":"legacy|strict"},
+      "recovery":{"correction":"...","blockageId":"...","snapshotRef":"...",
+      "snapshotDigest":"<sha256>","partialWorkRef":"...","sideEffectsRef":"...",
+      "stoppedWritersRef":"...","nextExecution":{"...":"..."}},
       "handoff":{"operation":"commit-checkpoint|run-checks","taskId":"...",
       "checkpointId":"...","ref":"..."},
       "parentOperation":{"kind":"commit-checkpoint|run-checks","taskId":"...",
@@ -60,7 +67,7 @@ Commands:
       executions. This helper only decides; the parent owns dispatch,
       evidence, and writer isolation.
   normalize --sheet <file> --role "<role row or leaf role>" --parent <claude|codex> \
-            --lane <index> --attempt <index> --receipt <file> --mode <read-only|isolated-write>
+            --lane <index> --attempt <index> --receipt <file> --mode <read-only|isolated-write> [--contract <legacy|strict>]
       Read one runner receipt and print the lane event it proves as JSON. The
       receipt's parent, provider, model, effort, access mode, and recorded
       apiSpend must exactly match the authorized attempt at that index and
@@ -150,6 +157,7 @@ const INSPECTION_STATES = ["clear", "unsafe", "none"] as const;
 
 const DENIED_CAUSES = [
   "none",
+  "permission",
   "unsupported-tool",
   "changed-files",
   "guard",
@@ -198,6 +206,8 @@ function parseDecisionState(path: string): DecisionState {
           "continuationOrdinal",
           "deniedCause",
           "correction",
+          "execution",
+          "recovery",
           "handoff",
           "parentOperation",
         ].includes(key)
@@ -271,8 +281,43 @@ function parseDecisionState(path: string): DecisionState {
     ) {
       throw new UsageError(`events[${index}].deniedCause must be one of ${DENIED_CAUSES.join(", ")}`);
     }
-    if (entry.correction !== undefined && typeof entry.correction !== "string") {
-      throw new UsageError(`events[${index}].correction must be a string`);
+    const parseExecution = (value: unknown, label: string): NonNullable<AttemptEvent["execution"]> => {
+      if (value === null || typeof value !== "object" || Array.isArray(value)) {
+        throw new UsageError(`${label} must be an object`);
+      }
+      const item = value as Record<string, unknown>;
+      const keys = ["id", "outputPath", "receiptPath", "workspacePath", "descriptor", "apiSpend", "access", "contract"];
+      if (Object.keys(item).some((key) => !keys.includes(key)) ||
+          ["id", "outputPath", "receiptPath", "workspacePath", "descriptor"].some((key) => typeof item[key] !== "string" || !(item[key] as string).trim()) ||
+          !["deny", "approved", "unset"].includes(item.apiSpend as string) ||
+          !(ACCESS_MODES as readonly string[]).includes(item.access as string) ||
+          !["legacy", "strict"].includes(item.contract as string)) {
+        throw new UsageError(`${label} has invalid execution identity`);
+      }
+      return item as unknown as NonNullable<AttemptEvent["execution"]>;
+    };
+    const execution = entry.execution === undefined ? undefined : parseExecution(entry.execution, `events[${index}].execution`);
+    let recovery: AttemptEvent["recovery"];
+    if (entry.recovery !== undefined) {
+      if (entry.recovery === null || typeof entry.recovery !== "object" || Array.isArray(entry.recovery)) {
+        throw new UsageError(`events[${index}].recovery must be an object`);
+      }
+      const value = entry.recovery as Record<string, unknown>;
+      const keys = ["correction", "blockageId", "snapshotRef", "snapshotDigest", "partialWorkRef", "sideEffectsRef", "stoppedWritersRef", "nextExecution"];
+      if (Object.keys(value).some((key) => !keys.includes(key)) ||
+          keys.slice(0, -1).some((key) => typeof value[key] !== "string" || !(value[key] as string).trim())) {
+        throw new UsageError(`events[${index}].recovery is incomplete`);
+      }
+      recovery = {
+        correction: value.correction as string,
+        blockageId: value.blockageId as string,
+        snapshotRef: value.snapshotRef as string,
+        snapshotDigest: value.snapshotDigest as string,
+        partialWorkRef: value.partialWorkRef as string,
+        sideEffectsRef: value.sideEffectsRef as string,
+        stoppedWritersRef: value.stoppedWritersRef as string,
+        nextExecution: parseExecution(value.nextExecution, `events[${index}].recovery.nextExecution`),
+      };
     }
     let handoff: AttemptEvent["handoff"];
     if (entry.handoff !== undefined) {
@@ -370,7 +415,8 @@ function parseDecisionState(path: string): DecisionState {
       receiptPath: entry.receiptPath as string | undefined,
       continuationOrdinal: entry.continuationOrdinal as number | undefined,
       deniedCause: entry.deniedCause as DeniedCause | undefined,
-      correction: entry.correction as string | undefined,
+      execution,
+      recovery,
       handoff,
       parentOperation,
     };
@@ -543,6 +589,14 @@ function commandNext(argv: readonly string[], io: Io): number {
           "events contain a continuation the saved policy could not advance, a parent operation that does not match its request, or a started writer without a clear inspection"
         );
       }
+      if (previous.status === "permission-blocked" ||
+          (previous.parentOperation !== undefined && previous.status === "complete")) {
+        const permitted = nextAttempt(lanePolicy, events, decision.exhaustedGroups, decision.access, false);
+        if (permitted.kind !== "continue" || event.execution === undefined ||
+            JSON.stringify(permitted.preparedExecution) !== JSON.stringify(event.execution)) {
+          throw new UsageError("recorded continuation exceeds policy or differs from its reviewed execution");
+        }
+      }
     }
     for (let skipped = (previous?.attemptIndex ?? -1) + 1; skipped < event.attemptIndex; skipped += 1) {
       const skippedAttempt = lanePolicy.attempts[skipped];
@@ -585,6 +639,7 @@ function commandNormalize(argv: readonly string[], io: Io): number {
   let parent: string | undefined;
   let receiptPath: string | undefined;
   let mode: string | undefined;
+  let contract = "legacy";
   let lane = "0";
   let attempt = "0";
   for (let i = 0; i < argv.length; i += 1) {
@@ -617,6 +672,10 @@ function commandNormalize(argv: readonly string[], io: Io): number {
         mode = optionValue("--mode", argv, i);
         i += 1;
         break;
+      case "--contract":
+        contract = optionValue("--contract", argv, i);
+        i += 1;
+        break;
       default:
         throw new UsageError(`unknown argument: ${argv[i]}`);
     }
@@ -626,6 +685,9 @@ function commandNormalize(argv: readonly string[], io: Io): number {
   if (receiptPath === undefined) throw new UsageError("--receipt is required");
   if (mode === undefined || !(ACCESS_MODES as readonly string[]).includes(mode)) {
     throw new UsageError(`--mode must be one of: ${ACCESS_MODES.join(", ")}`);
+  }
+  if (!(WORKER_CONTRACT_MODES as readonly string[]).includes(contract)) {
+    throw new UsageError(`--contract must be one of: ${WORKER_CONTRACT_MODES.join(", ")}`);
   }
   const resolvedParent = parseParent(parent);
   const laneIndex = Number(lane);
@@ -678,6 +740,8 @@ function commandNormalize(argv: readonly string[], io: Io): number {
     effort: descriptor.effort,
     mode: mode as AccessMode,
     apiSpend: attemptPolicy.apiSpend,
+    contract: contract as "legacy" | "strict",
+    receiptPath,
   });
   const event: AttemptEvent = {
     attemptIndex,
@@ -689,6 +753,7 @@ function commandNormalize(argv: readonly string[], io: Io): number {
       ? {}
       : { deniedCause: normalized.deniedCause }),
     ...(normalized.handoff === undefined ? {} : { handoff: normalized.handoff }),
+    ...(normalized.execution === undefined ? {} : { execution: normalized.execution }),
     receiptPath,
   };
   io.stdout(

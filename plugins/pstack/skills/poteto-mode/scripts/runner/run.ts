@@ -4,12 +4,13 @@ import {
   mkdirSync,
   openSync,
   readFileSync,
+  realpathSync,
   rmSync,
   statSync,
   unlinkSync,
   writeFileSync,
 } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 import { invocationCommand, preflightCommand, type CommandSpec } from "./commands.ts";
 import { nativeLane } from "./native-route.ts";
 import { openCodeConfig, openCodeDirectory, openCodeEnvironment, openCodePreflightPassed, openCodeVersionError, OPENCODE_MINIMUM_VERSION, validateOpenCodeModel } from "./opencode.ts";
@@ -30,7 +31,6 @@ import {
   subscriptionAuthEvidence,
 } from "./provider-failure.ts";
 import {
-  claudeRestrictedSupport,
   interpretWorkerResult,
   renderWorkerPrompt,
   strictRouteSupport,
@@ -489,6 +489,7 @@ function retriedPreflightEvidence(
 function statusExitCode(status: ReceiptStatus): number {
   switch (status) {
     case "complete":
+    case "needs-parent-operation":
       return 0;
     case "cancelled":
       return 130;
@@ -549,10 +550,10 @@ function modelProof(
 
 function completeReceipt(
   options: RunnerOptions,
-  partial: Omit<RunnerReceipt, "schemaVersion" | "parent" | "provider" | "model" | "effort" | "mode" | "cwd" | "promptPath" | "outputPath" | "timeoutMs">
+  partial: Omit<RunnerReceipt, "schemaVersion" | "parent" | "provider" | "model" | "effort" | "mode" | "cwd" | "promptPath" | "outputPath" | "receiptPath" | "executionId" | "canonicalPaths" | "timeoutMs">
 ): RunnerReceipt {
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     parent: options.parent,
     provider: options.provider,
     model: options.model,
@@ -561,6 +562,13 @@ function completeReceipt(
     cwd: options.cwd,
     promptPath: options.promptPath,
     outputPath: options.outputPath,
+    receiptPath: options.receiptPath,
+    executionId: options.executionId ?? options.receiptPath,
+    canonicalPaths: {
+      cwd: options.canonicalCwd ?? realpathSync(options.cwd),
+      output: join(realpathSync(dirname(options.outputPath)), basename(options.outputPath)),
+      receipt: join(realpathSync(dirname(options.receiptPath)), basename(options.receiptPath)),
+    },
     timeoutMs: options.timeoutMs,
     contract: options.contract ?? "legacy",
     ...partial,
@@ -588,18 +596,6 @@ export function validateOptions(options: RunnerOptions): void {
     throw new UsageError(
       `provider ${options.provider} is native to parent ${options.parent} for ${options.model}@${options.effort} via ${native}; use the parent subagent primitive`
     );
-  }
-  if ((options.contract ?? "legacy") === "strict") {
-    const verdict = strictRouteSupport({
-      parent: options.parent,
-      provider: options.provider,
-      route: "external",
-    });
-    if (!verdict.supported) {
-      throw new UsageError(
-        `strict worker contract is unsupported for ${options.provider} external lanes: ${verdict.reason}`
-      );
-    }
   }
   if (options.model.trim().length === 0) throw new UsageError("model must not be empty");
   if (options.provider === "devin") {
@@ -646,7 +642,7 @@ async function executeLane(
 ): Promise<RunResult> {
   const startedAt = new Date(started).toISOString();
   const rawPrompt = readFileSync(options.promptPath, "utf8");
-  const prompt = options.mode === "isolated-write" && !filePromptProvider(options.provider)
+  const prompt = !filePromptProvider(options.provider)
     ? renderWorkerPrompt(
         {
           parent: options.parent,
@@ -787,65 +783,6 @@ async function executeLane(
     removeIfExists(options.outputPath);
     writeReceipt(options.receiptPath, receipt);
     return { exitCode: statusExitCode(receipt.status), receipt };
-  }
-
-  if ((options.contract ?? "legacy") === "strict" && options.provider === "claude") {
-    const probe = await runProcess(
-      executable,
-      { command: invocation.command, args: ["--help"], stdin: "none" },
-      options.cwd,
-      env,
-      "",
-      deadlineAt,
-      cancellation
-    );
-    if (probe.cancelledBy !== null) {
-      return finishWithoutChild("cancelled", "during strict contract capability probe");
-    }
-    if (probe.timedOut) {
-      return finishWithoutChild("timed-out", "during strict contract capability probe");
-    }
-    const supported =
-      probe.exitCode === 0 &&
-      claudeRestrictedSupport(`${probe.stdout}\n${probe.stderr}`);
-    if (!supported) {
-      const verdict = strictRouteSupport({
-        parent: options.parent,
-        provider: options.provider,
-        route: "external",
-      });
-      const completed = Date.now();
-      receipt = completeReceipt(options, {
-        status: "unsupported-capability",
-        startedAt,
-        completedAt: new Date(completed).toISOString(),
-        elapsedMs: completed - started,
-        executable,
-        preflight: preflightState,
-        argv: [executable, ...invocation.args],
-        exitCode: probe.exitCode,
-        signal: probe.signal,
-        reportedModel: null,
-        modelVerified: false,
-        modelEvidence: null,
-        sessionId: null,
-        usage: null,
-        costUsd: null,
-        error: {
-          message:
-            "strict worker contract requires a claude CLI advertising " +
-            "--restricted and --permission-prompts; the installed binary " +
-            `cannot carry ${verdict.missing.length === 0 ? "the contract" : verdict.missing.join(", ")}`,
-          evidence: evidence(`probe argv: ${executable} --help\n${probe.stdout}\n${probe.stderr}`),
-        },
-        failurePhase: "preflight",
-        processStarted: false,
-        apiSpend: options.apiSpend ?? "legacy",
-      });
-      removeIfExists(options.outputPath);
-      writeReceipt(options.receiptPath, receipt);
-      return { exitCode: statusExitCode(receipt.status), receipt };
-    }
   }
 
   if (preflight !== null) {
@@ -1135,7 +1072,9 @@ async function executeLane(
     });
     receipt = completeReceipt(options, {
       ...base,
-      status: "complete",
+      status: outcome.kind === "needs-parent-operation"
+        ? "needs-parent-operation"
+        : outcome.kind === "failed" ? "malformed-output" : "complete",
       ...proof,
       sessionId: parsed.sessionId,
       usage: parsed.usage,
@@ -1147,8 +1086,10 @@ async function executeLane(
         outcome.kind === "failed" && outcome.malformedHandoff === true
           ? true
           : undefined,
-      error: null,
-      failurePhase: null,
+      error: outcome.kind === "failed"
+        ? { message: outcome.reason, evidence: "reserved final-response handoff marker was malformed" }
+        : null,
+      failurePhase: outcome.kind === "failed" ? "postprocess" : null,
       processStarted: true,
       apiSpend: options.apiSpend ?? "legacy",
     });
@@ -1212,9 +1153,34 @@ export async function runLane(
   started: number = Date.now()
 ): Promise<RunResult> {
   validateOptions(options);
+  options = { ...options, canonicalCwd: realpathSync(options.cwd) };
+  if ((options.contract ?? "legacy") === "strict") {
+    const verdict = strictRouteSupport({
+      parent: options.parent, provider: options.provider, route: "external",
+    });
+    reserveOutputs(options);
+    const completed = Date.now();
+    const receipt = completeReceipt(options, {
+      status: "unsupported-capability",
+      startedAt: new Date(started).toISOString(),
+      completedAt: new Date(completed).toISOString(),
+      elapsedMs: completed - started,
+      executable: null,
+      preflight: { argv: [], status: "not-run", evidence: "" },
+      argv: [], exitCode: null, signal: null,
+      reportedModel: null, modelVerified: false, modelEvidence: null,
+      sessionId: null, usage: null, costUsd: null,
+      error: { message: verdict.reason, evidence: "strict route lacks live boundary evidence" },
+      failurePhase: "preflight", processStarted: false,
+      apiSpend: options.apiSpend ?? "legacy",
+    });
+    removeIfExists(options.outputPath);
+    writeReceipt(options.receiptPath, receipt);
+    return { exitCode: statusExitCode(receipt.status), receipt };
+  }
   const deadlineAt = options.timeoutMs === null ? null : started + options.timeoutMs;
   const effectivePromptPath =
-    options.provider === "grok" && options.mode === "isolated-write"
+    options.provider === "grok"
       ? contractPromptPath(options)
       : options.promptPath;
   const invocation = invocationCommand(options, effectivePromptPath);
@@ -1247,13 +1213,11 @@ export async function runLane(
         mkdirSync(devinExportDirectory(options), { mode: 0o700 });
         devinExportCreated = true;
         reserve(devinExportPath(options));
-        if (options.mode === "isolated-write") {
-          writeFileSync(devinPromptPath(options), devinWriterPrompt(readFileSync(options.promptPath, "utf8"), options), {
-            encoding: "utf8", mode: 0o600, flag: "wx",
-          });
-        }
+        writeFileSync(devinPromptPath(options), devinWriterPrompt(readFileSync(options.promptPath, "utf8"), options), {
+          encoding: "utf8", mode: 0o600, flag: "wx",
+        });
       }
-      if (options.provider === "grok" && options.mode === "isolated-write") {
+      if (options.provider === "grok") {
         writeFileSync(contractPromptPath(options), renderWorkerPrompt(
           {
             parent: options.parent,

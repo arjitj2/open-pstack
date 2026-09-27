@@ -20,6 +20,8 @@ export interface RunnerOptions {
   readonly cwd: string;
   readonly outputPath: string;
   readonly receiptPath: string;
+  readonly executionId?: string;
+  readonly canonicalCwd?: string;
   readonly timeoutMs: number | null;
   readonly apiSpend: ApiSpendMode | null;
   // The worker contract requested for the lane. Absent means the legacy
@@ -29,6 +31,7 @@ export interface RunnerOptions {
 
 export const RECEIPT_STATUSES = [
   "complete",
+  "needs-parent-operation",
   "cancelled",
   "unavailable-cli",
   "unauthenticated",
@@ -72,6 +75,7 @@ export interface HandoffRequest {
 // filled from untrusted text.
 export interface ToolDenial {
   readonly verified: boolean;
+  readonly cause?: "permission" | "unknown";
   readonly tool: string | null;
   readonly requestedAction: string | null;
   readonly evidence: string;
@@ -95,7 +99,7 @@ export interface ParsedOutput {
 }
 
 export interface RunnerReceipt {
-  readonly schemaVersion: 1;
+  readonly schemaVersion: 2;
   readonly status: ReceiptStatus;
   readonly parent: Parent;
   readonly provider: Provider;
@@ -105,6 +109,13 @@ export interface RunnerReceipt {
   readonly cwd: string;
   readonly promptPath: string;
   readonly outputPath: string;
+  readonly receiptPath: string;
+  readonly executionId: string;
+  readonly canonicalPaths: {
+    readonly cwd: string;
+    readonly output: string;
+    readonly receipt: string;
+  };
   readonly startedAt: string;
   readonly completedAt: string;
   readonly elapsedMs: number;
@@ -136,7 +147,7 @@ export interface RunnerReceipt {
   // Provider-owned denial evidence recorded when the run ended on a refused
   // tool call. Never synthesized from worker prose.
   readonly toolDenial?: ToolDenial;
-  // The validated handoff request a complete run delivered, or
+  // The validated handoff request a needs-parent-operation run delivered, or
   // `handoffMalformed: true` when a handoff block was present but invalid.
   readonly handoff?: HandoffRequest;
   readonly handoffMalformed?: boolean;

@@ -55,6 +55,7 @@ export function devinDenialEvidence(stderr: string): ToolDenial | null {
   if (match === null) return null;
   return {
     verified: true,
+    cause: "permission",
     tool: null,
     requestedAction: null,
     evidence: match[0],

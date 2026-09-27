@@ -58,14 +58,6 @@ function claudeTools(mode: AccessMode): string {
     : "Read,Write,Edit,Grep,Glob,Bash";
 }
 
-// The strict contract swaps the shell-capable tool list for a file-only
-// surface; --restricted confines those tools to the working directories and
-// gates Git/settings writes behind an approval --permission-prompts none
-// refuses automatically.
-function claudeContractTools(mode: AccessMode): string {
-  return mode === "read-only" ? "Read,Grep,Glob" : "Read,Write,Edit,Grep,Glob";
-}
-
 function codexSandbox(mode: AccessMode): string {
   return mode === "read-only" ? "read-only" : "workspace-write";
 }
@@ -91,7 +83,7 @@ export function invocationCommand(
   options: RunnerOptions,
   effectivePromptPath: string = options.promptPath
 ): CommandSpec {
-  if ((options.contract ?? "legacy") === "strict" && options.provider !== "claude") {
+  if ((options.contract ?? "legacy") === "strict") {
     const verdict = strictRouteSupport({
       parent: options.parent,
       provider: options.provider,
@@ -167,9 +159,7 @@ export function invocationCommand(
           options.apiSpend === "deny" ? "" : "project",
           "--strict-mcp-config",
           "--tools",
-          (options.contract ?? "legacy") === "strict"
-            ? claudeContractTools(options.mode)
-            : claudeTools(options.mode),
+          claudeTools(options.mode),
           "--no-session-persistence",
           "--disable-slash-commands",
           "--disallowed-tools",
@@ -177,9 +167,6 @@ export function invocationCommand(
           "--output-format",
           "stream-json",
           "--verbose",
-          ...((options.contract ?? "legacy") === "strict"
-            ? ["--restricted", "--safe-mode", "--permission-prompts", "none"]
-            : []),
         ],
         stdin: "prompt",
       };

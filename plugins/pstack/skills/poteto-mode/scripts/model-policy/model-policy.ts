@@ -1,3 +1,5 @@
+import { existsSync, realpathSync } from "node:fs";
+import { basename, dirname, isAbsolute, join, resolve } from "node:path";
 import {
   EFFORTS,
   PROVIDERS,
@@ -767,6 +769,7 @@ export type AttemptOutcomeStatus =
 // provider safety stop; `other` is verified provider-owned denial evidence.
 export type DeniedCause =
   | "none"
+  | "permission"
   | "unsupported-tool"
   | "changed-files"
   | "guard"
@@ -775,9 +778,7 @@ export type DeniedCause =
 // Denial causes a continuation sheet line may opt into.
 export const CONTINUATION_REASONS = [
   "handoff",
-  "unsupported-tool",
-  "guard",
-  "other",
+  "permission",
 ] as const;
 export type ContinuationReason = (typeof CONTINUATION_REASONS)[number];
 
@@ -807,9 +808,8 @@ export interface AttemptEvent {
   // Verified denial evidence for permission-blocked and route-unavailable
   // events. Absent or "none" means the status is not backed by evidence.
   readonly deniedCause?: DeniedCause;
-  // The correction this execution was launched with, attested by the parent;
-  // used to detect unchanged repeat denials.
-  readonly correction?: string;
+  readonly execution?: ExecutionIdentity;
+  readonly recovery?: ContinuationReadiness;
   // The parent operation a needs-parent-operation event requested.
   readonly handoff?: {
     readonly operation: ParentOperationKind;
@@ -826,6 +826,28 @@ export interface AttemptEvent {
   };
 }
 
+export interface ExecutionIdentity {
+  readonly id: string;
+  readonly outputPath: string;
+  readonly receiptPath: string;
+  readonly workspacePath: string;
+  readonly descriptor: string;
+  readonly apiSpend: AttemptApiSpend;
+  readonly access: "read-only" | "isolated-write";
+  readonly contract: "legacy" | "strict";
+}
+
+export interface ContinuationReadiness {
+  readonly correction: string;
+  readonly blockageId: string;
+  readonly snapshotRef: string;
+  readonly snapshotDigest: string;
+  readonly partialWorkRef: string;
+  readonly sideEffectsRef: string;
+  readonly stoppedWritersRef: string;
+  readonly nextExecution: ExecutionIdentity;
+}
+
 export type PolicyDenialCause =
   | "unsupported-tool"
   | "no-continuation"
@@ -834,6 +856,7 @@ export type PolicyDenialCause =
   | "repeat-denial"
   | "live-writer"
   | "missing-correction"
+  | "missing-readiness"
   | "handoff-malformed"
   | "conflicting-operation"
   | "ambiguous-state"
@@ -851,6 +874,7 @@ export type NextAttempt =
       readonly attemptIndex: number;
       readonly attempt: AttemptPolicy;
       readonly execution: number;
+      readonly preparedExecution: ExecutionIdentity;
     }
   | {
       readonly kind: "parent-operation";
@@ -870,14 +894,8 @@ function outcomeAuthorized(lane: LanePolicy, status: AttemptOutcomeStatus): bool
   return (lane.fallback.on as readonly string[]).includes(status);
 }
 
-// The verified denial cause an event carries. Absent evidence degrades to
-// "other" rather than inventing a cause.
-function eventDeniedCause(event: AttemptEvent): ContinuationReason | "changed-files" {
-  if (event.deniedCause === "changed-files") return "changed-files";
-  if (event.deniedCause !== undefined && event.deniedCause !== "none") {
-    return event.deniedCause;
-  }
-  return "other";
+function eventDeniedCause(event: AttemptEvent): DeniedCause {
+  return event.deniedCause ?? "none";
 }
 
 function continuationAllows(lane: LanePolicy, reason: ContinuationReason): boolean {
@@ -896,6 +914,65 @@ function writerInspectionOk(
       event.inspection?.state === "clear" &&
       event.inspection.evidenceRef.trim().length > 0
     );
+  }
+  return true;
+}
+
+function recoveryReady(
+  lane: LanePolicy,
+  event: AttemptEvent,
+  events: readonly AttemptEvent[],
+  access: "read-only" | "isolated-write",
+  livePreparation = true
+): boolean {
+  const ready = event.recovery;
+  const prior = event.execution;
+  if (ready === undefined || prior === undefined) return false;
+  if (event.inspection?.state !== "clear" || !event.inspection.evidenceRef.trim()) return false;
+  const required = [ready.correction, ready.blockageId, ready.snapshotRef,
+    ready.partialWorkRef, ready.sideEffectsRef, ready.stoppedWritersRef];
+  if (required.some((value) => !value.trim()) || !/^[0-9a-f]{64}$/.test(ready.snapshotDigest)) return false;
+  const next = ready.nextExecution;
+  for (const path of [next.outputPath, next.receiptPath, next.workspacePath]) {
+    if (!isAbsolute(path) || resolve(path) !== path) return false;
+  }
+  if (livePreparation) {
+    try {
+      if (realpathSync(next.workspacePath) !== next.workspacePath ||
+          realpathSync(dirname(next.outputPath)) !== dirname(next.outputPath) ||
+          realpathSync(dirname(next.receiptPath)) !== dirname(next.receiptPath)) return false;
+    } catch {
+      return false;
+    }
+    if (existsSync(next.outputPath) || existsSync(next.receiptPath)) return false;
+  }
+  const attempt = lane.attempts[event.attemptIndex];
+  if (next.descriptor !== attempt?.descriptor || next.apiSpend !== attempt.apiSpend ||
+      next.access !== access || prior.descriptor !== next.descriptor ||
+      prior.apiSpend !== next.apiSpend || prior.access !== next.access ||
+      prior.contract !== next.contract) return false;
+  if ([next.id, next.outputPath, next.receiptPath, next.workspacePath].some((value) => !value.trim())) return false;
+  for (const old of events) {
+    if (old.execution === undefined) continue;
+    const comparable = (path: string, directory: boolean): string => {
+      const resolved = resolve(path);
+      if (!livePreparation) return resolved;
+      try {
+        return directory ? realpathSync(resolved) : join(realpathSync(dirname(resolved)), basename(resolved));
+      } catch {
+        return resolved;
+      }
+    };
+    if (old.execution.id === next.id ||
+        comparable(old.execution.outputPath, false) === next.outputPath ||
+        comparable(old.execution.receiptPath, false) === next.receiptPath ||
+        comparable(old.execution.workspacePath, true) === next.workspacePath) return false;
+  }
+  const earlier = events.filter((entry) => entry.parentOperation === undefined && entry.attemptIndex === event.attemptIndex);
+  const previous = earlier.at(-2);
+  if (previous?.status === "permission-blocked" && previous.deniedCause === event.deniedCause) {
+    if (previous.recovery?.blockageId === ready.blockageId ||
+        previous.recovery?.correction === ready.correction) return false;
   }
   return true;
 }
@@ -919,8 +996,8 @@ export function eventAdvancesUnderPolicy(
   }
   if (event.status === "permission-blocked") {
     const cause = eventDeniedCause(event);
-    if (cause === "changed-files") return false;
-    return continuationAllows(lane, cause) && writerInspectionOk(event, access);
+    return cause === "permission" && continuationAllows(lane, cause) &&
+      recoveryReady(lane, event, [event], access, false);
   }
   if (!outcomeAuthorized(lane, event.status)) return false;
   return writerInspectionOk(event, access);
@@ -954,6 +1031,8 @@ export function eventSuccessorAuthorized(
     return (
       next.parentOperation === undefined &&
       next.attemptIndex === prev.attemptIndex &&
+      next.execution !== undefined &&
+      JSON.stringify(next.execution) === JSON.stringify(prev.recovery?.nextExecution) &&
       (next.continuationOrdinal ?? 0) === (prev.continuationOrdinal ?? 0) + 1
     );
   }
@@ -970,7 +1049,8 @@ function continueDecision(
   lane: LanePolicy,
   anchor: AttemptEvent,
   events: readonly AttemptEvent[],
-  reason: ContinuationReason
+  reason: ContinuationReason,
+  livePreparation: boolean
 ): NextAttempt {
   const cont = lane.continuation;
   if (cont === undefined || !(cont.on as readonly string[]).includes(reason)) {
@@ -980,11 +1060,15 @@ function continueDecision(
   if (executions >= cont.maxExecutions) {
     return { kind: "policy-denied", reason: "exhausted-allowance" };
   }
+  if (!recoveryReady(lane, anchor, events, anchor.recovery?.nextExecution.access ?? "isolated-write", livePreparation)) {
+    return { kind: "policy-denied", reason: "missing-readiness" };
+  }
   return {
     kind: "continue",
     attemptIndex: anchor.attemptIndex,
     attempt: lane.attempts[anchor.attemptIndex],
     execution: executions + 1,
+    preparedExecution: anchor.recovery!.nextExecution,
   };
 }
 
@@ -995,7 +1079,8 @@ function deniedDecision(
   lane: LanePolicy,
   anchor: AttemptEvent,
   events: readonly AttemptEvent[],
-  access: "read-only" | "isolated-write"
+  access: "read-only" | "isolated-write",
+  livePreparation: boolean
 ): NextAttempt {
   if (anchor.inspection?.state === "unsafe") {
     return { kind: "stop", reason: "unsafe-writer" };
@@ -1007,28 +1092,17 @@ function deniedDecision(
   if (cause === "changed-files") {
     return { kind: "policy-denied", reason: "changed-files" };
   }
+  if (cause !== "permission") return { kind: "policy-denied", reason: "unsupported-tool" };
+  if (!continuationAllows(lane, cause)) return { kind: "policy-denied", reason: "no-continuation" };
   const cont = lane.continuation;
   const executions = executionsFor(lane, events, anchor.attemptIndex);
   if (cont !== undefined && executions >= cont.maxExecutions) {
     return { kind: "policy-denied", reason: "exhausted-allowance" };
   }
-  const previous = events
-    .filter(
-      (event) => event.parentOperation === undefined && event.attemptIndex === anchor.attemptIndex
-    )
-    .at(-2);
-  if (
-    previous !== undefined &&
-    previous.status === "permission-blocked" &&
-    eventDeniedCause(previous) === cause
-  ) {
-    const correction = anchor.correction?.trim();
-    const previousCorrection = previous.correction?.trim();
-    if (correction === undefined || correction.length === 0 || correction === previousCorrection) {
-      return { kind: "policy-denied", reason: "repeat-denial" };
-    }
+  if (!recoveryReady(lane, anchor, events, access, livePreparation)) {
+    return { kind: "policy-denied", reason: "missing-readiness" };
   }
-  return continueDecision(lane, anchor, events, cause);
+  return continueDecision(lane, anchor, events, cause, livePreparation);
 }
 
 // A delivered handoff names the parent operation to run next; after the op
@@ -1039,7 +1113,8 @@ function handoffDecision(
   anchor: AttemptEvent,
   events: readonly AttemptEvent[],
   trailingOps: readonly AttemptEvent[],
-  access: "read-only" | "isolated-write"
+  access: "read-only" | "isolated-write",
+  livePreparation: boolean
 ): NextAttempt {
   const request = anchor.handoff;
   if (request === undefined) {
@@ -1075,17 +1150,18 @@ function handoffDecision(
   ) {
     return { kind: "policy-denied", reason: "conflicting-operation" };
   }
-  if (op.status === "failed") {
+  if (op.status !== "complete") {
     return { kind: "stop", reason: "not-eligible" };
   }
-  return continueDecision(lane, anchor, events, "handoff");
+  return continueDecision(lane, anchor, events, "handoff", livePreparation);
 }
 
 export function nextAttempt(
   lane: LanePolicy,
   events: readonly AttemptEvent[],
   exhaustedGroups: ReadonlySet<Provider>,
-  access: "read-only" | "isolated-write"
+  access: "read-only" | "isolated-write",
+  livePreparation = true
 ): NextAttempt {
   if (
     events.some(
@@ -1110,10 +1186,10 @@ export function nextAttempt(
   if (last !== undefined) {
     if (last.status === "failed") return { kind: "stop", reason: "not-eligible" };
     if (last.status === "needs-parent-operation") {
-      return handoffDecision(lane, last, events, trailingOps, access);
+      return handoffDecision(lane, last, events, trailingOps, access, livePreparation);
     }
     if (last.status === "permission-blocked") {
-      return deniedDecision(lane, last, events, access);
+      return deniedDecision(lane, last, events, access, livePreparation);
     }
     if (!outcomeAuthorized(lane, last.status)) {
       return { kind: "stop", reason: "not-eligible" };

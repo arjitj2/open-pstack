@@ -11,6 +11,9 @@ import {
   type ReceiptIdentity,
 } from "./receipt-event.ts";
 import { PROVIDERS, RECEIPT_STATUSES, type ReceiptStatus } from "../runner/types.ts";
+import { realpathSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 const IDENTITY: ReceiptIdentity = {
   parent: "codex",
@@ -70,6 +73,33 @@ function receipt(overrides: Record<string, unknown> = {}): Record<string, unknow
 }
 
 describe("receipt event mapping", () => {
+  it("keeps schema 2 handoff delivery separate from completed work", () => {
+    const root = realpathSync(tmpdir());
+    const receiptPath = join(root, "handoff-receipt.json");
+    const handoff = { task: "issue-57", checkpoint: "cp-1", operation: "commit-checkpoint", files: ["a.txt"], checks: [], summary: "checkpoint" };
+    const raw = receipt({
+      schemaVersion: 2, status: "needs-parent-operation", exitCode: 0,
+      error: null, failurePhase: null, terminalSuccess: true,
+      cwd: root, outputPath: join(root, "out.txt"), receiptPath,
+      executionId: "exec-1", canonicalPaths: { cwd: root, output: join(root, "out.txt"), receipt: receiptPath },
+      handoff,
+    });
+    const event = normalizeReceiptEvent(raw, { ...IDENTITY, receiptPath });
+    expect(event.status).toBe("needs-parent-operation");
+    expect(event.execution?.receiptPath).toBe(receiptPath);
+    expect(() => normalizeReceiptEvent(raw, { ...IDENTITY, receiptPath: join(root, "other.json") })).toThrow(/receipt path differs/);
+    expect(() => normalizeReceiptEvent({ ...raw, schemaVersion: 1, status: "complete" }, IDENTITY)).toThrow(/schema 2/);
+  });
+
+  it("does not recover unknown or safety-shaped tool denials", () => {
+    for (const cause of [undefined, "unknown"] as const) {
+      const raw = receipt({
+        terminalSuccess: false,
+        toolDenial: { verified: true, cause, tool: null, requestedAction: null, evidence: "guard denied" },
+      });
+      expect(normalizeReceiptEvent(raw, IDENTITY).status).toBe("failed");
+    }
+  });
   it("is total over every receipt status for every provider", () => {
     expect(Object.keys(RECEIPT_EVENT_STATUS).sort()).toEqual(
       [...RECEIPT_STATUSES].sort()
@@ -84,6 +114,7 @@ describe("receipt event mapping", () => {
     ]);
     for (const provider of PROVIDERS) {
       for (const status of RECEIPT_STATUSES) {
+        if (status === "needs-parent-operation") continue;
         const identity: ReceiptIdentity = {
           parent: provider === "codex" ? "claude" : "codex",
           provider,
@@ -144,7 +175,7 @@ describe("receipt event mapping", () => {
       ["child-failed", { status: "child-failed", exitCode: 1, terminalSuccess: false }, "terminal-failure"],
       ["malformed-output", { status: "malformed-output", exitCode: 0, failurePhase: "postprocess", terminalSuccess: false }, "terminal-failure"],
       ["timed-out", { status: "timed-out", timeoutMs: 30_000, terminalSuccess: false }, "deadline-exceeded"],
-      ["unsupported-capability", { status: "unsupported-capability", exitCode: null, processStarted: false, failurePhase: "preflight" }, "route-unavailable"],
+      ["unsupported-capability", { status: "unsupported-capability", exitCode: null, processStarted: false, failurePhase: "preflight" }, "failed"],
     ];
     for (const [name, overrides, expected] of cases) {
       expect(

@@ -43,7 +43,10 @@ def create(root, layout):
     root.mkdir(parents=True, exist_ok=False)
     repo, remote = (root / name for name in ("owner", "remote.git"))
     worker = root / "worker" if layout == "worktree" else repo
-    git("init", "--initial-branch=main", repo)
+    if layout == "separate-gitdir":
+        git("init", "--initial-branch=main", "--separate-git-dir", root / "control", repo)
+    else:
+        git("init", "--initial-branch=main", repo)
     git("-C", repo, "config", "user.name", "Worker contract fixture")
     git("-C", repo, "config", "user.email", "fixture@example.invalid")
     (repo / "ordinary.txt").write_text("before\n")
@@ -104,7 +107,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("action", choices=("create", "inspect"))
     parser.add_argument("--root", required=True, type=Path)
-    parser.add_argument("--layout", choices=("worktree", "checkout"), default="worktree")
+    parser.add_argument("--layout", choices=("worktree", "checkout", "separate-gitdir"), default="worktree")
     args = parser.parse_args()
     result = create(args.root.resolve(), args.layout) if args.action == "create" else inspect(args.root.resolve())
     print(json.dumps(result, indent=2))

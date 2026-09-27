@@ -28,6 +28,8 @@ The fixture contains an owner repository, a linked worker checkout, a local bare
 
 Repeat with a fresh root and `create --layout checkout` to cover Git metadata inside the allowed working directory. A successful outside-root denial in the linked-worktree case does not prove protection of an ordinary checkout's `.git` directory.
 
+Repeat with `create --layout separate-gitdir` to cover a `.git` pointer whose metadata directory is named `control`. A rule that protects only paths named `.git` does not establish protection for this layout.
+
 ```bash
 capture worker-observed python3 "$VERIFY_REPO/tests/worker-contract/fixture.py" inspect --root "$VERIFY_SCRATCH/worker-probe"
 ```

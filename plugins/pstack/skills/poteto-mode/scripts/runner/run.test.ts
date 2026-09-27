@@ -933,8 +933,10 @@ describe("runLane", () => {
     const input = options("codex", "preflight-cancelled");
     const started = join(scratch, "preflight-child.started");
     const terminated = join(scratch, "preflight-child.terminated");
-    const isolatedRunner = join(scratch, "isolated-runner");
+    const isolatedRunner = join(scratch, "runner");
     cpSync(import.meta.dir, isolatedRunner, { recursive: true });
+    cpSync(join(import.meta.dir, "../worker-contract"), join(scratch, "worker-contract"), { recursive: true });
+    cpSync(join(import.meta.dir, "../model-policy"), join(scratch, "model-policy"), { recursive: true });
     const runner = Bun.spawn([
       process.execPath,
       join(isolatedRunner, "pstack-runner"),
@@ -952,7 +954,11 @@ describe("runLane", () => {
     });
     const stdout = new Response(runner.stdout).text();
     const stderr = new Response(runner.stderr).text();
-    await waitFor(started);
+    try {
+      await waitFor(started);
+    } catch {
+      throw new Error(`isolated runner did not start preflight: ${await stderr}`);
+    }
     runner.kill("SIGINT");
 
     expect(await exitWithin(runner, 3_000)).toBe(130);
@@ -1996,8 +2002,6 @@ describe("usage exhaustion and billing guard", () => {
 });
 
 describe("worker contract dispatch", () => {
-  const STRICT_HELP =
-    "Usage: claude [options]\n  --restricted\n  --permission-prompts <mode>\n  --safe-mode\n";
 
   it("fails a strict claude lane before dispatch when the CLI lacks the control surface", async () => {
     const input: RunnerOptions = {
@@ -2014,38 +2018,28 @@ describe("worker contract dispatch", () => {
     expect(existsSync(input.outputPath)).toBe(false);
   });
 
-  it("runs a strict claude lane with file-only tools once the host advertises them", async () => {
-    process.env.FAKE_HELP_TEXT = STRICT_HELP;
-    const stdinPath = join(scratch, "strict-stdin.txt");
-    process.env.FAKE_STDIN_CAPTURE_PATH = stdinPath;
+  it("does not treat advertised Claude flags as enforcement proof", async () => {
+    process.env.FAKE_HELP_TEXT = "--restricted --permission-prompts";
     const input: RunnerOptions = {
       ...options("claude", "strict-supported"),
       mode: "isolated-write",
       contract: "strict",
     };
     const result = await runLane(input);
-    expect(result.receipt.status).toBe("complete");
+    expect(result.receipt.status).toBe("unsupported-capability");
     expect(result.receipt.contract).toBe("strict");
-    expect(result.receipt.argv).toContain("--restricted");
-    expect(result.receipt.argv).toContain("--safe-mode");
-    const promptsIndex = result.receipt.argv.indexOf("--permission-prompts");
-    expect(result.receipt.argv[promptsIndex + 1]).toBe("none");
-    const toolsIndex = result.receipt.argv.indexOf("--tools");
-    expect(result.receipt.argv[toolsIndex + 1]).toBe("Read,Write,Edit,Grep,Glob");
-    const sent = readFileSync(stdinPath, "utf8");
-    expect(sent).toContain("## Worker contract");
-    expect(sent).toContain("no shell, command, test, network");
-    expect(sent.endsWith("Assigned task:\nReturn the marker.")).toBe(true);
+    expect(result.receipt.processStarted).toBe(false);
   });
 
-  it("rejects a strict contract on an unsupported provider before any invocation", async () => {
+  it("records a terminal capability stop for an unsupported provider", async () => {
     const input: RunnerOptions = {
       ...options("grok", "strict-grok"),
       mode: "isolated-write",
       contract: "strict",
     };
-    await expect(runLane(input)).rejects.toThrow(/strict worker contract is unsupported/);
-    expect(existsSync(input.receiptPath)).toBe(false);
+    const result = await runLane(input);
+    expect(result.receipt.status).toBe("unsupported-capability");
+    expect(result.receipt.processStarted).toBe(false);
   });
 
   it("prepends the shared contract to external writer prompts", async () => {
@@ -2061,13 +2055,14 @@ describe("worker contract dispatch", () => {
     expect(sent.endsWith("Assigned task:\nReturn the marker.")).toBe(true);
   });
 
-  it("leaves read-only lanes and devin writer file prompts to their own renderers", async () => {
+  it("prepends the shared contract to read-only external lanes", async () => {
     const stdinPath = join(scratch, "ro-stdin.txt");
     process.env.FAKE_STDIN_CAPTURE_PATH = stdinPath;
     const readOnly = options("codex", "ro-prompt");
     await runLane(readOnly);
     const sent = readFileSync(stdinPath, "utf8");
-    expect(sent).toBe("Return the marker.");
+    expect(sent).toContain("## Worker contract");
+    expect(sent.endsWith("Assigned task:\nReturn the marker.")).toBe(true);
   });
 
   it("records a validated final-response handoff on the receipt and normalizes it", async () => {
@@ -2087,7 +2082,7 @@ describe("worker contract dispatch", () => {
     ].join("\n");
     const input = options("claude", "handoff");
     const result = await runLane(input);
-    expect(result.receipt.status).toBe("complete");
+    expect(result.receipt.status).toBe("needs-parent-operation");
     expect(result.receipt.handoff?.operation).toBe("commit-checkpoint");
     expect(result.receipt.handoff?.checkpoint).toBe("cp-1");
     expect(result.receipt.handoffMalformed).toBeUndefined();
@@ -2116,7 +2111,7 @@ describe("worker contract dispatch", () => {
     ].join("\n");
     const input = options("claude", "handoff-bad");
     const result = await runLane(input);
-    expect(result.receipt.status).toBe("complete");
+    expect(result.receipt.status).toBe("malformed-output");
     expect(result.receipt.handoff).toBeUndefined();
     expect(result.receipt.handoffMalformed).toBe(true);
     expect(

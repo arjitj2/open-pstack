@@ -242,30 +242,8 @@ it("omits Claude preflight while retaining its invocation settings restriction",
 });
 
 describe("strict worker contract argv", () => {
-  it("renders a file-only claude lane with the verified control flags", () => {
-    const spec = invocationCommand(
-      options({ provider: "claude", model: "fable", mode: "isolated-write", contract: "strict" })
-    );
-    expect(spec.command).toBe("claude");
-    expect(spec.args).toContain("--restricted");
-    expect(spec.args).toContain("--safe-mode");
-    const promptsIndex = spec.args.indexOf("--permission-prompts");
-    expect(spec.args[promptsIndex + 1]).toBe("none");
-    const toolsIndex = spec.args.indexOf("--tools");
-    expect(spec.args[toolsIndex + 1]).toBe("Read,Write,Edit,Grep,Glob");
-    expect(spec.args).not.toContain("Bash");
-  });
-
-  it("keeps the strict file-only surface on a read-only claude lane", () => {
-    const spec = invocationCommand(
-      options({ provider: "claude", model: "fable", contract: "strict" })
-    );
-    const toolsIndex = spec.args.indexOf("--tools");
-    expect(spec.args[toolsIndex + 1]).toBe("Read,Grep,Glob");
-  });
-
   it("fails strict argv for every provider without a verified control", () => {
-    for (const provider of ["codex", "grok", "devin", "cursor", "antigravity", "opencode"] as const) {
+    for (const provider of ["claude", "codex", "grok", "devin", "cursor", "antigravity", "opencode"] as const) {
       expect(
         () => invocationCommand(options({ provider, mode: "isolated-write", contract: "strict" })),
         provider

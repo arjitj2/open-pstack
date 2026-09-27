@@ -31,10 +31,7 @@ export interface AssignmentRequest {
 export interface PreparedAssignment {
   readonly kind: "prepared";
   readonly contract: WorkerContractMode;
-  // "prompt-only" labels the legacy contract honestly: instructions without a
-  // verified runtime boundary. "provider-controls" means the realized argv or
-  // host settings carry the restriction.
-  readonly enforcement: "prompt-only" | "provider-controls";
+  readonly enforcement: "prompt-only";
   readonly capabilities: readonly StrictCapability[];
   readonly instructions: string;
 }
@@ -47,17 +44,14 @@ export interface UnsupportedCapability {
 }
 
 export interface StrictRouteVerdict {
-  readonly supported: boolean;
-  // True when support depends on a host probe (Claude's --restricted flag)
-  // rather than a static verdict.
-  readonly requiresHostProbe: boolean;
+  readonly supported: false;
   readonly missing: readonly StrictCapability[];
   readonly reason: string;
 }
 
 const STRICT_REASONS: Readonly<Record<Provider, string>> = {
   claude:
-    "claude --restricted with --permission-prompts none provides a file-only writer; support is probed from the installed CLI help before dispatch",
+    "Claude's file-only tool selection and restricted flags have not passed a live boundary test for metadata pointers, alternate gitdirs, hardlinks, and authenticated remote mutation",
   codex:
     "no verified control removes the worker shell; workspace-write confines filesystem writes but remote Git mutation through the authenticated network route is unproven",
   grok:
@@ -72,10 +66,8 @@ const STRICT_REASONS: Readonly<Record<Provider, string>> = {
     "OpenCode tool permissions are not an OS sandbox",
 };
 
-// The static verdict for a strict contract on a route. Claude external is the
-// only route with a plausible verified control today; it still requires the
-// host probe below. Every other route reports why it cannot carry the
-// contract rather than inventing a boundary.
+// No current route has live evidence for every required boundary. A CLI help
+// flag is tool discovery, not an enforcement attestation.
 export function strictRouteSupport(request: {
   readonly parent: Parent;
   readonly provider: Provider;
@@ -84,67 +76,28 @@ export function strictRouteSupport(request: {
   if (request.route === "native") {
     return {
       supported: false,
-      requiresHostProbe: false,
       missing: [...STRICT_CAPABILITIES],
       reason:
         `native ${request.parent} lanes inherit the host's full-access tools; ` +
         "a shared prompt cannot restrict them, so a strict writer contract is unsupported",
     };
   }
-  if (request.provider === "claude") {
-    return {
-      supported: true,
-      requiresHostProbe: true,
-      missing: [],
-      reason: STRICT_REASONS.claude,
-    };
-  }
   return {
     supported: false,
-    requiresHostProbe: false,
     missing: [...STRICT_CAPABILITIES],
     reason: STRICT_REASONS[request.provider],
   };
 }
 
-// Detects the strict-Claude control surface from `claude --help` output.
-// Both --restricted (confined file tools, git/settings writes gated behind an
-// approval nobody answers) and --permission-prompts none must be advertised.
-export function claudeRestrictedSupport(helpText: string): boolean {
-  return helpText.includes("--restricted") && helpText.includes("--permission-prompts");
-}
-
-export function prepareAssignment(
-  request: AssignmentRequest,
-  hostVerified: boolean = false
-): PreparedAssignment | UnsupportedCapability {
+export function prepareAssignment(request: AssignmentRequest): PreparedAssignment | UnsupportedCapability {
   const instructions = renderWorkerContractBlock(request);
   if (request.contract === "strict") {
     const verdict = strictRouteSupport(request);
-    if (!verdict.supported) {
-      return {
-        kind: "unsupported",
-        contract: "strict",
-        missing: verdict.missing,
-        reason: verdict.reason,
-      };
-    }
-    if (verdict.requiresHostProbe && !hostVerified) {
-      return {
-        kind: "unsupported",
-        contract: "strict",
-        missing: [...STRICT_CAPABILITIES],
-        reason:
-          "the installed claude CLI did not advertise --restricted and " +
-          "--permission-prompts; strict controls cannot be verified on this host",
-      };
-    }
     return {
-      kind: "prepared",
+      kind: "unsupported",
       contract: "strict",
-      enforcement: "provider-controls",
-      capabilities: [...STRICT_CAPABILITIES],
-      instructions,
+      missing: verdict.missing,
+      reason: verdict.reason,
     };
   }
   return {
@@ -190,8 +143,10 @@ export function renderWorkerContractBlock(
       "run package manager, hook, or tool commands that write to it as a side effect.",
     "- Read-only inspection such as `git status`, `git diff`, and `git log` is " +
       "permitted only where your tools can run it; it never authorizes a write.",
-    "- Keep every file you create or edit inside the assigned working directory. " +
-      "Disposable scratch repositories inside that directory are allowed only when " +
+    "- Keep every file you create or edit inside the assigned working directory or " +
+      "an output path the parent explicitly assigned. In read-only assignments, " +
+      "do not edit the inspected checkout; write only the assigned output artifact. " +
+      "Disposable scratch repositories inside the working directory are allowed only when " +
       "the task explicitly asks for them and must never reference the repository's " +
       "Git directory.",
   ];
@@ -252,8 +207,9 @@ function boundedString(value: unknown, max: number): string | null {
 function handoffPath(value: unknown): string | null {
   const text = boundedString(value, HANDOFF_LIMITS.identifier);
   if (text === null) return null;
-  if (text.startsWith("/") || /^[A-Za-z]:[\\/]/.test(text)) return null;
-  if (text.split("/").some((segment) => segment === "..")) return null;
+  if (text.startsWith("/") || text.startsWith("-") || /^[A-Za-z]:/.test(text)) return null;
+  if (/[\\\0\r\n]/.test(text)) return null;
+  if (text.split("/").some((segment) => segment === ".." || segment === "." || segment === "" || segment === ".git")) return null;
   return text;
 }
 
@@ -303,9 +259,13 @@ function validateHandoff(value: unknown): HandoffRequest | null {
 // widen authority.
 export function parseHandoffBlock(text: string): HandoffParse {
   const matches = [...text.matchAll(HANDOFF_BLOCK)];
-  if (matches.length === 0) return { kind: "none" };
-  if (matches.length > 1) {
+  const markers = text.match(/```pstack-handoff\b/g) ?? [];
+  if (markers.length === 0) return { kind: "none" };
+  if (matches.length !== 1 || markers.length !== 1) {
     return { kind: "malformed", reason: "final response carried more than one pstack-handoff block" };
+  }
+  if (text.slice(matches[0].index! + matches[0][0].length).trim()) {
+    return { kind: "malformed", reason: "pstack-handoff block must end the final response" };
   }
   const payload = matches[0][1];
   let value: unknown;
@@ -336,7 +296,7 @@ export function interpretWorkerResult(input: {
   readonly finalText: string | null;
   readonly denial: ToolDenial | null;
 }): WorkerOutcome {
-  if (input.denial?.verified === true) {
+  if (!input.delivered && input.denial?.verified === true && input.denial.cause === "permission") {
     return { kind: "permission-blocked", denial: input.denial };
   }
   if (!input.delivered) {

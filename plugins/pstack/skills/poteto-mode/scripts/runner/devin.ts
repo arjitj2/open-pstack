@@ -31,9 +31,7 @@ export function devinExportPath(options: RunnerOptions): string {
 }
 
 export function devinPromptPath(options: RunnerOptions): string {
-  return options.mode === "isolated-write"
-    ? `${devinExportDirectory(options)}/prompt.md`
-    : options.promptPath;
+  return `${devinExportDirectory(options)}/prompt.md`;
 }
 
 // Devin-specific tool guidance appended to the shared worker contract: the

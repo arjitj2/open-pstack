@@ -8,6 +8,7 @@ import {
   pendingOperations,
   readLedger,
   recordOperation,
+  recordOperationFile,
   writeLedger,
   type OperationInput,
   type OperationLedger,
@@ -80,14 +81,15 @@ describe("recordOperation", () => {
     expect(() =>
       recordOperation(state, input({ id: "op-2" }), "t2")
     ).toThrow(/duplicates/);
-    // A rejected operation does not block a deliberate retry under a new id.
     recordOperation(state, input({ state: "rejected" }), "t2");
-    const retry = recordOperation(state, input({ id: "op-3" }), "t3");
+    expect(() => recordOperation(state, input({ id: "op-3" }), "t3")).toThrow(/duplicates/);
+    const retry = recordOperation(state, input({ id: "op-3", checkpoint: "cp-reviewed-2" }), "t3");
     expect(retry.kind).toBe("recorded");
   });
 
   it("rejects different results recorded under the same state", () => {
     const state = ledger();
+    recordOperation(state, input(), "t0");
     recordOperation(state, input({ state: "complete", result: { sha: "a" } }), "t1");
     expect(() =>
       recordOperation(state, input({ state: "complete", result: { sha: "b" } }), "t2")
@@ -105,10 +107,32 @@ describe("recordOperation", () => {
 });
 
 describe("ledger file", () => {
+  it("preserves concurrent CLI reservations without losing records", async () => {
+    const path = join(scratch, "concurrent.json");
+    const executable = join(import.meta.dir, "pstack-worker-contract");
+    const children = Array.from({ length: 16 }, (_, index) => Bun.spawn([
+      process.execPath, executable,
+      "op-record", "--ledger", path, "--id", `op-${index}`,
+      "--task", "issue-57", "--checkpoint", `cp-${index}`,
+      "--kind", "commit-checkpoint", "--state", "pending",
+      "--expected", JSON.stringify({ head: "abc" }),
+    ], { stdout: "pipe", stderr: "pipe" }));
+    const exits = await Promise.all(children.map((child) => child.exited));
+    expect(exits).toEqual(Array(16).fill(0));
+    expect(readLedger(path).operations).toHaveLength(16);
+    expect(recordOperationFile(path, input({ id: "op-0", checkpoint: "cp-0", expected: { head: "abc" } }), "later").kind)
+      .toBe("idempotent");
+  });
+
+  it("requires a pending reservation before terminal outcomes", () => {
+    expect(() => recordOperationFile(join(scratch, "ops.json"), input({ state: "complete" }), "t1"))
+      .toThrow(/reserved as pending/);
+  });
   it("round-trips a ledger and reports pending operations", () => {
     const path = join(scratch, "ops.json");
     const state = ledger();
     recordOperation(state, input(), "t1");
+    recordOperation(state, input({ id: "op-2", checkpoint: "cp-2" }), "t2");
     recordOperation(state, input({ id: "op-2", checkpoint: "cp-2", state: "complete" }), "t2");
     writeLedger(path, state);
     const loaded = readLedger(path);

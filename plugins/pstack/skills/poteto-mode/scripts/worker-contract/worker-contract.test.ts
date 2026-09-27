@@ -1,6 +1,5 @@
 import { describe, expect, it } from "bun:test";
 import {
-  claudeRestrictedSupport,
   interpretWorkerResult,
   parseHandoffBlock,
   prepareAssignment,
@@ -10,15 +9,11 @@ import {
 } from "./worker-contract.ts";
 import type { ToolDenial } from "../runner/types.ts";
 
-const claudeStrictHelp =
-  "Usage: claude [options]\n  --restricted            restrict tools\n" +
-  "  --permission-prompts <mode>  control approval prompts\n  --safe-mode";
-
 describe("strictRouteSupport", () => {
-  it("supports only an external claude lane, gated on a host probe", () => {
+  it("does not infer external Claude enforcement from advertised flags", () => {
     const verdict = strictRouteSupport({ parent: "codex", provider: "claude", route: "external" });
-    expect(verdict.supported).toBe(true);
-    expect(verdict.requiresHostProbe).toBe(true);
+    expect(verdict.supported).toBe(false);
+    expect(verdict.missing).toContain("git-metadata-denied");
   });
 
   it("rejects native lanes because a prompt cannot restrict host tools", () => {
@@ -36,14 +31,6 @@ describe("strictRouteSupport", () => {
       expect(verdict.missing.length, provider).toBeGreaterThan(0);
       expect(verdict.reason.length, provider).toBeGreaterThan(0);
     }
-  });
-});
-
-describe("claudeRestrictedSupport", () => {
-  it("requires both --restricted and --permission-prompts in the installed help", () => {
-    expect(claudeRestrictedSupport(claudeStrictHelp)).toBe(true);
-    expect(claudeRestrictedSupport("Usage: claude [options]\n  --restricted")).toBe(false);
-    expect(claudeRestrictedSupport("Usage: claude [options]")).toBe(false);
   });
 });
 
@@ -77,20 +64,11 @@ describe("prepareAssignment", () => {
     expect(result.reason.length).toBeGreaterThan(0);
   });
 
-  it("requires the host probe for a strict claude lane", () => {
-    const without = prepareAssignment(
-      { parent: "codex", provider: "claude", route: "external", access: "isolated-write", contract: "strict" },
-      false
+  it("returns unsupported for strict Claude without an attested boundary", () => {
+    const result = prepareAssignment(
+      { parent: "codex", provider: "claude", route: "external", access: "isolated-write", contract: "strict" }
     );
-    expect(without.kind).toBe("unsupported");
-    const withProbe = prepareAssignment(
-      { parent: "codex", provider: "claude", route: "external", access: "isolated-write", contract: "strict" },
-      true
-    );
-    expect(withProbe.kind).toBe("prepared");
-    if (withProbe.kind !== "prepared") throw new Error("expected prepared");
-    expect(withProbe.enforcement).toBe("provider-controls");
-    expect(withProbe.capabilities).toContain("git-metadata-denied");
+    expect(result.kind).toBe("unsupported");
   });
 });
 
@@ -169,6 +147,15 @@ describe("parseHandoffBlock", () => {
     expect(parsed.kind).toBe("malformed");
   });
 
+  it("requires the handoff block to end the final response", () => {
+    expect(parseHandoffBlock(`\`\`\`pstack-handoff\n${valid}\n\`\`\`\nLater prose`).kind).toBe("malformed");
+  });
+
+  it("fails closed on truncated or nested reserved markers", () => {
+    expect(parseHandoffBlock(`\`\`\`pstack-handoff\n${valid}`).kind).toBe("malformed");
+    expect(parseHandoffBlock(`\`\`\`pstack-handoff\n${valid}\n\`\`\`\n\`\`\`pstack-handoff`).kind).toBe("malformed");
+  });
+
   it("rejects malformed, unknown, and injection payloads", () => {
     const cases = [
       "not json",
@@ -177,6 +164,9 @@ describe("parseHandoffBlock", () => {
       JSON.stringify({ task: "t", checkpoint: "c", operation: "commit-checkpoint", files: ["/etc/passwd"], checks: [], summary: "s" }),
       JSON.stringify({ task: "t", checkpoint: "c", operation: "commit-checkpoint", files: ["../outside.ts"], checks: [], summary: "s" }),
       JSON.stringify({ task: "", checkpoint: "c", operation: "commit-checkpoint", files: [], checks: [], summary: "s" }),
+      JSON.stringify({ task: "t", checkpoint: "c", operation: "commit-checkpoint", files: ["-bad"], checks: [], summary: "s" }),
+      JSON.stringify({ task: "t", checkpoint: "c", operation: "commit-checkpoint", files: ["a\\..\\b"], checks: [], summary: "s" }),
+      JSON.stringify({ task: "t", checkpoint: "c", operation: "commit-checkpoint", files: [".git/config"], checks: [], summary: "s" }),
     ];
     for (const payload of cases) {
       const parsed = parseHandoffBlock(`\`\`\`pstack-handoff\n${payload}\n\`\`\``);
@@ -188,6 +178,7 @@ describe("parseHandoffBlock", () => {
 describe("interpretWorkerResult", () => {
   const denial: ToolDenial = {
     verified: true,
+    cause: "permission",
     tool: "exec",
     requestedAction: "git commit",
     evidence: "provider rejected the tool call",
@@ -205,6 +196,10 @@ describe("interpretWorkerResult", () => {
       denial: { ...denial, verified: false },
     });
     expect(outcome.kind).toBe("complete");
+  });
+
+  it("keeps delivered completion terminal despite an earlier verified refusal", () => {
+    expect(interpretWorkerResult({ delivered: true, finalText: "done", denial }).kind).toBe("complete");
   });
 
   it("fails an undelivered run without inventing a denial", () => {
