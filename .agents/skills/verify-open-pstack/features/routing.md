@@ -7,6 +7,7 @@ Users inspect how a saved role resolves, while the parent owns execution and any
 - `routing-resolve`: read the configured lane chains without dispatch.
 - `claude-primary-model`: verify the main Claude assistant model independently of helper usage.
 - `codex-completion`: require completed final-turn output while preserving protocol success as a replay veto.
+- `grok-provenance`: reject otherwise successful Grok output until the stream can prove the backend model.
 - `devin-refusal-fallback`: exclude inherited provider-side fallback from an assigned Devin lane.
 - `receipt-privacy`: bound failure receipts to allowlisted diagnostics and structural counts.
 - `routing-live`: observe the exact approved descriptor and terminal outcome in a parent workflow.
@@ -44,6 +45,19 @@ From each installed parent, run the [synthetic boundary checks](../../../../test
 For a change to Codex transcript assessment, install the exact candidate in both parents. From an installed Claude Code parent, dispatch an external `codex:*` lane through the shipped runner with a read-only marker task; retain the parent invocation, runner receipt, and an independent output-file check. From an installed Codex parent, verify skill discovery and dispatch a marker task through the native route for an approved `codex:*` descriptor — Codex-to-Codex dispatches through `spawn_agent` and never executes the external adapter, so do not bypass that rule or induce an external Codex call.
 
 From each installed candidate, run the Codex runner regressions against the installed tree (`runner/codex.test.ts` and the `codex output acceptance and terminal veto` rows in `runner/run.test.ts`). The shared synthetic corpus proves acceptance versus the no-replay veto at the CLI boundary: item-only streams reject without completion evidence. A later unfinished turn rejects output while an earlier completed terminal still vetoes replay. Malformed lines preserve their precedence over typed quota failures. These fixtures prove parser behavior, not live provider execution; keep the claims separate and do not count them as the live adapter proof.
+
+### Grok provenance rejection
+
+For a change to Grok output handling, install the exact candidate in each affected parent under test. Set `VERIFY_TOOLS` to that verified installation's `skills/poteto-mode/scripts` directory before running:
+
+```bash
+capture grok-parser bun test "$VERIFY_TOOLS/runner/parse-output.test.ts" --test-name-pattern 'Grok provenance'
+capture grok-lane bun test "$VERIFY_TOOLS/runner/run.test.ts" --test-name-pattern '[Gg]rok|simultaneous'
+```
+
+The parser rows are synthetic fixtures, not captured Grok output: every stream shape, including usage-ledger keys, session-selected model echoes, helper frames, and conflicting or foreign-session model fields, must yield `reportedModel: null` while text, session, usage, and cost still parse. The lane rows prove the boundary outcome: exit `65`, `status: "malformed-output"`, no output file, `reportedModel: null`, `modelVerified: false`, `modelEvidence: null`, `terminalSuccess: true`, and a normalized `failed` event that stops even a broad saved fallback chain instead of replaying. Intermediate prompt, narration, and tool canaries must not reach the receipt.
+
+[Issue #67](https://github.com/arjitj2/open-pstack/issues/67) owns deferred live verification. Record the CLI version and establish whether a real stream distinguishes response identity from session selection before accepting any model proof. A matching model name is insufficient. Exercise the exact candidate from isolated Codex and Claude Code installations only with an authorized route; do not weaken `apiSpend: deny`. Retain installed-tree identity, actions, receipts, and observed results. These synthetic checks do not establish live provider behavior or supply a captured Grok fixture.
 
 ### Failure-receipt privacy
 

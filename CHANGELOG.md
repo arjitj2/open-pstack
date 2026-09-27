@@ -4,6 +4,12 @@ This file records what each version of the Open Pstack package changed. Versions
 
 Entries describe package versions. Published release checkpoints have tag links; installation follows `main` unless pinned. Validation belongs to the linked pull requests. Older reports remain available through immutable links.
 
+## 1.8.6 rejects unverifiable Grok model reports
+
+Cursor baseline: [0.15.5](https://github.com/cursor/plugins/tree/12d587dfb20741cafc376c42c696c5f6e2a64487/pstack). [Issue #52](https://github.com/arjitj2/open-pstack/issues/52).
+
+Grok usage accounting and session-selected model echoes no longer count as primary-model proof. Otherwise successful Grok output now fails closed and cannot be replayed through fallback. The [provider contract](plugins/pstack/skills/poteto-mode/references/provider-dispatch.md#external-lanes) describes the evidence limit. Live verification remains deferred to [issue #67](https://github.com/arjitj2/open-pstack/issues/67).
+
 ## 1.8.5 bounds failure-receipt diagnostics
 
 Cursor baseline: [0.15.5](https://github.com/cursor/plugins/tree/12d587dfb20741cafc376c42c696c5f6e2a64487/pstack). [PR #68](https://github.com/arjitj2/open-pstack/pull/68).
