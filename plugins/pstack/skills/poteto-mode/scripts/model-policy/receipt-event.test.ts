@@ -79,6 +79,7 @@ describe("receipt event mapping", () => {
       "unavailable-cli",
       "unauthenticated",
       "unavailable-model",
+      "unsupported-capability",
       "timed-out",
     ]);
     for (const provider of PROVIDERS) {
@@ -143,6 +144,7 @@ describe("receipt event mapping", () => {
       ["child-failed", { status: "child-failed", exitCode: 1, terminalSuccess: false }, "terminal-failure"],
       ["malformed-output", { status: "malformed-output", exitCode: 0, failurePhase: "postprocess", terminalSuccess: false }, "terminal-failure"],
       ["timed-out", { status: "timed-out", timeoutMs: 30_000, terminalSuccess: false }, "deadline-exceeded"],
+      ["unsupported-capability", { status: "unsupported-capability", exitCode: null, processStarted: false, failurePhase: "preflight" }, "route-unavailable"],
     ];
     for (const [name, overrides, expected] of cases) {
       expect(

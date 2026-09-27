@@ -19,14 +19,22 @@ import { versionedClaudeAlias } from "./model-aliases.ts";
 import { parseProviderOutput, reportedModelMatches } from "./parse-output.ts";
 import {
   ProviderTerminalError,
+  ProviderToolDeniedError,
   apiCredentialTakeover,
   assertQuotaAdapter,
   classifyProcessOutcome,
   classifyTerminalEnvelope,
   hasTerminalSuccess,
   failureStdoutEvidence,
+  providerDenialEvidence,
   subscriptionAuthEvidence,
 } from "./provider-failure.ts";
+import {
+  claudeRestrictedSupport,
+  interpretWorkerResult,
+  renderWorkerPrompt,
+  strictRouteSupport,
+} from "../worker-contract/worker-contract.ts";
 import type {
   Provider,
   ReceiptStatus,
@@ -70,6 +78,16 @@ function evidence(value: string): string {
 
 function removeIfExists(path: string): void {
   if (existsSync(path)) unlinkSync(path);
+}
+
+// The runner-rendered contract prompt for providers that read the task from a
+// file instead of stdin.
+function contractPromptPath(options: RunnerOptions): string {
+  return `${options.receiptPath}.contract-prompt.md`;
+}
+
+function filePromptProvider(provider: Provider): boolean {
+  return provider === "devin" || provider === "grok";
 }
 
 function reserve(path: string): void {
@@ -486,6 +504,8 @@ function statusExitCode(status: ReceiptStatus): number {
       return 77;
     case "billing-policy-blocked":
       return 78;
+    case "unsupported-capability":
+      return 79;
     case "timed-out":
       return 124;
   }
@@ -541,6 +561,7 @@ function completeReceipt(
     promptPath: options.promptPath,
     outputPath: options.outputPath,
     timeoutMs: options.timeoutMs,
+    contract: options.contract ?? "legacy",
     ...partial,
   };
 }
@@ -566,6 +587,18 @@ export function validateOptions(options: RunnerOptions): void {
     throw new UsageError(
       `provider ${options.provider} is native to parent ${options.parent} for ${options.model}@${options.effort} via ${native}; use the parent subagent primitive`
     );
+  }
+  if ((options.contract ?? "legacy") === "strict") {
+    const verdict = strictRouteSupport({
+      parent: options.parent,
+      provider: options.provider,
+      route: "external",
+    });
+    if (!verdict.supported) {
+      throw new UsageError(
+        `strict worker contract is unsupported for ${options.provider} external lanes: ${verdict.reason}`
+      );
+    }
   }
   if (options.model.trim().length === 0) throw new UsageError("model must not be empty");
   if (options.provider === "devin") {
@@ -611,7 +644,19 @@ async function executeLane(
   antigravityCreated: AntigravityCreatedFiles | null
 ): Promise<RunResult> {
   const startedAt = new Date(started).toISOString();
-  const prompt = readFileSync(options.promptPath, "utf8");
+  const rawPrompt = readFileSync(options.promptPath, "utf8");
+  const prompt = options.mode === "isolated-write" && !filePromptProvider(options.provider)
+    ? renderWorkerPrompt(
+        {
+          parent: options.parent,
+          provider: options.provider,
+          route: "external",
+          access: options.mode,
+          contract: options.contract ?? "legacy",
+        },
+        rawPrompt
+      )
+    : rawPrompt;
   const inherited = childEnvironment(options.provider);
   const env = options.provider === "opencode" ? openCodeEnvironment(options, inherited) : inherited;
   const apiKeyAuth = options.provider === "cursor" && cursorHasApiKey(env);
@@ -741,6 +786,65 @@ async function executeLane(
     removeIfExists(options.outputPath);
     writeReceipt(options.receiptPath, receipt);
     return { exitCode: statusExitCode(receipt.status), receipt };
+  }
+
+  if ((options.contract ?? "legacy") === "strict" && options.provider === "claude") {
+    const probe = await runProcess(
+      executable,
+      { command: invocation.command, args: ["--help"], stdin: "none" },
+      options.cwd,
+      env,
+      "",
+      deadlineAt,
+      cancellation
+    );
+    if (probe.cancelledBy !== null) {
+      return finishWithoutChild("cancelled", "during strict contract capability probe");
+    }
+    if (probe.timedOut) {
+      return finishWithoutChild("timed-out", "during strict contract capability probe");
+    }
+    const supported =
+      probe.exitCode === 0 &&
+      claudeRestrictedSupport(`${probe.stdout}\n${probe.stderr}`);
+    if (!supported) {
+      const verdict = strictRouteSupport({
+        parent: options.parent,
+        provider: options.provider,
+        route: "external",
+      });
+      const completed = Date.now();
+      receipt = completeReceipt(options, {
+        status: "unsupported-capability",
+        startedAt,
+        completedAt: new Date(completed).toISOString(),
+        elapsedMs: completed - started,
+        executable,
+        preflight: preflightState,
+        argv: [executable, ...invocation.args],
+        exitCode: probe.exitCode,
+        signal: probe.signal,
+        reportedModel: null,
+        modelVerified: false,
+        modelEvidence: null,
+        sessionId: null,
+        usage: null,
+        costUsd: null,
+        error: {
+          message:
+            "strict worker contract requires a claude CLI advertising " +
+            "--restricted and --permission-prompts; the installed binary " +
+            `cannot carry ${verdict.missing.length === 0 ? "the contract" : verdict.missing.join(", ")}`,
+          evidence: evidence(`probe argv: ${executable} --help\n${probe.stdout}\n${probe.stderr}`),
+        },
+        failurePhase: "preflight",
+        processStarted: false,
+        apiSpend: options.apiSpend ?? "legacy",
+      });
+      removeIfExists(options.outputPath);
+      writeReceipt(options.receiptPath, receipt);
+      return { exitCode: statusExitCode(receipt.status), receipt };
+    }
   }
 
   if (preflight !== null) {
@@ -970,6 +1074,7 @@ async function executeLane(
           stderr: result.stderr,
           exitCode: result.exitCode,
         }));
+    const denial = providerDenialEvidence(options.provider, result.stderr);
     receipt = completeReceipt(options, {
       ...base,
       status,
@@ -979,6 +1084,7 @@ async function executeLane(
       sessionId: null,
       usage: null,
       costUsd: null,
+      toolDenial: denial ?? undefined,
       error: {
         message: result.cancelledBy !== null
           ? result.signal === result.cancelledBy
@@ -1021,6 +1127,11 @@ async function executeLane(
       );
     }
     writeFileSync(options.outputPath, parsed.text, { encoding: "utf8", mode: 0o600 });
+    const outcome = interpretWorkerResult({
+      delivered: true,
+      finalText: parsed.text,
+      denial: null,
+    });
     receipt = completeReceipt(options, {
       ...base,
       status: "complete",
@@ -1028,6 +1139,13 @@ async function executeLane(
       sessionId: parsed.sessionId,
       usage: parsed.usage,
       costUsd: parsed.costUsd,
+      toolDenial: undefined,
+      handoff:
+        outcome.kind === "needs-parent-operation" ? outcome.handoff : undefined,
+      handoffMalformed:
+        outcome.kind === "failed" && outcome.malformedHandoff === true
+          ? true
+          : undefined,
       error: null,
       failurePhase: null,
       processStarted: true,
@@ -1040,12 +1158,18 @@ async function executeLane(
       error instanceof ProviderTerminalError
         ? classifyTerminalEnvelope(options.provider, error.envelope)
         : null;
+    const denial =
+      error instanceof ProviderToolDeniedError
+        ? error.denial
+        : providerDenialEvidence(options.provider, result.stderr);
     const status: ReceiptStatus =
       terminal?.status === "usage-exhausted"
         ? "usage-exhausted"
-        : error instanceof ProviderTerminalError
-          ? "child-failed"
-          : "malformed-output";
+        : error instanceof ProviderToolDeniedError
+          ? error.receiptStatus
+          : error instanceof ProviderTerminalError
+            ? "child-failed"
+            : "malformed-output";
     const terminalSuccess =
       devinFinalExportCompleted(options) ||
       hasTerminalSuccess(options.provider, {
@@ -1064,6 +1188,7 @@ async function executeLane(
       sessionId: null,
       usage: null,
       costUsd: null,
+      toolDenial: denial ?? undefined,
       error: {
         message,
         evidence: terminal?.evidence
@@ -1087,7 +1212,11 @@ export async function runLane(
 ): Promise<RunResult> {
   validateOptions(options);
   const deadlineAt = options.timeoutMs === null ? null : started + options.timeoutMs;
-  const invocation = invocationCommand(options);
+  const effectivePromptPath =
+    options.provider === "grok" && options.mode === "isolated-write"
+      ? contractPromptPath(options)
+      : options.promptPath;
+  const invocation = invocationCommand(options, effectivePromptPath);
   const preflight = preflightCommand(options.provider);
   const progress: LaneProgress = {
     executable: null,
@@ -1104,6 +1233,7 @@ export async function runLane(
   let createdOpenCodeConfig = false;
   let devinConfigCreated = false;
   let devinExportCreated = false;
+  let contractPromptCreated = false;
   let antigravityCreated: AntigravityCreatedFiles | null = null;
   try {
     reserveOutputs(options);
@@ -1117,10 +1247,25 @@ export async function runLane(
         devinExportCreated = true;
         reserve(devinExportPath(options));
         if (options.mode === "isolated-write") {
-          writeFileSync(devinPromptPath(options), devinWriterPrompt(readFileSync(options.promptPath, "utf8")), {
+          writeFileSync(devinPromptPath(options), devinWriterPrompt(readFileSync(options.promptPath, "utf8"), options), {
             encoding: "utf8", mode: 0o600, flag: "wx",
           });
         }
+      }
+      if (options.provider === "grok" && options.mode === "isolated-write") {
+        writeFileSync(contractPromptPath(options), renderWorkerPrompt(
+          {
+            parent: options.parent,
+            provider: "grok",
+            route: "external",
+            access: options.mode,
+            contract: options.contract ?? "legacy",
+          },
+          readFileSync(options.promptPath, "utf8")
+        ), {
+          encoding: "utf8", mode: 0o600, flag: "wx",
+        });
+        contractPromptCreated = true;
       }
       if (options.provider === "opencode" && options.apiSpend === "approved") {
         const directory = openCodeDirectory(options);
@@ -1197,6 +1342,7 @@ export async function runLane(
       if (devinExportCreated) rmSync(devinExportDirectory(options), { recursive: true, force: true });
       if (createdOpenCodeConfig) rmSync(openCodeDirectory(options), { recursive: true, force: true });
       if (createdCursorConfig) rmSync(cursorConfigDirectory(options), { recursive: true, force: true });
+      if (contractPromptCreated) removeIfExists(contractPromptPath(options));
       antigravityCreated?.cleanup();
     } finally {
       cancellation.dispose();

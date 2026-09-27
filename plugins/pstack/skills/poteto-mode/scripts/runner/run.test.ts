@@ -45,6 +45,14 @@ if (process.env.FAKE_NETWORK_TEST_URL) {
   } catch {}
   appendFileSync(process.env.FAKE_NETWORK_LOG_PATH, stage + ":" + connected + "\\n");
 }
+if (args.includes("--help")) {
+  console.log(process.env.FAKE_HELP_TEXT ?? "Usage: fake [options]");
+  process.exit(0);
+}
+if (process.env.FAKE_STDIN_CAPTURE_PATH && !isPreflight) {
+  const stdinText = await new Response(process.stdin).text();
+  writeFileSync(process.env.FAKE_STDIN_CAPTURE_PATH, stdinText);
+}
 const startedPath = isPreflight
   ? process.env.FAKE_PREFLIGHT_STARTED_PATH
   : process.env.FAKE_MODEL_STARTED_PATH;
@@ -338,6 +346,8 @@ beforeEach(() => {
   delete process.env.FAKE_REMOVE_EXECUTABLE_AFTER_PREFLIGHT;
   delete process.env.FAKE_GROK_UNAUTH;
   delete process.env.FAKE_GROK_TRANSIENT_UNAUTH_PATH;
+  delete process.env.FAKE_HELP_TEXT;
+  delete process.env.FAKE_STDIN_CAPTURE_PATH;
   delete process.env.FAKE_GROK_PREFLIGHT_LOG_PATH;
   delete process.env.FAKE_GROK_MISSING_MODEL;
   delete process.env.FAKE_DESCENDANT_HOLDS_PIPES_MS;
@@ -399,6 +409,8 @@ afterEach(() => {
   delete process.env.FAKE_REMOVE_EXECUTABLE_AFTER_PREFLIGHT;
   delete process.env.FAKE_GROK_UNAUTH;
   delete process.env.FAKE_GROK_TRANSIENT_UNAUTH_PATH;
+  delete process.env.FAKE_HELP_TEXT;
+  delete process.env.FAKE_STDIN_CAPTURE_PATH;
   delete process.env.FAKE_GROK_PREFLIGHT_LOG_PATH;
   delete process.env.FAKE_GROK_MISSING_MODEL;
   delete process.env.FAKE_DESCENDANT_HOLDS_PIPES_MS;
@@ -1859,5 +1871,142 @@ describe("usage exhaustion and billing guard", () => {
     const result = await runLane(input);
     expect(result.receipt.status).toBe("complete");
     expect(result.receipt.apiSpend).toBe("legacy");
+  });
+});
+
+describe("worker contract dispatch", () => {
+  const STRICT_HELP =
+    "Usage: claude [options]\n  --restricted\n  --permission-prompts <mode>\n  --safe-mode\n";
+
+  it("fails a strict claude lane before dispatch when the CLI lacks the control surface", async () => {
+    const input: RunnerOptions = {
+      ...options("claude", "strict-unsupported"),
+      mode: "isolated-write",
+      contract: "strict",
+    };
+    const result = await runLane(input);
+    expect(result.exitCode).toBe(79);
+    expect(result.receipt.status).toBe("unsupported-capability");
+    expect(result.receipt.failurePhase).toBe("preflight");
+    expect(result.receipt.processStarted).toBe(false);
+    expect(result.receipt.contract).toBe("strict");
+    expect(existsSync(input.outputPath)).toBe(false);
+  });
+
+  it("runs a strict claude lane with file-only tools once the host advertises them", async () => {
+    process.env.FAKE_HELP_TEXT = STRICT_HELP;
+    const stdinPath = join(scratch, "strict-stdin.txt");
+    process.env.FAKE_STDIN_CAPTURE_PATH = stdinPath;
+    const input: RunnerOptions = {
+      ...options("claude", "strict-supported"),
+      mode: "isolated-write",
+      contract: "strict",
+    };
+    const result = await runLane(input);
+    expect(result.receipt.status).toBe("complete");
+    expect(result.receipt.contract).toBe("strict");
+    expect(result.receipt.argv).toContain("--restricted");
+    expect(result.receipt.argv).toContain("--safe-mode");
+    const promptsIndex = result.receipt.argv.indexOf("--permission-prompts");
+    expect(result.receipt.argv[promptsIndex + 1]).toBe("none");
+    const toolsIndex = result.receipt.argv.indexOf("--tools");
+    expect(result.receipt.argv[toolsIndex + 1]).toBe("Read,Write,Edit,Grep,Glob");
+    const sent = readFileSync(stdinPath, "utf8");
+    expect(sent).toContain("## Worker contract");
+    expect(sent).toContain("no shell, command, test, network");
+    expect(sent.endsWith("Assigned task:\nReturn the marker.")).toBe(true);
+  });
+
+  it("rejects a strict contract on an unsupported provider before any invocation", async () => {
+    const input: RunnerOptions = {
+      ...options("grok", "strict-grok"),
+      mode: "isolated-write",
+      contract: "strict",
+    };
+    await expect(runLane(input)).rejects.toThrow(/strict worker contract is unsupported/);
+    expect(existsSync(input.receiptPath)).toBe(false);
+  });
+
+  it("prepends the shared contract to external writer prompts", async () => {
+    const stdinPath = join(scratch, "writer-stdin.txt");
+    process.env.FAKE_STDIN_CAPTURE_PATH = stdinPath;
+    const input: RunnerOptions = { ...options("codex", "writer-prompt"), mode: "isolated-write" };
+    const result = await runLane(input);
+    expect(result.receipt.status).toBe("complete");
+    expect(result.receipt.contract).toBe("legacy");
+    const sent = readFileSync(stdinPath, "utf8");
+    expect(sent).toContain("## Worker contract");
+    expect(sent).toContain("Never stage, commit, reset, rebase");
+    expect(sent.endsWith("Assigned task:\nReturn the marker.")).toBe(true);
+  });
+
+  it("leaves read-only lanes and devin writer file prompts to their own renderers", async () => {
+    const stdinPath = join(scratch, "ro-stdin.txt");
+    process.env.FAKE_STDIN_CAPTURE_PATH = stdinPath;
+    const readOnly = options("codex", "ro-prompt");
+    await runLane(readOnly);
+    const sent = readFileSync(stdinPath, "utf8");
+    expect(sent).toBe("Return the marker.");
+  });
+
+  it("records a validated final-response handoff on the receipt and normalizes it", async () => {
+    const handoff = {
+      task: "issue-57",
+      checkpoint: "cp-1",
+      operation: "commit-checkpoint",
+      files: ["src/a.ts"],
+      checks: ["bun test"],
+      summary: "commit the prepared checkpoint",
+    };
+    const finalText = `All edits are preserved.\n\`\`\`pstack-handoff\n${JSON.stringify(handoff)}\n\`\`\``;
+    process.env.FAKE_CLAUDE_STREAM = [
+      JSON.stringify({ type: "system", subtype: "init", session_id: "c1", model: "fable" }),
+      JSON.stringify({ type: "assistant", session_id: "c1", parent_tool_use_id: null, message: { role: "assistant", model: "claude-fable-9-9", content: [{ type: "text", text: finalText }] } }),
+      JSON.stringify({ type: "result", subtype: "success", is_error: false, result: finalText, session_id: "c1", modelUsage: { "claude-fable-9-9": {} } }),
+    ].join("\n");
+    const input = options("claude", "handoff");
+    const result = await runLane(input);
+    expect(result.receipt.status).toBe("complete");
+    expect(result.receipt.handoff?.operation).toBe("commit-checkpoint");
+    expect(result.receipt.handoff?.checkpoint).toBe("cp-1");
+    expect(result.receipt.handoffMalformed).toBeUndefined();
+    const event = normalizeReceiptEvent(result.receipt, {
+      parent: input.parent,
+      provider: input.provider,
+      model: input.model,
+      effort: input.effort,
+      mode: input.mode,
+      apiSpend: "unset",
+    });
+    expect(event.status).toBe("needs-parent-operation");
+    expect(event.handoff).toMatchObject({
+      operation: "commit-checkpoint",
+      taskId: "issue-57",
+      checkpointId: "cp-1",
+    });
+  });
+
+  it("marks a malformed handoff without trusting it", async () => {
+    const finalText = "done\n```pstack-handoff\n{\"operation\":\"rm -rf /\"}\n```";
+    process.env.FAKE_CLAUDE_STREAM = [
+      JSON.stringify({ type: "system", subtype: "init", session_id: "c1", model: "fable" }),
+      JSON.stringify({ type: "assistant", session_id: "c1", parent_tool_use_id: null, message: { role: "assistant", model: "claude-fable-9-9", content: [{ type: "text", text: finalText }] } }),
+      JSON.stringify({ type: "result", subtype: "success", is_error: false, result: finalText, session_id: "c1", modelUsage: { "claude-fable-9-9": {} } }),
+    ].join("\n");
+    const input = options("claude", "handoff-bad");
+    const result = await runLane(input);
+    expect(result.receipt.status).toBe("complete");
+    expect(result.receipt.handoff).toBeUndefined();
+    expect(result.receipt.handoffMalformed).toBe(true);
+    expect(
+      normalizeReceiptEvent(result.receipt, {
+        parent: input.parent,
+        provider: input.provider,
+        model: input.model,
+        effort: input.effort,
+        mode: input.mode,
+        apiSpend: "unset",
+      }).status
+    ).toBe("failed");
   });
 });

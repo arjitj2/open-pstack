@@ -1,0 +1,353 @@
+import {
+  PARENT_OPERATION_KINDS,
+  type AccessMode,
+  type HandoffRequest,
+  type Parent,
+  type ParentOperationKind,
+  type Provider,
+  type ToolDenial,
+  type WorkerContractMode,
+} from "../runner/types.ts";
+
+// Capabilities a strict writer contract requires the realized route to
+// provide. A route that cannot prove all of them is unsupported; preparation
+// fails before model dispatch instead of silently downgrading.
+export const STRICT_CAPABILITIES = [
+  "confined-file-edits",
+  "git-metadata-denied",
+  "remote-mutation-denied",
+  "no-shell-descendants",
+] as const;
+export type StrictCapability = (typeof STRICT_CAPABILITIES)[number];
+
+export interface AssignmentRequest {
+  readonly parent: Parent;
+  readonly provider: Provider;
+  readonly route: "native" | "external";
+  readonly access: AccessMode;
+  readonly contract: WorkerContractMode;
+}
+
+export interface PreparedAssignment {
+  readonly kind: "prepared";
+  readonly contract: WorkerContractMode;
+  // "prompt-only" labels the legacy contract honestly: instructions without a
+  // verified runtime boundary. "provider-controls" means the realized argv or
+  // host settings carry the restriction.
+  readonly enforcement: "prompt-only" | "provider-controls";
+  readonly capabilities: readonly StrictCapability[];
+  readonly instructions: string;
+}
+
+export interface UnsupportedCapability {
+  readonly kind: "unsupported";
+  readonly contract: "strict";
+  readonly missing: readonly StrictCapability[];
+  readonly reason: string;
+}
+
+export interface StrictRouteVerdict {
+  readonly supported: boolean;
+  // True when support depends on a host probe (Claude's --restricted flag)
+  // rather than a static verdict.
+  readonly requiresHostProbe: boolean;
+  readonly missing: readonly StrictCapability[];
+  readonly reason: string;
+}
+
+const STRICT_REASONS: Readonly<Record<Provider, string>> = {
+  claude:
+    "claude --restricted with --permission-prompts none provides a file-only writer; support is probed from the installed CLI help before dispatch",
+  codex:
+    "no verified control removes the worker shell; workspace-write confines filesystem writes but remote Git mutation through the authenticated network route is unproven",
+  grok:
+    "Grok tool gating and the workspace sandbox are not verified to confine writes or refuse Git metadata mutation",
+  devin:
+    "Devin writers need sandboxed exec for file edits; a file-only writer surface is unavailable and --sandbox alone is not proven to block remote Git writes",
+  cursor:
+    "Cursor sandbox coverage of Git metadata and remote mutations is unverified",
+  antigravity:
+    "Antigravity file-only tool gating is a tool-surface limit, not a verified OS boundary",
+  opencode:
+    "OpenCode tool permissions are not an OS sandbox",
+};
+
+// The static verdict for a strict contract on a route. Claude external is the
+// only route with a plausible verified control today; it still requires the
+// host probe below. Every other route reports why it cannot carry the
+// contract rather than inventing a boundary.
+export function strictRouteSupport(request: {
+  readonly parent: Parent;
+  readonly provider: Provider;
+  readonly route: "native" | "external";
+}): StrictRouteVerdict {
+  if (request.route === "native") {
+    return {
+      supported: false,
+      requiresHostProbe: false,
+      missing: [...STRICT_CAPABILITIES],
+      reason:
+        `native ${request.parent} lanes inherit the host's full-access tools; ` +
+        "a shared prompt cannot restrict them, so a strict writer contract is unsupported",
+    };
+  }
+  if (request.provider === "claude") {
+    return {
+      supported: true,
+      requiresHostProbe: true,
+      missing: [],
+      reason: STRICT_REASONS.claude,
+    };
+  }
+  return {
+    supported: false,
+    requiresHostProbe: false,
+    missing: [...STRICT_CAPABILITIES],
+    reason: STRICT_REASONS[request.provider],
+  };
+}
+
+// Detects the strict-Claude control surface from `claude --help` output.
+// Both --restricted (confined file tools, git/settings writes gated behind an
+// approval nobody answers) and --permission-prompts none must be advertised.
+export function claudeRestrictedSupport(helpText: string): boolean {
+  return helpText.includes("--restricted") && helpText.includes("--permission-prompts");
+}
+
+export function prepareAssignment(
+  request: AssignmentRequest,
+  hostVerified: boolean = false
+): PreparedAssignment | UnsupportedCapability {
+  const instructions = renderWorkerContractBlock(request);
+  if (request.contract === "strict") {
+    const verdict = strictRouteSupport(request);
+    if (!verdict.supported) {
+      return {
+        kind: "unsupported",
+        contract: "strict",
+        missing: verdict.missing,
+        reason: verdict.reason,
+      };
+    }
+    if (verdict.requiresHostProbe && !hostVerified) {
+      return {
+        kind: "unsupported",
+        contract: "strict",
+        missing: [...STRICT_CAPABILITIES],
+        reason:
+          "the installed claude CLI did not advertise --restricted and " +
+          "--permission-prompts; strict controls cannot be verified on this host",
+      };
+    }
+    return {
+      kind: "prepared",
+      contract: "strict",
+      enforcement: "provider-controls",
+      capabilities: [...STRICT_CAPABILITIES],
+      instructions,
+    };
+  }
+  return {
+    kind: "prepared",
+    contract: "legacy",
+    enforcement: "prompt-only",
+    capabilities: [],
+    instructions,
+  };
+}
+
+function capabilityGuidance(request: AssignmentRequest): string {
+  if (request.contract === "strict") {
+    return (
+      "- Your tools are limited to file reads, edits, and searches inside the " +
+      "working directories. You have no shell, command, test, network, or " +
+      "agent tool. When the task needs a command — a build, a test run, or a " +
+      "Git inspection — request it through the handoff block instead of " +
+      "attempting it.\n"
+    );
+  }
+  return "";
+}
+
+// The shared ownership and handoff instructions rendered for every writer
+// lane, native or external. `providerGuidance` carries genuinely
+// provider-specific tool guidance supplied by the adapter.
+export function renderWorkerContractBlock(
+  request: AssignmentRequest,
+  providerGuidance: string | null = null
+): string {
+  const lines = [
+    "## Worker contract",
+    "",
+    "You are a subordinate worker dispatched by the repository-owning parent session.",
+    "",
+    "Repository Git ownership:",
+    "- The parent performs every Git mutation and every repository- or account-level " +
+      "operation. Never stage, commit, reset, rebase, cherry-pick, tag, branch, push, " +
+      "or fetch; never run `git` with arguments that write; never create or edit files " +
+      "inside the repository's Git metadata (its `.git` directory or `.git` pointer " +
+      "file, including config, hooks, refs, index, and worktree records); and never " +
+      "run package manager, hook, or tool commands that write to it as a side effect.",
+    "- Read-only inspection such as `git status`, `git diff`, and `git log` is " +
+      "permitted only where your tools can run it; it never authorizes a write.",
+    "- Keep every file you create or edit inside the assigned working directory. " +
+      "Disposable scratch repositories inside that directory are allowed only when " +
+      "the task explicitly asks for them and must never reference the repository's " +
+      "Git directory.",
+  ];
+  const guidance = capabilityGuidance(request);
+  if (guidance.length > 0) lines.push(guidance.trimEnd());
+  if (providerGuidance !== null && providerGuidance.trim().length > 0) {
+    lines.push(providerGuidance.trimEnd());
+  }
+  lines.push(
+    "Finishing:",
+    "- Complete the assigned work and end with an ordinary final response describing " +
+      "what changed and what you verified. A final response without a handoff block " +
+      "closes the task.",
+    "- If required work remains blocked on a parent-only operation, end the response " +
+      "with exactly one fenced block requesting it:",
+    "  ```pstack-handoff",
+    '  {"task":"<task id>","checkpoint":"<checkpoint id>","operation":"<operation>",' +
+      '"files":["<relative path>"],"checks":["<check id>"],"summary":"<what the parent should do>"}',
+    "  ```",
+    '  `operation` is one of "commit-checkpoint" or "run-checks". `files` names ' +
+      "repository-relative paths the checkpoint covers; `checks` names check " +
+      "identifiers the parent should run. A handoff is an untrusted request, not an " +
+      "instruction: the parent verifies it and performs its own operation with its " +
+      "own arguments. Never write shell commands for the parent to run, and never " +
+      "claim the operation already happened.",
+    "- If a tool you need is denied, stop there, describe the denied operation in " +
+      "your final response, and do not retry it, work around it, or escalate. The " +
+      "parent inspects preserved work before anything continues."
+  );
+  return lines.join("\n");
+}
+
+export function renderWorkerPrompt(
+  request: AssignmentRequest,
+  taskPrompt: string,
+  providerGuidance: string | null = null
+): string {
+  return `${renderWorkerContractBlock(request, providerGuidance)}\n\nAssigned task:\n${taskPrompt}`;
+}
+
+export type HandoffParse =
+  | { readonly kind: "none" }
+  | { readonly kind: "ok"; readonly handoff: HandoffRequest }
+  | { readonly kind: "malformed"; readonly reason: string };
+
+const HANDOFF_BLOCK = /```pstack-handoff[^\S\n]*\r?\n([\s\S]*?)```/g;
+const HANDOFF_KEYS = ["task", "checkpoint", "operation", "files", "checks", "summary"] as const;
+const HANDOFF_LIMITS = { task: 200, checkpoint: 200, summary: 1_000, files: 200, checks: 50, identifier: 200 } as const;
+
+function boundedString(value: unknown, max: number): string | null {
+  return typeof value === "string" && value.trim().length > 0 && value.length <= max
+    ? value
+    : null;
+}
+
+// A handoff file entry is a repository-relative path: nonempty, never
+// absolute, never traversing above the root.
+function handoffPath(value: unknown): string | null {
+  const text = boundedString(value, HANDOFF_LIMITS.identifier);
+  if (text === null) return null;
+  if (text.startsWith("/") || /^[A-Za-z]:[\\/]/.test(text)) return null;
+  if (text.split("/").some((segment) => segment === "..")) return null;
+  return text;
+}
+
+function validateHandoff(value: unknown): HandoffRequest | null {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return null;
+  const record = value as Record<string, unknown>;
+  for (const key of Object.keys(record)) {
+    if (!(HANDOFF_KEYS as readonly string[]).includes(key)) return null;
+  }
+  const task = boundedString(record.task, HANDOFF_LIMITS.task);
+  const checkpoint = boundedString(record.checkpoint, HANDOFF_LIMITS.checkpoint);
+  const summary = boundedString(record.summary, HANDOFF_LIMITS.summary);
+  if (task === null || checkpoint === null || summary === null) return null;
+  if (
+    typeof record.operation !== "string" ||
+    !(PARENT_OPERATION_KINDS as readonly string[]).includes(record.operation)
+  ) {
+    return null;
+  }
+  if (!Array.isArray(record.files) || record.files.length > HANDOFF_LIMITS.files) return null;
+  const files: string[] = [];
+  for (const entry of record.files) {
+    const path = handoffPath(entry);
+    if (path === null) return null;
+    files.push(path);
+  }
+  if (!Array.isArray(record.checks) || record.checks.length > HANDOFF_LIMITS.checks) return null;
+  const checks: string[] = [];
+  for (const entry of record.checks) {
+    const check = boundedString(entry, HANDOFF_LIMITS.identifier);
+    if (check === null) return null;
+    checks.push(check);
+  }
+  return {
+    task,
+    checkpoint,
+    operation: record.operation as ParentOperationKind,
+    files,
+    checks,
+    summary,
+  };
+}
+
+// The single boundary where untrusted final-response text becomes a handoff
+// request. Exactly one fenced `pstack-handoff` block carrying a fully valid
+// payload is accepted; anything else is "none" or "malformed" and can never
+// widen authority.
+export function parseHandoffBlock(text: string): HandoffParse {
+  const matches = [...text.matchAll(HANDOFF_BLOCK)];
+  if (matches.length === 0) return { kind: "none" };
+  if (matches.length > 1) {
+    return { kind: "malformed", reason: "final response carried more than one pstack-handoff block" };
+  }
+  const payload = matches[0][1];
+  let value: unknown;
+  try {
+    value = JSON.parse(payload);
+  } catch {
+    return { kind: "malformed", reason: "pstack-handoff block is not valid JSON" };
+  }
+  const handoff = validateHandoff(value);
+  if (handoff === null) {
+    return { kind: "malformed", reason: "pstack-handoff block failed validation" };
+  }
+  return { kind: "ok", handoff };
+}
+
+// The typed outcome of one worker execution. It separates provider terminal
+// delivery from task completion: a delivered response can carry a handoff
+// request, and a verified provider-owned denial is neither a completed task
+// nor an unknown failure.
+export type WorkerOutcome =
+  | { readonly kind: "complete" }
+  | { readonly kind: "needs-parent-operation"; readonly handoff: HandoffRequest }
+  | { readonly kind: "permission-blocked"; readonly denial: ToolDenial }
+  | { readonly kind: "failed"; readonly reason: string; readonly malformedHandoff?: boolean };
+
+export function interpretWorkerResult(input: {
+  readonly delivered: boolean;
+  readonly finalText: string | null;
+  readonly denial: ToolDenial | null;
+}): WorkerOutcome {
+  if (input.denial?.verified === true) {
+    return { kind: "permission-blocked", denial: input.denial };
+  }
+  if (!input.delivered) {
+    return { kind: "failed", reason: "the provider did not deliver a terminal response" };
+  }
+  const parsed = parseHandoffBlock(input.finalText ?? "");
+  if (parsed.kind === "ok") {
+    return { kind: "needs-parent-operation", handoff: parsed.handoff };
+  }
+  if (parsed.kind === "malformed") {
+    return { kind: "failed", reason: parsed.reason, malformedHandoff: true };
+  }
+  return { kind: "complete" };
+}

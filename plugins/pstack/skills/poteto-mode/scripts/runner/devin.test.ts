@@ -271,7 +271,7 @@ describe("Devin external provider", () => {
     expect(existsSync(input.outputPath)).toBe(false);
   });
 
-  it("keeps an unfinished export as failure evidence despite a rejected tool call", async () => {
+  it("normalizes a verified tool rejection into a permission-blocked event", async () => {
     fakeDevin("I will create the file.", 0, "Logged in (via Devin).",
       "warning: rejected a tool call that requires confirmation. Running in non-interactive mode. Use --permission-mode dangerous to auto-approve all tools.",
       { schema_version: "ATIF-v1.7", steps: [{ source: "agent", message: "Working", tool_calls: [{ function_name: "exec" }] }] });
@@ -279,16 +279,17 @@ describe("Devin external provider", () => {
     const result = await runLane(input);
     expect(result.receipt.status).toBe("malformed-output");
     expect(result.receipt.terminalSuccess).toBe(false);
-    expect(
-      normalizeReceiptEvent(result.receipt, {
-        parent: input.parent,
-        provider: input.provider,
-        model: input.model,
-        effort: input.effort,
-        mode: input.mode,
-        apiSpend: "unset",
-      }).status
-    ).toBe("terminal-failure");
+    expect(result.receipt.toolDenial?.verified).toBe(true);
+    const event = normalizeReceiptEvent(result.receipt, {
+      parent: input.parent,
+      provider: input.provider,
+      model: input.model,
+      effort: input.effort,
+      mode: input.mode,
+      apiSpend: "unset",
+    });
+    expect(event.status).toBe("permission-blocked");
+    expect(event.deniedCause).toBe("other");
     expect(existsSync(input.outputPath)).toBe(false);
   });
 

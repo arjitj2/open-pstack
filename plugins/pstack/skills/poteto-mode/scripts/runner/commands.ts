@@ -9,6 +9,8 @@ import type {
 } from "./types.ts";
 
 import { devinConfigPath, devinExportPath, devinModel, devinPromptPath } from "./devin.ts";
+import { strictRouteSupport } from "../worker-contract/worker-contract.ts";
+import { UsageError } from "./types.ts";
 
 export interface CommandSpec {
   readonly command: string;
@@ -56,6 +58,14 @@ function claudeTools(mode: AccessMode): string {
     : "Read,Write,Edit,Grep,Glob,Bash";
 }
 
+// The strict contract swaps the shell-capable tool list for a file-only
+// surface; --restricted confines those tools to the working directories and
+// gates Git/settings writes behind an approval --permission-prompts none
+// refuses automatically.
+function claudeContractTools(mode: AccessMode): string {
+  return mode === "read-only" ? "Read,Grep,Glob" : "Read,Write,Edit,Grep,Glob";
+}
+
 function codexSandbox(mode: AccessMode): string {
   return mode === "read-only" ? "read-only" : "workspace-write";
 }
@@ -77,7 +87,20 @@ function effortOverride(effort: Effort): string {
   return `model_reasoning_effort=${JSON.stringify(effort)}`;
 }
 
-export function invocationCommand(options: RunnerOptions): CommandSpec {
+export function invocationCommand(
+  options: RunnerOptions,
+  effectivePromptPath: string = options.promptPath
+): CommandSpec {
+  if ((options.contract ?? "legacy") === "strict" && options.provider !== "claude") {
+    const verdict = strictRouteSupport({
+      parent: options.parent,
+      provider: options.provider,
+      route: "external",
+    });
+    throw new UsageError(
+      `strict worker contract is unsupported for ${options.provider} external lanes: ${verdict.reason}`
+    );
+  }
   switch (options.provider) {
     case "antigravity": {
       const files = antigravityLaneFiles(options);
@@ -144,7 +167,9 @@ export function invocationCommand(options: RunnerOptions): CommandSpec {
           options.apiSpend === "deny" ? "" : "project",
           "--strict-mcp-config",
           "--tools",
-          claudeTools(options.mode),
+          (options.contract ?? "legacy") === "strict"
+            ? claudeContractTools(options.mode)
+            : claudeTools(options.mode),
           "--no-session-persistence",
           "--disable-slash-commands",
           "--disallowed-tools",
@@ -152,6 +177,9 @@ export function invocationCommand(options: RunnerOptions): CommandSpec {
           "--output-format",
           "stream-json",
           "--verbose",
+          ...((options.contract ?? "legacy") === "strict"
+            ? ["--restricted", "--safe-mode", "--permission-prompts", "none"]
+            : []),
         ],
         stdin: "prompt",
       };
@@ -188,7 +216,7 @@ export function invocationCommand(options: RunnerOptions): CommandSpec {
         command: "grok",
         args: [
           "--prompt-file",
-          options.promptPath,
+          effectivePromptPath,
           "--model",
           options.model,
           "--reasoning-effort",

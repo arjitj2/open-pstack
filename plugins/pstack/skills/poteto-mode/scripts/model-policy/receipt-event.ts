@@ -16,7 +16,9 @@ import {
   ModelPolicyError,
   type AttemptApiSpend,
   type AttemptOutcomeStatus,
+  type DeniedCause,
 } from "./model-policy.ts";
+import { PARENT_OPERATION_KINDS, type ParentOperationKind } from "../runner/types.ts";
 
 export const RECEIPT_EVENT_STATUS: Readonly<Record<ReceiptStatus, AttemptOutcomeStatus>> = {
   complete: "complete",
@@ -29,6 +31,7 @@ export const RECEIPT_EVENT_STATUS: Readonly<Record<ReceiptStatus, AttemptOutcome
   "timed-out": "deadline-exceeded",
   "child-failed": "terminal-failure",
   "malformed-output": "terminal-failure",
+  "unsupported-capability": "route-unavailable",
 };
 
 const FAILURE_PHASES = ["preflight", "invocation", "postprocess"] as const;
@@ -46,6 +49,15 @@ export interface ReceiptIdentity {
 export interface NormalizedReceiptEvent {
   readonly status: AttemptOutcomeStatus;
   readonly processStarted?: boolean;
+  // Verified denial evidence or the requested parent operation when the
+  // status is permission-blocked or needs-parent-operation.
+  readonly deniedCause?: DeniedCause;
+  readonly handoff?: {
+    readonly operation: ParentOperationKind;
+    readonly taskId: string;
+    readonly checkpointId: string;
+    readonly ref?: string;
+  };
 }
 
 function fail(issues: readonly string[]): never {
@@ -193,6 +205,75 @@ export function normalizeReceiptEvent(
     }
   }
 
+  let toolDenialVerified = false;
+  if (receipt.toolDenial !== undefined) {
+    const denial = receipt.toolDenial;
+    if (denial === null || typeof denial !== "object" || Array.isArray(denial)) {
+      fail(["receipt toolDenial must be an object"]);
+    }
+    const entry = denial as Record<string, unknown>;
+    if (typeof entry.verified !== "boolean") {
+      fail(["receipt toolDenial.verified must be a boolean"]);
+    }
+    if (
+      entry.tool !== null &&
+      (typeof entry.tool !== "string" || entry.tool.trim().length === 0)
+    ) {
+      fail(["receipt toolDenial.tool must be null or a nonempty string"]);
+    }
+    if (
+      entry.requestedAction !== null &&
+      (typeof entry.requestedAction !== "string" || entry.requestedAction.trim().length === 0)
+    ) {
+      fail(["receipt toolDenial.requestedAction must be null or a nonempty string"]);
+    }
+    if (typeof entry.evidence !== "string") {
+      fail(["receipt toolDenial.evidence must be a string"]);
+    }
+    toolDenialVerified = entry.verified;
+  }
+
+  let handoff: NormalizedReceiptEvent["handoff"];
+  if (receipt.handoff !== undefined) {
+    const request = receipt.handoff;
+    if (request === null || typeof request !== "object" || Array.isArray(request)) {
+      fail(["receipt handoff must be an object"]);
+    }
+    const entry = request as Record<string, unknown>;
+    if (
+      typeof entry.operation !== "string" ||
+      !(PARENT_OPERATION_KINDS as readonly string[]).includes(entry.operation)
+    ) {
+      fail([`receipt handoff.operation must be one of ${PARENT_OPERATION_KINDS.join(", ")}`]);
+    }
+    if (typeof entry.task !== "string" || entry.task.trim().length === 0) {
+      fail(["receipt handoff.task must be a nonempty string"]);
+    }
+    if (typeof entry.checkpoint !== "string" || entry.checkpoint.trim().length === 0) {
+      fail(["receipt handoff.checkpoint must be a nonempty string"]);
+    }
+    if (entry.summary !== undefined && typeof entry.summary !== "string") {
+      fail(["receipt handoff.summary must be a string when present"]);
+    }
+    handoff = {
+      operation: entry.operation as ParentOperationKind,
+      taskId: entry.task,
+      checkpointId: entry.checkpoint,
+      ...(typeof entry.summary === "string" && entry.summary.trim().length > 0
+        ? { ref: entry.summary }
+        : {}),
+    };
+  }
+  if (receipt.handoffMalformed !== undefined && typeof receipt.handoffMalformed !== "boolean") {
+    fail(["receipt handoffMalformed must be a boolean when present"]);
+  }
+  if (handoff !== undefined && receiptStatus !== "complete") {
+    fail(["only a complete receipt may carry a handoff"]);
+  }
+  if (toolDenialVerified && receiptStatus === "complete") {
+    fail(["a complete receipt cannot carry verified tool-denial evidence"]);
+  }
+
   if (
     receipt.timeoutMs !== undefined &&
     receipt.timeoutMs !== null &&
@@ -216,6 +297,12 @@ export function normalizeReceiptEvent(
       receipt.terminalSuccess === true
     ) {
       fail(["a complete receipt requires exitCode 0 and no error, failure phase, or success conflict"]);
+    }
+    if (receipt.handoffMalformed === true) {
+      return { status: "failed", processStarted };
+    }
+    if (handoff !== undefined) {
+      return { status: "needs-parent-operation", processStarted, handoff };
     }
     return { status: "complete", processStarted };
   }
@@ -273,7 +360,27 @@ export function normalizeReceiptEvent(
       mapped = "failed";
     }
   } else if (receiptStatus === "child-failed" || receiptStatus === "malformed-output") {
-    if (receipt.terminalSuccess !== false) mapped = "failed";
+    if (receipt.terminalSuccess !== false) {
+      mapped = "failed";
+    } else if (toolDenialVerified) {
+      // Provider-owned denial evidence upgrades the ambiguous terminal
+      // status to a verified permission interruption.
+      mapped = "permission-blocked";
+    }
+  } else if (receiptStatus === "unsupported-capability") {
+    if (processStarted !== false || receipt.failurePhase !== "preflight") {
+      mapped = "failed";
+    }
   }
-  return { status: mapped, processStarted };
+  const deniedCause: DeniedCause | undefined =
+    mapped === "permission-blocked"
+      ? "other"
+      : mapped === "route-unavailable" && receiptStatus === "unsupported-capability"
+        ? "unsupported-tool"
+        : undefined;
+  return {
+    status: mapped,
+    processStarted,
+    ...(deniedCause === undefined ? {} : { deniedCause }),
+  };
 }

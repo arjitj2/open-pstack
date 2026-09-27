@@ -8,7 +8,11 @@ import {
   concreteModelMatchesRollingAlias,
   isRollingClaudeAlias,
 } from "./model-aliases.ts";
-import { ProviderTerminalError } from "./provider-failure.ts";
+import {
+  ProviderTerminalError,
+  ProviderToolDeniedError,
+  devinDenialEvidence,
+} from "./provider-failure.ts";
 import { antigravityEvents, antigravitySuccessfulResult } from "./antigravity.ts";
 
 type JsonObject = Record<string, unknown>;
@@ -284,6 +288,20 @@ function parseAntigravity(stdout: string): ParsedOutput {
   if (result.conversation_id !== first?.conversation_id) {
     throw new Error("antigravity conversation id changed");
   }
+  if (Object.hasOwn(result, "denied_actions")) {
+    throw new ProviderToolDeniedError(
+      "antigravity",
+      "antigravity reported denied actions",
+      result,
+      {
+        verified: true,
+        tool: null,
+        requestedAction: null,
+        evidence: JSON.stringify(result.denied_actions).slice(0, 2_000),
+      },
+      "child-failed"
+    );
+  }
   if (!antigravitySuccessfulResult(result)) {
     throw new ProviderTerminalError("antigravity", "antigravity did not report a successful result", result);
   }
@@ -321,8 +339,15 @@ export function parseProviderOutput(
       return terminal.output;
     }
     case "devin": {
-      if (/^warning: rejected a tool call that requires confirmation\./im.test(stderr)) {
-        throw new Error("devin could not approve a tool in non-interactive mode");
+      const denial = devinDenialEvidence(stderr);
+      if (denial !== null) {
+        throw new ProviderToolDeniedError(
+          "devin",
+          "devin could not approve a tool in non-interactive mode",
+          null,
+          denial,
+          "malformed-output"
+        );
       }
       let exported: JsonObject | null;
       try {

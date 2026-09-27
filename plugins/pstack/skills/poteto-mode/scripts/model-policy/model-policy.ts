@@ -3,6 +3,7 @@ import {
   PROVIDERS,
   type Effort,
   type Parent,
+  type ParentOperationKind,
   type Provider,
 } from "../runner/types.ts";
 import { nativeLane } from "../runner/native-route.ts";
@@ -109,6 +110,8 @@ export interface SheetModel {
   // The declared `# fallback:` policy, or null when the sheet never declares
   // one (quota-only default).
   readonly fallback: FallbackPolicy | null;
+  // The declared `# continuation:` policy, or null for one-attempt sheets.
+  readonly continuation: ContinuationPolicy | null;
 }
 
 export type AttemptAuthorization =
@@ -129,6 +132,7 @@ export interface LanePolicy {
   readonly id: string;
   readonly attempts: readonly AttemptPolicy[];
   readonly fallback: FallbackPolicy;
+  readonly continuation?: ContinuationPolicy;
 }
 
 export interface RolePolicy {
@@ -285,6 +289,60 @@ function parseFallbackPolicy(json: string, line: string): FallbackPolicy {
     reasons.push(entry as FallbackReason);
   }
   return { on: reasons };
+}
+
+// Continuation allowance is deliberately small and always finite: the sheet
+// may grant at most CONTINUATION_MAX_EXECUTIONS total executions per
+// selected descriptor.
+export const CONTINUATION_MAX_EXECUTIONS = 4;
+
+function parseContinuationPolicy(json: string, line: string): ContinuationPolicy {
+  let value: unknown;
+  try {
+    value = JSON.parse(json);
+  } catch {
+    throw new ModelPolicyError([`continuation line is not valid JSON: ${line}`]);
+  }
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    throw new ModelPolicyError([`continuation line must be a JSON object: ${line}`]);
+  }
+  const record = value as Record<string, unknown>;
+  for (const key of Object.keys(record)) {
+    if (key !== "on" && key !== "max") {
+      throw new ModelPolicyError([`continuation line has unknown key ${JSON.stringify(key)}: ${line}`]);
+    }
+  }
+  const on = record.on;
+  if (!Array.isArray(on)) {
+    throw new ModelPolicyError([`continuation "on" must be an array: ${line}`]);
+  }
+  const seen = new Set<string>();
+  const reasons: ContinuationReason[] = [];
+  for (const entry of on) {
+    if (typeof entry !== "string" || !(CONTINUATION_REASONS as readonly string[]).includes(entry)) {
+      throw new ModelPolicyError([
+        `continuation reason must be one of ${CONTINUATION_REASONS.join(", ")}: ${line}`,
+      ]);
+    }
+    if (seen.has(entry)) {
+      throw new ModelPolicyError([`continuation line repeats reason ${JSON.stringify(entry)}: ${line}`]);
+    }
+    seen.add(entry);
+    reasons.push(entry as ContinuationReason);
+  }
+  if (record.max !== undefined) {
+    if (
+      typeof record.max !== "number" ||
+      !Number.isInteger(record.max) ||
+      record.max < 1 ||
+      record.max > CONTINUATION_MAX_EXECUTIONS
+    ) {
+      throw new ModelPolicyError([
+        `continuation "max" must be an integer from 1 to ${CONTINUATION_MAX_EXECUTIONS}: ${line}`,
+      ]);
+    }
+  }
+  return { on: reasons, maxExecutions: (record.max as number | undefined) ?? 2 };
 }
 
 function collectComments(model: {
@@ -467,6 +525,8 @@ export function parseSheet(text: string, context: PolicyContext = {}): SheetMode
   const accessProviders = new Set<string>();
   let fallback: FallbackPolicy | null = null;
   let fallbackLines = 0;
+  let continuation: ContinuationPolicy | null = null;
+  let continuationLines = 0;
   for (const comment of comments) {
     if (comment.startsWith("# budget:")) {
       budget = comment.slice("# budget:".length).trim();
@@ -498,13 +558,26 @@ export function parseSheet(text: string, context: PolicyContext = {}): SheetMode
         else throw error;
       }
     }
+    if (comment.startsWith("# continuation:")) {
+      continuationLines += 1;
+      const json = comment.slice("# continuation:".length).trim();
+      try {
+        continuation = parseContinuationPolicy(json, comment);
+      } catch (error) {
+        if (error instanceof ModelPolicyError) issues.push(...error.issues);
+        else throw error;
+      }
+    }
   }
   if (fallbackLines > 1) {
     issues.push("more than one # fallback: declaration; declare the recovery policy once");
   }
+  if (continuationLines > 1) {
+    issues.push("more than one # continuation: declaration; declare the continuation policy once");
+  }
 
   if (issues.length > 0) throw new ModelPolicyError(issues);
-  return { preamble, rows, footer, trailingNewline, budget, access, fallback };
+  return { preamble, rows, footer, trailingNewline, budget, access, fallback, continuation };
 }
 
 export function renderSheet(model: SheetModel): string {
@@ -573,6 +646,7 @@ export function resolveRole(
 ): RolePolicy | null {
   const policyEnabled = model.access.length > 0 ||
     model.fallback !== null ||
+    model.continuation !== null ||
     model.rows.some((entry) => entry.seats.some((seat) => seat.attempts.length > 1));
   const row = leafRow(model, role);
   if (row === null) {
@@ -634,6 +708,7 @@ export function resolveRole(
       id: `${row.spec.header}#${index + 1}`,
       attempts,
       fallback: model.fallback ?? QUOTA_ONLY_FALLBACK,
+      continuation: model.continuation ?? undefined,
     };
   });
   if (issues.length > 0) throw new ModelPolicyError(issues);
@@ -681,14 +756,42 @@ export type AttemptOutcomeStatus =
   | "route-unavailable"
   | "terminal-failure"
   | "deadline-exceeded"
-  | "failed";
+  | "failed"
+  | "permission-blocked"
+  | "needs-parent-operation";
+
+// Why a subordinate execution stopped short of ordinary completion.
+// `unsupported-tool` covers route/auth/model unavailability and verified
+// unsupported-capability results; `changed-files` is a bounded-resource
+// denial and is never eligible for same-route continuation; `guard` is a
+// provider safety stop; `other` is verified provider-owned denial evidence.
+export type DeniedCause =
+  | "none"
+  | "unsupported-tool"
+  | "changed-files"
+  | "guard"
+  | "other";
+
+// Denial causes a continuation sheet line may opt into.
+export const CONTINUATION_REASONS = [
+  "handoff",
+  "unsupported-tool",
+  "guard",
+  "other",
+] as const;
+export type ContinuationReason = (typeof CONTINUATION_REASONS)[number];
+
+export interface ContinuationPolicy {
+  readonly on: readonly ContinuationReason[];
+  readonly maxExecutions: number;
+}
 
 // The parent's own verdict after inspecting a started writer's preserved
 // worktree and external side effects. `evidenceRef` records what was
 // inspected; it is an attestation by the trusted caller, not proof that the
 // helper itself inspected anything.
 export interface AttemptInspection {
-  readonly state: "clear" | "unsafe";
+  readonly state: "clear" | "unsafe" | "none";
   readonly evidenceRef: string;
 }
 
@@ -698,29 +801,96 @@ export interface AttemptEvent {
   readonly processStarted?: boolean;
   readonly inspection?: AttemptInspection;
   readonly receiptPath?: string;
+  // Position of this execution among the same-attempt executions, 0 for the
+  // first. Parent-operation records do not carry an ordinal.
+  readonly continuationOrdinal?: number;
+  // Verified denial evidence for permission-blocked and route-unavailable
+  // events. Absent or "none" means the status is not backed by evidence.
+  readonly deniedCause?: DeniedCause;
+  // The correction this execution was launched with, attested by the parent;
+  // used to detect unchanged repeat denials.
+  readonly correction?: string;
+  // The parent operation a needs-parent-operation event requested.
+  readonly handoff?: {
+    readonly operation: ParentOperationKind;
+    readonly taskId: string;
+    readonly checkpointId: string;
+    readonly ref?: string;
+  };
+  // Marker on events that record an executed parent operation rather than a
+  // worker execution. Status is the operation's own verdict.
+  readonly parentOperation?: {
+    readonly kind: ParentOperationKind;
+    readonly taskId: string;
+    readonly checkpointId: string;
+  };
 }
 
+export type PolicyDenialCause =
+  | "unsupported-tool"
+  | "no-continuation"
+  | "changed-files"
+  | "exhausted-allowance"
+  | "repeat-denial"
+  | "live-writer"
+  | "missing-correction"
+  | "handoff-malformed"
+  | "conflicting-operation"
+  | "ambiguous-state"
+  | "missing-operation";
+
 export type NextAttempt =
-  | { readonly kind: "launch"; readonly attemptIndex: number; readonly attempt: AttemptPolicy }
+  | {
+      readonly kind: "launch";
+      readonly attemptIndex: number;
+      readonly attempt: AttemptPolicy;
+      readonly execution: number;
+    }
+  | {
+      readonly kind: "continue";
+      readonly attemptIndex: number;
+      readonly attempt: AttemptPolicy;
+      readonly execution: number;
+    }
+  | {
+      readonly kind: "parent-operation";
+      readonly attemptIndex: number;
+      readonly operation: {
+        readonly kind: ParentOperationKind;
+        readonly taskId: string;
+        readonly checkpointId: string;
+        readonly ref?: string;
+      };
+    }
   | { readonly kind: "stop"; readonly reason: "complete" | "chain-exhausted" | "not-eligible" | "unauthorized" | "unsafe-writer" }
+  | { readonly kind: "policy-denied"; readonly reason: PolicyDenialCause }
   | { readonly kind: "inspect"; readonly reason: "started-writer" };
 
 function outcomeAuthorized(lane: LanePolicy, status: AttemptOutcomeStatus): boolean {
   return (lane.fallback.on as readonly string[]).includes(status);
 }
 
-// Whether a terminal event could have advanced to a later attempt under the
-// lane's saved policy and access mode. `nextAttempt` uses this for the last
-// event; the CLI applies it to every earlier event so a recorded history
-// cannot contain a continuation that was never authorized.
-export function eventAdvancesUnderPolicy(
-  lane: LanePolicy,
+// The verified denial cause an event carries. Absent evidence degrades to
+// "other" rather than inventing a cause.
+function eventDeniedCause(event: AttemptEvent): ContinuationReason | "changed-files" {
+  if (event.deniedCause === "changed-files") return "changed-files";
+  if (event.deniedCause !== undefined && event.deniedCause !== "none") {
+    return event.deniedCause;
+  }
+  return "other";
+}
+
+function continuationAllows(lane: LanePolicy, reason: ContinuationReason): boolean {
+  return lane.continuation !== undefined &&
+    (lane.continuation.on as readonly string[]).includes(reason);
+}
+
+// Started isolated writers may only advance on a recorded clear inspection
+// with evidence. Read-only lanes and provably unstarted writers skip it.
+function writerInspectionOk(
   event: AttemptEvent,
   access: "read-only" | "isolated-write"
 ): boolean {
-  if (event.status === "complete" || event.status === "failed") return false;
-  if (!outcomeAuthorized(lane, event.status)) return false;
-  if (event.inspection?.state === "unsafe") return false;
   if (access === "isolated-write" && event.processStarted !== false) {
     return (
       event.inspection?.state === "clear" &&
@@ -730,28 +900,228 @@ export function eventAdvancesUnderPolicy(
   return true;
 }
 
+// Whether a terminal event could have advanced to a later event under the
+// lane's saved policy and access mode. `eventSuccessorAuthorized` applies
+// this pairwise inside a recorded history; `nextAttempt` applies the same
+// gates to the last event when deciding the next action.
+export function eventAdvancesUnderPolicy(
+  lane: LanePolicy,
+  event: AttemptEvent,
+  access: "read-only" | "isolated-write"
+): boolean {
+  if (event.inspection?.state === "unsafe") return false;
+  if (event.parentOperation !== undefined) {
+    return event.status === "complete";
+  }
+  if (event.status === "complete" || event.status === "failed") return false;
+  if (event.status === "needs-parent-operation") {
+    return event.handoff !== undefined && writerInspectionOk(event, access);
+  }
+  if (event.status === "permission-blocked") {
+    const cause = eventDeniedCause(event);
+    if (cause === "changed-files") return false;
+    return continuationAllows(lane, cause) && writerInspectionOk(event, access);
+  }
+  if (!outcomeAuthorized(lane, event.status)) return false;
+  return writerInspectionOk(event, access);
+}
+
+// Whether `next` is an event the saved policy permits immediately after
+// `prev`. Fallback outcomes advance to a later attempt descriptor; a
+// permission-blocked event advances only to a continuation execution on the
+// same descriptor; a handoff advances only to the parent operation it
+// requested; a completed operation advances to the continued execution.
+export function eventSuccessorAuthorized(
+  lane: LanePolicy,
+  prev: AttemptEvent,
+  next: AttemptEvent,
+  access: "read-only" | "isolated-write"
+): boolean {
+  if (!eventAdvancesUnderPolicy(lane, prev, access)) return false;
+  if (prev.parentOperation !== undefined) {
+    return next.parentOperation === undefined && next.attemptIndex === prev.attemptIndex;
+  }
+  if (prev.status === "needs-parent-operation") {
+    return (
+      next.parentOperation !== undefined &&
+      next.attemptIndex === prev.attemptIndex &&
+      next.parentOperation.kind === prev.handoff?.operation &&
+      next.parentOperation.taskId === prev.handoff?.taskId &&
+      next.parentOperation.checkpointId === prev.handoff?.checkpointId
+    );
+  }
+  if (prev.status === "permission-blocked") {
+    return (
+      next.parentOperation === undefined &&
+      next.attemptIndex === prev.attemptIndex &&
+      (next.continuationOrdinal ?? 0) === (prev.continuationOrdinal ?? 0) + 1
+    );
+  }
+  return next.parentOperation === undefined && next.attemptIndex > prev.attemptIndex;
+}
+
+function executionsFor(lane: LanePolicy, events: readonly AttemptEvent[], attemptIndex: number): number {
+  return events.filter(
+    (event) => event.parentOperation === undefined && event.attemptIndex === attemptIndex
+  ).length;
+}
+
+function continueDecision(
+  lane: LanePolicy,
+  anchor: AttemptEvent,
+  events: readonly AttemptEvent[],
+  reason: ContinuationReason
+): NextAttempt {
+  const cont = lane.continuation;
+  if (cont === undefined || !(cont.on as readonly string[]).includes(reason)) {
+    return { kind: "policy-denied", reason: "no-continuation" };
+  }
+  const executions = executionsFor(lane, events, anchor.attemptIndex);
+  if (executions >= cont.maxExecutions) {
+    return { kind: "policy-denied", reason: "exhausted-allowance" };
+  }
+  return {
+    kind: "continue",
+    attemptIndex: anchor.attemptIndex,
+    attempt: lane.attempts[anchor.attemptIndex],
+    execution: executions + 1,
+  };
+}
+
+// A verified interruption continues on the same descriptor only when the
+// lane's continuation policy covers the denial cause, the allowance is not
+// exhausted, and the relaunch carried a concrete correction.
+function deniedDecision(
+  lane: LanePolicy,
+  anchor: AttemptEvent,
+  events: readonly AttemptEvent[],
+  access: "read-only" | "isolated-write"
+): NextAttempt {
+  if (anchor.inspection?.state === "unsafe") {
+    return { kind: "stop", reason: "unsafe-writer" };
+  }
+  if (!writerInspectionOk(anchor, access)) {
+    return { kind: "inspect", reason: "started-writer" };
+  }
+  const cause = eventDeniedCause(anchor);
+  if (cause === "changed-files") {
+    return { kind: "policy-denied", reason: "changed-files" };
+  }
+  const cont = lane.continuation;
+  const executions = executionsFor(lane, events, anchor.attemptIndex);
+  if (cont !== undefined && executions >= cont.maxExecutions) {
+    return { kind: "policy-denied", reason: "exhausted-allowance" };
+  }
+  const previous = events
+    .filter(
+      (event) => event.parentOperation === undefined && event.attemptIndex === anchor.attemptIndex
+    )
+    .at(-2);
+  if (
+    previous !== undefined &&
+    previous.status === "permission-blocked" &&
+    eventDeniedCause(previous) === cause
+  ) {
+    const correction = anchor.correction?.trim();
+    const previousCorrection = previous.correction?.trim();
+    if (correction === undefined || correction.length === 0 || correction === previousCorrection) {
+      return { kind: "policy-denied", reason: "repeat-denial" };
+    }
+  }
+  return continueDecision(lane, anchor, events, cause);
+}
+
+// A delivered handoff names the parent operation to run next; after the op
+// completes the assignment continues on the same route under the "handoff"
+// continuation clause.
+function handoffDecision(
+  lane: LanePolicy,
+  anchor: AttemptEvent,
+  events: readonly AttemptEvent[],
+  trailingOps: readonly AttemptEvent[],
+  access: "read-only" | "isolated-write"
+): NextAttempt {
+  const request = anchor.handoff;
+  if (request === undefined) {
+    return { kind: "policy-denied", reason: "handoff-malformed" };
+  }
+  if (anchor.inspection?.state === "unsafe") {
+    return { kind: "stop", reason: "unsafe-writer" };
+  }
+  if (!writerInspectionOk(anchor, access)) {
+    return { kind: "inspect", reason: "started-writer" };
+  }
+  if (trailingOps.length === 0) {
+    return {
+      kind: "parent-operation",
+      attemptIndex: anchor.attemptIndex,
+      operation: {
+        kind: request.operation,
+        taskId: request.taskId,
+        checkpointId: request.checkpointId,
+        ref: request.ref,
+      },
+    };
+  }
+  const op = trailingOps.at(-1)!;
+  if (trailingOps.length > 1) {
+    return { kind: "policy-denied", reason: "ambiguous-state" };
+  }
+  if (
+    op.parentOperation === undefined ||
+    op.parentOperation.kind !== request.operation ||
+    op.parentOperation.taskId !== request.taskId ||
+    op.parentOperation.checkpointId !== request.checkpointId
+  ) {
+    return { kind: "policy-denied", reason: "conflicting-operation" };
+  }
+  if (op.status === "failed") {
+    return { kind: "stop", reason: "not-eligible" };
+  }
+  return continueDecision(lane, anchor, events, "handoff");
+}
+
 export function nextAttempt(
   lane: LanePolicy,
   events: readonly AttemptEvent[],
   exhaustedGroups: ReadonlySet<Provider>,
   access: "read-only" | "isolated-write"
 ): NextAttempt {
-  if (events.some((event) => event.status === "complete")) {
+  if (
+    events.some(
+      (event) => event.parentOperation === undefined && event.status === "complete"
+    )
+  ) {
     return { kind: "stop", reason: "complete" };
   }
-  const last = events.at(-1);
+
+  // Trailing parent-operation records belong to the outcome that requested
+  // them; evaluate that anchor rather than the op event itself.
+  let anchorIndex = events.length - 1;
+  while (anchorIndex >= 0 && events[anchorIndex].parentOperation !== undefined) {
+    anchorIndex -= 1;
+  }
+  if (events.length > 0 && anchorIndex < 0) {
+    return { kind: "policy-denied", reason: "ambiguous-state" };
+  }
+  const last = anchorIndex >= 0 ? events[anchorIndex] : undefined;
+  const trailingOps = events.slice(anchorIndex + 1);
+
   if (last !== undefined) {
     if (last.status === "failed") return { kind: "stop", reason: "not-eligible" };
+    if (last.status === "needs-parent-operation") {
+      return handoffDecision(lane, last, events, trailingOps, access);
+    }
+    if (last.status === "permission-blocked") {
+      return deniedDecision(lane, last, events, access);
+    }
     if (!outcomeAuthorized(lane, last.status)) {
       return { kind: "stop", reason: "not-eligible" };
     }
     if (last.inspection?.state === "unsafe") {
       return { kind: "stop", reason: "unsafe-writer" };
     }
-    if (
-      access === "isolated-write" &&
-      last.processStarted !== false
-    ) {
+    if (access === "isolated-write" && last.processStarted !== false) {
       const inspection = last.inspection;
       if (
         inspection?.state !== "clear" ||
@@ -767,7 +1137,7 @@ export function nextAttempt(
       return { kind: "stop", reason: "unauthorized" };
     }
     if (exhaustedGroups.has(attempt.exhaustionGroup)) continue;
-    return { kind: "launch", attemptIndex: index, attempt };
+    return { kind: "launch", attemptIndex: index, attempt, execution: 1 };
   }
   return { kind: "stop", reason: "chain-exhausted" };
 }

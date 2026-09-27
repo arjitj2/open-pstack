@@ -11,15 +11,18 @@ import {
 import {
   ModelPolicyError,
   eventAdvancesUnderPolicy,
+  eventSuccessorAuthorized,
   nextAttempt,
   parseSheet,
   resolveRole,
   validateSheet,
   type AttemptEvent,
   type AttemptOutcomeStatus,
+  type DeniedCause,
   type LanePolicy,
   type RolePolicy,
 } from "./model-policy.ts";
+import { PARENT_OPERATION_KINDS, type ParentOperationKind } from "../runner/types.ts";
 import { normalizeReceiptEvent } from "./receipt-event.ts";
 
 const HELP = `Usage: pstack-model-policy <command> [options]
@@ -32,17 +35,30 @@ Commands:
   next --sheet <file> --role "<role row or leaf role>" --parent <claude|codex> \
        --state <file> [--lane <index>]
       Apply the shared finite decision to one lane and print the outcome as
-      JSON: launch, stop, or inspect. The state file is a JSON object:
+      JSON: launch, continue, parent-operation, stop, policy-denied, or
+      inspect. The state file is a JSON object:
       {"events":[{"attemptIndex":0,"status":"complete|usage-exhausted|
-      route-unavailable|terminal-failure|deadline-exceeded|failed",
-      "processStarted":true,"inspection":{"state":"clear|unsafe",
-      "evidenceRef":"..."},"receiptPath":"..."}...],
+      route-unavailable|terminal-failure|deadline-exceeded|failed|
+      permission-blocked|needs-parent-operation",
+      "processStarted":true,"inspection":{"state":"clear|unsafe|none",
+      "evidenceRef":"..."},"receiptPath":"...",
+      "continuationOrdinal":0,"deniedCause":"unsupported-tool|changed-files|
+      guard|other","correction":"...",
+      "handoff":{"operation":"commit-checkpoint|run-checks","taskId":"...",
+      "checkpointId":"...","ref":"..."},
+      "parentOperation":{"kind":"commit-checkpoint|run-checks","taskId":"...",
+      "checkpointId":"..."}}...],
       "exhaustedGroups":["provider"...],
       "access":"read-only|isolated-write"}. exhaustedGroups defaults to [] and
-      access is required. Every earlier event must have been able to advance
-      under the lane's saved # fallback policy (or the quota-only default).
-      This helper only decides; the parent owns dispatch, evidence, and
-      writer isolation.
+      access is required. Every adjacent pair must be an advance the saved
+      policy permits: fallback outcomes move to a later attempt descriptor,
+      permission-blocked moves to a same-attempt continuation only under the
+      sheet's # continuation policy, a handoff is followed by exactly the
+      parent operation it requested, and a completed operation is followed
+      by the continued execution. Events without an explicit
+      continuationOrdinal are numbered by position among same-attempt
+      executions. This helper only decides; the parent owns dispatch,
+      evidence, and writer isolation.
   normalize --sheet <file> --role "<role row or leaf role>" --parent <claude|codex> \
             --lane <index> --attempt <index> --receipt <file> --mode <read-only|isolated-write>
       Read one runner receipt and print the lane event it proves as JSON. The
@@ -126,9 +142,19 @@ const EVENT_STATUSES = [
   "terminal-failure",
   "deadline-exceeded",
   "failed",
+  "permission-blocked",
+  "needs-parent-operation",
 ] as const;
 
-const INSPECTION_STATES = ["clear", "unsafe"] as const;
+const INSPECTION_STATES = ["clear", "unsafe", "none"] as const;
+
+const DENIED_CAUSES = [
+  "none",
+  "unsupported-tool",
+  "changed-files",
+  "guard",
+  "other",
+] as const;
 
 function parseDecisionState(path: string): DecisionState {
   let text: string;
@@ -162,7 +188,20 @@ function parseDecisionState(path: string): DecisionState {
     }
     const entry = event as Record<string, unknown>;
     for (const key of Object.keys(entry)) {
-      if (!["attemptIndex", "status", "processStarted", "inspection", "receiptPath"].includes(key)) {
+      if (
+        ![
+          "attemptIndex",
+          "status",
+          "processStarted",
+          "inspection",
+          "receiptPath",
+          "continuationOrdinal",
+          "deniedCause",
+          "correction",
+          "handoff",
+          "parentOperation",
+        ].includes(key)
+      ) {
         throw new UsageError(`events[${index}] has unknown key ${JSON.stringify(key)}`);
       }
     }
@@ -210,12 +249,118 @@ function parseDecisionState(path: string): DecisionState {
         );
       }
       inspection = {
-        state: value.state as "clear" | "unsafe",
+        state: value.state as "clear" | "unsafe" | "none",
         evidenceRef: value.evidenceRef,
       };
     }
     if (entry.receiptPath !== undefined && typeof entry.receiptPath !== "string") {
       throw new UsageError(`events[${index}].receiptPath must be a string`);
+    }
+    if (
+      entry.continuationOrdinal !== undefined &&
+      (typeof entry.continuationOrdinal !== "number" ||
+        !Number.isInteger(entry.continuationOrdinal) ||
+        entry.continuationOrdinal < 0)
+    ) {
+      throw new UsageError(`events[${index}].continuationOrdinal must be a nonnegative integer`);
+    }
+    if (
+      entry.deniedCause !== undefined &&
+      (typeof entry.deniedCause !== "string" ||
+        !(DENIED_CAUSES as readonly string[]).includes(entry.deniedCause))
+    ) {
+      throw new UsageError(`events[${index}].deniedCause must be one of ${DENIED_CAUSES.join(", ")}`);
+    }
+    if (entry.correction !== undefined && typeof entry.correction !== "string") {
+      throw new UsageError(`events[${index}].correction must be a string`);
+    }
+    let handoff: AttemptEvent["handoff"];
+    if (entry.handoff !== undefined) {
+      const request = entry.handoff;
+      if (request === null || typeof request !== "object" || Array.isArray(request)) {
+        throw new UsageError(`events[${index}].handoff must be an object`);
+      }
+      const value = request as Record<string, unknown>;
+      for (const key of Object.keys(value)) {
+        if (!["operation", "taskId", "checkpointId", "ref"].includes(key)) {
+          throw new UsageError(`events[${index}].handoff has unknown key ${JSON.stringify(key)}`);
+        }
+      }
+      if (
+        typeof value.operation !== "string" ||
+        !(PARENT_OPERATION_KINDS as readonly string[]).includes(value.operation)
+      ) {
+        throw new UsageError(
+          `events[${index}].handoff.operation must be one of ${PARENT_OPERATION_KINDS.join(", ")}`
+        );
+      }
+      if (typeof value.taskId !== "string" || value.taskId.trim().length === 0) {
+        throw new UsageError(`events[${index}].handoff.taskId must be a nonempty string`);
+      }
+      if (typeof value.checkpointId !== "string" || value.checkpointId.trim().length === 0) {
+        throw new UsageError(`events[${index}].handoff.checkpointId must be a nonempty string`);
+      }
+      if (value.ref !== undefined && typeof value.ref !== "string") {
+        throw new UsageError(`events[${index}].handoff.ref must be a string`);
+      }
+      handoff = {
+        operation: value.operation as ParentOperationKind,
+        taskId: value.taskId,
+        checkpointId: value.checkpointId,
+        ref: value.ref as string | undefined,
+      };
+    }
+    let parentOperation: AttemptEvent["parentOperation"];
+    if (entry.parentOperation !== undefined) {
+      const operation = entry.parentOperation;
+      if (operation === null || typeof operation !== "object" || Array.isArray(operation)) {
+        throw new UsageError(`events[${index}].parentOperation must be an object`);
+      }
+      const value = operation as Record<string, unknown>;
+      for (const key of Object.keys(value)) {
+        if (!["kind", "taskId", "checkpointId"].includes(key)) {
+          throw new UsageError(`events[${index}].parentOperation has unknown key ${JSON.stringify(key)}`);
+        }
+      }
+      if (
+        typeof value.kind !== "string" ||
+        !(PARENT_OPERATION_KINDS as readonly string[]).includes(value.kind)
+      ) {
+        throw new UsageError(
+          `events[${index}].parentOperation.kind must be one of ${PARENT_OPERATION_KINDS.join(", ")}`
+        );
+      }
+      if (typeof value.taskId !== "string" || value.taskId.trim().length === 0) {
+        throw new UsageError(`events[${index}].parentOperation.taskId must be a nonempty string`);
+      }
+      if (typeof value.checkpointId !== "string" || value.checkpointId.trim().length === 0) {
+        throw new UsageError(`events[${index}].parentOperation.checkpointId must be a nonempty string`);
+      }
+      parentOperation = {
+        kind: value.kind as ParentOperationKind,
+        taskId: value.taskId,
+        checkpointId: value.checkpointId,
+      };
+      if (entry.status !== "complete" && entry.status !== "failed") {
+        throw new UsageError(
+          `events[${index}] records a parent operation; its status must be complete or failed`
+        );
+      }
+      if (entry.handoff !== undefined) {
+        throw new UsageError(`events[${index}] cannot carry both handoff and parentOperation`);
+      }
+    }
+    if (entry.status === "needs-parent-operation" && handoff === undefined) {
+      throw new UsageError(
+        `events[${index}] is needs-parent-operation but carries no handoff request`
+      );
+    }
+    if (entry.status === "permission-blocked") {
+      if (entry.deniedCause === undefined || entry.deniedCause === "none") {
+        throw new UsageError(
+          `events[${index}] is permission-blocked but carries no verified deniedCause`
+        );
+      }
     }
     return {
       attemptIndex: entry.attemptIndex,
@@ -223,6 +368,11 @@ function parseDecisionState(path: string): DecisionState {
       processStarted: entry.processStarted as boolean | undefined,
       inspection,
       receiptPath: entry.receiptPath as string | undefined,
+      continuationOrdinal: entry.continuationOrdinal as number | undefined,
+      deniedCause: entry.deniedCause as DeniedCause | undefined,
+      correction: entry.correction as string | undefined,
+      handoff,
+      parentOperation,
     };
   });
   if (
@@ -360,20 +510,37 @@ function commandNext(argv: readonly string[], io: Io): number {
     );
   }
   let previous: AttemptEvent | undefined;
-  for (const event of decision.events) {
-    if (event.attemptIndex >= lanePolicy.attempts.length) {
+  const events: AttemptEvent[] = [];
+  const executionCounts = new Map<number, number>();
+  for (const raw of decision.events) {
+    if (raw.attemptIndex >= lanePolicy.attempts.length) {
       throw new UsageError("event attemptIndex is out of range for this lane");
     }
-    if (lanePolicy.attempts[event.attemptIndex].authorization.state === "blocked") {
+    if (lanePolicy.attempts[raw.attemptIndex].authorization.state === "blocked") {
       throw new UsageError("event history records an attempt the saved policy does not authorize");
     }
-    if (previous !== undefined) {
-      if (event.attemptIndex <= previous.attemptIndex) {
-        throw new UsageError("events must have unique, increasing attempt indices");
-      }
-      if (!eventAdvancesUnderPolicy(lanePolicy, previous, decision.access)) {
+    let event = raw;
+    if (raw.parentOperation === undefined) {
+      const ordinal = executionCounts.get(raw.attemptIndex) ?? 0;
+      if (raw.continuationOrdinal !== undefined && raw.continuationOrdinal !== ordinal) {
         throw new UsageError(
-          "events contain an attempt after an outcome the saved policy could not advance, or a started writer without a clear inspection"
+          `event on attempt ${raw.attemptIndex} carries continuationOrdinal ${raw.continuationOrdinal}; the history implies ${ordinal}`
+        );
+      }
+      event = { ...raw, continuationOrdinal: ordinal };
+      executionCounts.set(raw.attemptIndex, ordinal + 1);
+    } else {
+      if (previous === undefined) {
+        throw new UsageError("the first event cannot record a parent operation");
+      }
+      if (raw.status !== "complete" && raw.status !== "failed") {
+        throw new UsageError("a parent-operation event must record complete or failed");
+      }
+    }
+    if (previous !== undefined) {
+      if (!eventSuccessorAuthorized(lanePolicy, previous, event, decision.access)) {
+        throw new UsageError(
+          "events contain a continuation the saved policy could not advance, a parent operation that does not match its request, or a started writer without a clear inspection"
         );
       }
     }
@@ -386,11 +553,12 @@ function commandNext(argv: readonly string[], io: Io): number {
         throw new UsageError("event history skips an attempt whose provider is not exhausted");
       }
     }
+    events.push(event);
     previous = event;
   }
   const outcome = nextAttempt(
     lanePolicy,
-    decision.events,
+    events,
     decision.exhaustedGroups,
     decision.access
   );
@@ -517,6 +685,10 @@ function commandNormalize(argv: readonly string[], io: Io): number {
     ...(normalized.processStarted === undefined
       ? {}
       : { processStarted: normalized.processStarted }),
+    ...(normalized.deniedCause === undefined
+      ? {}
+      : { deniedCause: normalized.deniedCause }),
+    ...(normalized.handoff === undefined ? {} : { handoff: normalized.handoff }),
     receiptPath,
   };
   io.stdout(

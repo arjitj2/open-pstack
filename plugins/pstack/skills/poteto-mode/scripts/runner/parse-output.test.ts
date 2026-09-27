@@ -1,5 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import { parseProviderOutput, reportedModelMatches } from "./parse-output.ts";
+import { ProviderToolDeniedError } from "./provider-failure.ts";
 
 const CLAUDE_SESSION = "claude-session";
 
@@ -510,5 +511,46 @@ describe("structured provider terminal errors", () => {
     expect(() =>
       parseProviderOutput("cursor", "null", "", "composer-2.5")
     ).toThrow("terminal result envelope");
+  });
+});
+
+describe("provider-owned tool denial evidence", () => {
+  it("classifies Devin's headless rejection frame as verified denial evidence", () => {
+    const stderr =
+      "warning: rejected a tool call that requires confirmation. Running in non-interactive mode. Use --permission-mode dangerous to auto-approve all tools.";
+    try {
+      parseProviderOutput("devin", "", stderr, "swe-2");
+      throw new Error("expected a throw");
+    } catch (error) {
+      expect(error).toBeInstanceOf(ProviderToolDeniedError);
+      const denied = error as InstanceType<typeof ProviderToolDeniedError>;
+      expect(denied.denial.verified).toBe(true);
+      expect(denied.denial.tool).toBeNull();
+      expect(denied.denial.requestedAction).toBeNull();
+      expect(denied.receiptStatus).toBe("malformed-output");
+    }
+  });
+
+  it("does not treat unrelated devin stderr as denial evidence", () => {
+    expect(() =>
+      parseProviderOutput("devin", "", "some ordinary warning", "swe-2")
+    ).not.toThrow(ProviderToolDeniedError);
+  });
+
+  it("classifies antigravity denied_actions as verified denial evidence", () => {
+    const stream = [
+      JSON.stringify({ event: "init", conversation_id: "c1", model: "gemini-3.1-pro-high" }),
+      JSON.stringify({ event: "result", conversation_id: "c1", num_turns: 1, denied_actions: [{ tool: "run_command", action: "git commit" }], response: "", is_error: true }),
+    ].join("\n");
+    try {
+      parseProviderOutput("antigravity", stream, "", "gemini-3.1-pro-high");
+      throw new Error("expected a throw");
+    } catch (error) {
+      expect(error).toBeInstanceOf(ProviderToolDeniedError);
+      const denied = error as InstanceType<typeof ProviderToolDeniedError>;
+      expect(denied.denial.verified).toBe(true);
+      expect(denied.denial.evidence).toContain("run_command");
+      expect(denied.receiptStatus).toBe("child-failed");
+    }
   });
 });
