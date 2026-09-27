@@ -6,7 +6,7 @@ Entries describe package versions. Published release checkpoints have tag links;
 
 ## 1.8.6 rejects unverifiable Grok model reports
 
-Cursor baseline: [0.15.5](https://github.com/cursor/plugins/tree/12d587dfb20741cafc376c42c696c5f6e2a64487/pstack). [Issue #52](https://github.com/arjitj2/open-pstack/issues/52).
+Cursor baseline: [0.15.5](https://github.com/cursor/plugins/tree/12d587dfb20741cafc376c42c696c5f6e2a64487/pstack). [PR #70](https://github.com/arjitj2/open-pstack/pull/70).
 
 Grok usage accounting and session-selected model echoes no longer count as primary-model proof. Otherwise successful Grok output now fails closed and cannot be replayed through fallback. The [provider contract](plugins/pstack/skills/poteto-mode/references/provider-dispatch.md#external-lanes) describes the evidence limit. Live verification remains deferred to [issue #67](https://github.com/arjitj2/open-pstack/issues/67).
 
