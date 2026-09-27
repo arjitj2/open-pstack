@@ -82,6 +82,7 @@ if (args.includes("debug")) {
 writeFileSync("invoked.json", JSON.stringify({args, prompt:await Bun.stdin.text()}));
 if (fixture.delay) await Bun.sleep(fixture.delay);
 console.log(fixture.stdout);
+if (fixture.stderr) console.error(fixture.stderr);
 process.exit(fixture.exit ?? 0);
 `;
 beforeEach(() => {
@@ -210,5 +211,28 @@ describe("OpenCode optional worker", () => {
     expect((await runLane(next)).receipt.status).toBe("malformed-output");
     expect(existsSync(next.outputPath)).toBe(false);
     expect(existsSync(openCodeDirectory(next))).toBe(false);
+  });
+  it("bounds a malformed invocation receipt to capture counts", async () => {
+    fixture({
+      stdout: [
+        JSON.stringify({ type: "step_start", sessionID: "s1", part: { id: "st", sessionID: "s1", messageID: "m1" } }),
+        JSON.stringify({ type: "reasoning", sessionID: "s1", part: { id: "r", sessionID: "s1", messageID: "m1", text: "CANARY_REASONING" } }),
+        JSON.stringify({ type: "tool_use", sessionID: "s1", part: { id: "t", sessionID: "s1", messageID: "m1", tool: "bash", input: "CANARY_TOOL_ARGUMENTS", output: "CANARY_TOOL_RESULT" } }),
+        JSON.stringify({ type: "text", sessionID: "s1", part: { id: "x", sessionID: "s1", messageID: "m1", text: "CANARY_NARRATION" } }),
+        "CANARY_MALFORMED_LINE",
+        JSON.stringify({ type: "error", sessionID: "s1", error: { name: "APIError", message: "provider terminal detail", data: { detail: "CANARY_TERMINAL_EXTENSION" } }, extension: "CANARY_TERMINAL_EXTENSION" }),
+      ].join("\n"),
+      stderr: "CANARY_STDERR noise",
+      exit: 1,
+    });
+    const opts = options();
+    const result = await runLane(opts);
+    expect(result.receipt.status).toBe("child-failed");
+    const serialized = `${JSON.stringify(result.receipt)}\n${readFileSync(opts.receiptPath, "utf8")}`;
+    for (const canary of ["CANARY_REASONING","CANARY_TOOL_ARGUMENTS","CANARY_TOOL_RESULT","CANARY_NARRATION","CANARY_MALFORMED_LINE","CANARY_STDERR","CANARY_TERMINAL_EXTENSION"]) {
+      expect(serialized).not.toContain(canary);
+    }
+    expect(result.receipt.error?.evidence).not.toContain("provider terminal detail");
+    expect(result.receipt.error?.evidence).toContain("stdout:");
   });
 });

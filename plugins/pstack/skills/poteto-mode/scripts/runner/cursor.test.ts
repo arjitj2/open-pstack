@@ -132,7 +132,8 @@ describe("Cursor external lanes", () => {
       const receipt = (await runLane(opts)).receipt;
       expect(receipt.status).toBe("child-failed");
       expect(receipt.failurePhase).toBe("invocation");
-      expect(receipt.error?.evidence).toContain(error);
+      expect(receipt.error?.evidence).not.toContain(error);
+      expect(receipt.error?.evidence).toContain("stderr:");
       expect(existsSync(join(scratch,"invoked.json"))).toBe(true);
       expect(existsSync(opts.outputPath)).toBe(false);
       expect(existsSync(cursorConfigDirectory(opts))).toBe(false);
@@ -235,7 +236,8 @@ describe("Cursor external lanes", () => {
     const opts = options();
     const receipt = (await runLane(opts)).receipt;
     expect(receipt.status).toBe("child-failed");
-    expect(receipt.error?.evidence).toContain("Requested model is unavailable");
+    expect(receipt.error?.evidence).not.toContain("Requested model is unavailable");
+    expect(receipt.error?.evidence).toContain("stderr:");
     expect(existsSync(cursorConfigDirectory(opts))).toBe(false);
   });
   it("cleans up after an explicit deadline", async () => {

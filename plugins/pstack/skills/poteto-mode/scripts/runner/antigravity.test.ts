@@ -36,6 +36,7 @@ const step = {event:"step_update",step_update:{step_type:"tool",tool_name:fixtur
 const result = {event:"result",result:{conversation_id:session,status:fixture.status ?? "SUCCESS",response:fixture.response ?? "AGY_OK",num_turns:1,...(fixture.denied ? {denied_actions:[]} : {})}};
 const stream = fixture.raw ?? [init,step,result].map(JSON.stringify).join("\\n");
 console.log(stream);
+if (fixture.stderr) console.error(fixture.stderr);
 process.exit(fixture.exit ?? 0);
 `;
 
@@ -232,5 +233,28 @@ describe("Antigravity external lanes", () => {
     const stream = [init,result].map((event) => JSON.stringify(event)).join("\n");
     expect(parseProviderOutput("antigravity",stream,"","gemini-3.1-pro-high")).toMatchObject({text:"OK",reportedModel:"gemini-3.1-pro-high",usage:{inputTokens:2,outputTokens:3,reasoningTokens:1,cachedInputTokens:1}});
     expect(() => parseProviderOutput("antigravity",`${stream}\n${JSON.stringify(result)}`,"","gemini-3.1-pro-high")).toThrow();
+  });
+  it("bounds a failed invocation receipt to terminal result fields", async () => {
+    const session = "fixture-session";
+    fixture({
+      raw: [
+        JSON.stringify({event:"init",conversation_id:session,init:{model:"gemini-3.1-pro-high",agent:"pstack-test"}}),
+        JSON.stringify({event:"step_update",step_update:{step_type:"thought",text:"CANARY_REASONING"}}),
+        JSON.stringify({event:"step_update",step_update:{step_type:"tool",tool_name:"run_command",detail:"CANARY_TOOL_ARGUMENTS"}}),
+        "CANARY_MALFORMED_LINE",
+        JSON.stringify({event:"result",result:{conversation_id:session,status:"ERROR",response:"agy terminal detail",extension:"CANARY_TERMINAL_EXTENSION"}}),
+      ].join("\n"),
+      stderr: "CANARY_STDERR",
+      exit: 1,
+    });
+    const opts = options();
+    const result = await runLane(opts);
+    expect(result.receipt.status).toBe("child-failed");
+    const serialized = `${JSON.stringify(result.receipt)}\n${readFileSync(opts.receiptPath, "utf8")}`;
+    for (const canary of ["CANARY_REASONING","CANARY_TOOL_ARGUMENTS","CANARY_NARRATION","CANARY_MALFORMED_LINE","CANARY_STDERR","CANARY_TERMINAL_EXTENSION"]) {
+      expect(serialized).not.toContain(canary);
+    }
+    expect(result.receipt.error?.evidence).toContain("agy terminal detail");
+    expect(result.receipt.error?.evidence).toContain("stdout:");
   });
 });

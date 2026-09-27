@@ -8,6 +8,7 @@ Users inspect how a saved role resolves, while the parent owns execution and any
 - `claude-primary-model`: verify the main Claude assistant model independently of helper usage.
 - `codex-completion`: require completed final-turn output while preserving protocol success as a replay veto.
 - `devin-refusal-fallback`: exclude inherited provider-side fallback from an assigned Devin lane.
+- `receipt-privacy`: bound failure receipts to allowlisted diagnostics and structural counts.
 - `routing-live`: observe the exact approved descriptor and terminal outcome in a parent workflow.
 - `routing-recovery`: verify saved fallback transitions with authentic terminal evidence.
 
@@ -43,6 +44,12 @@ From each installed parent, run the [synthetic boundary checks](../../../../test
 For a change to Codex transcript assessment, install the exact candidate in both parents. From an installed Claude Code parent, dispatch an external `codex:*` lane through the shipped runner with a read-only marker task; retain the parent invocation, runner receipt, and an independent output-file check. From an installed Codex parent, verify skill discovery and dispatch a marker task through the native route for an approved `codex:*` descriptor — Codex-to-Codex dispatches through `spawn_agent` and never executes the external adapter, so do not bypass that rule or induce an external Codex call.
 
 From each installed candidate, run the Codex runner regressions against the installed tree (`runner/codex.test.ts` and the `codex output acceptance and terminal veto` rows in `runner/run.test.ts`). The shared synthetic corpus proves acceptance versus the no-replay veto at the CLI boundary: item-only streams reject without completion evidence. A later unfinished turn rejects output while an earlier completed terminal still vetoes replay. Malformed lines preserve their precedence over typed quota failures. These fixtures prove parser behavior, not live provider execution; keep the claims separate and do not count them as the live adapter proof.
+
+### Failure-receipt privacy
+
+For a change to receipt diagnostics, run the `failure receipt privacy` rows of `runner/run.test.ts` plus the privacy rows of `runner/opencode.test.ts` and `runner/antigravity.test.ts` against the exact installed candidate (`bun test` inside the installed tree's `scripts/runner/`). The synthetic executable boundary emits canary markers for prompts, reasoning, tool input/output, narration, unknown envelope fields, malformed lines, and stderr noise across nonzero exits, malformed streams, provenance rejection, explicit deadlines, handled cancellation, and preflight failure, with cases covering all seven providers. Each row scans the whole serialized receipt, so the claim is about the artifact on disk, not a single field.
+
+These fixtures prove the receipt boundary, not live provider execution. For the live claim, dispatch a failing external lane from each installed parent — a marker task ended by the explicit deadline or a forwarded signal is enough — retain the receipt, and confirm no prompt text, tool output, or stream content appears outside the declared terminal fields, canonical diagnostic codes, and structural counts. A retained terminal result or error message may still quote task content; that is the documented boundary limit, not a regression.
 
 ### Devin refusal-fallback isolation
 

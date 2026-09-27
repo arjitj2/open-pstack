@@ -3,6 +3,8 @@ import {
   QuotaAdapterNotImplementedError,
   assertQuotaAdapter,
   apiCredentialTakeover,
+  failureDiagnostic,
+  launcherDiagnostic,
   classifyProcessOutcome,
   classifyTerminalEnvelope,
   hasTerminalSuccess,
@@ -889,4 +891,42 @@ it("blocks Grok subscription-only routing despite a logged-in banner", () => {
 it("blocks custom Devin and Cursor endpoints without exposing their values", () => {
   expect(apiCredentialTakeover("devin", { DEVIN_API_URL: "https://alternate.invalid" })).toBe("DEVIN_API_URL");
   expect(apiCredentialTakeover("cursor", { CURSOR_API_ENDPOINT: "alternate.invalid" })).toBe("CURSOR_API_ENDPOINT");
+});
+
+
+describe("receipt diagnostic selection", () => {
+  it("retains the OpenCode parser-selected error, not a later frame", () => {
+    const stdout = [
+      { type: "error", sessionID: "s", error: { message: "selected failure" } },
+      { type: "reasoning", sessionID: "s" },
+      { type: "error", sessionID: "s", error: { message: "PRIVATE_LATER_FRAME" } },
+    ].map((event) => JSON.stringify(event)).join("\n");
+    const evidence = failureDiagnostic("opencode", { phase: "invocation", stdout, stderr: "" });
+    expect(evidence).toContain("selected failure");
+    expect(evidence).not.toContain("PRIVATE_LATER_FRAME");
+  });
+
+  it("does not retain result text followed by more activity", () => {
+    for (const provider of ["claude", "grok", "antigravity"] as const) {
+      const stdout = [
+        { type: "result", event: "result", result: provider === "antigravity" ? { response: "PRIVATE" } : "PRIVATE" },
+        { type: "assistant", event: "step_update", text: "PRIVATE" },
+      ].map((event) => JSON.stringify(event)).join("\n");
+      for (const phase of ["invocation", "postprocess"] as const) {
+        expect(failureDiagnostic(provider, { phase, stdout, stderr: "" })).not.toContain("PRIVATE");
+      }
+    }
+  });
+
+  it("omits arbitrary metadata and completed-turn extension messages", () => {
+    for (const [provider, terminalEnvelope] of [
+      ["claude", { type: "result", subtype: "PRIVATE", is_error: true }],
+      ["antigravity", { status: "PRIVATE" }],
+      ["opencode", { type: "error", error: { name: "PRIVATE" } }],
+      ["codex", { type: "turn.completed", message: "PRIVATE", error: { message: "PRIVATE" } }],
+    ] as const) {
+      expect(failureDiagnostic(provider, { phase: "postprocess", stdout: "", stderr: "", terminalEnvelope })).not.toContain("PRIVATE");
+    }
+    expect(launcherDiagnostic(Object.assign(new Error("PRIVATE"), { name: "PRIVATE", code: "PRIVATE" }))).toBe("Error");
+  });
 });

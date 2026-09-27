@@ -207,6 +207,8 @@ Any missing CLI, failed login, unavailable model, explicit timeout, cancellation
 
 Start native and external lanes in the same fan-out phase, then wait for all of them before judging. A judge must not read candidate paths while their owners are still writing.
 
+Failure receipts retain launcher-authored diagnostics, canonical quota codes, selected terminal fields, and structural line and JSON-event counts. The runner uses full captures transiently for parsing, quota classification, and terminal-success assessment. Preflight captures and stderr contribute counts only. Postprocessing retains terminal detail only from a typed provider error; invocation failures project the final candidate envelope, using OpenCode's shared parser to select its error. Each retained text field and error message is capped at 500 characters, and each rendered evidence block at 4,000. Intermediate prompts, reasoning, tool input/output, narration, unknown envelope fields, and malformed lines are omitted. Selected terminal result/error text can itself quote task content; this boundary does not redact that text.
+
 ## Saved fallback and backend recovery
 
 The runner and native tool envelopes classify failures; the helper owns every routing decision. A sheet may declare one saved recovery policy:

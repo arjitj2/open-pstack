@@ -23,8 +23,9 @@ import {
   assertQuotaAdapter,
   classifyProcessOutcome,
   classifyTerminalEnvelope,
+  failureDiagnostic,
   hasTerminalSuccess,
-  failureStdoutEvidence,
+  launcherDiagnostic,
   subscriptionAuthEvidence,
 } from "./provider-failure.ts";
 import type {
@@ -33,7 +34,7 @@ import type {
   RunnerOptions,
   RunnerReceipt,
 } from "./types.ts";
-import { UsageError } from "./types.ts";
+import { OutputValidationError, UsageError } from "./types.ts";
 import { devinConfig, devinConfigPath, devinExportDirectory, devinExportPath, devinModel, devinPromptPath, devinWriterPrompt, readDevinExport } from "./devin.ts";
 
 const ERROR_EVIDENCE_LIMIT = 4_000;
@@ -412,21 +413,6 @@ function unavailableStatus(value: string): ReceiptStatus {
   return "child-failed";
 }
 
-// A started child proves its own outcome: only the provider-protocol quota
-// contract may classify here. Authentication or model wording in raw stdout or
-// stderr is unproven — generated prose and quoted logs both carry it — so an
-// invocation exit without a source-backed typed failure stays child-failed.
-// Raw bounded evidence is preserved on the receipt for diagnosis.
-function terminalFailureStatus(
-  provider: Provider,
-  stdout: string,
-  stderr: string,
-  exitCode: number | null
-): ReceiptStatus {
-  const terminal = classifyProcessOutcome(provider, { stdout, stderr, exitCode });
-  return terminal.status ?? "child-failed";
-}
-
 // A Devin lane can finish its final answer and still exit nonzero: the CLI's
 // stdout/stderr carry no result protocol, so the ATIF export is the only
 // completion evidence and must be assessed before its directory is cleaned
@@ -776,9 +762,17 @@ async function executeLane(
     let passed = options.provider === "opencode"
       ? versionError === null && preflightResult.exitCode === 0 && openCodePreflightPassed(preflightResult.stdout, options, env)
       : preflightPassed(options.provider, options.model, preflightResult, apiKeyAuth);
+    const renderPreflightDetail = (): string => failureDiagnostic(options.provider, {
+      phase: "preflight",
+      stdout: preflightResult.stdout,
+      stderr: preflightResult.stderr,
+      note: versionError ?? (options.provider === "opencode"
+        ? "OpenCode effective agent preflight failed; configuration output withheld"
+        : undefined),
+    });
     let preflightEvidence = passed
       ? options.provider === "opencode" ? "effective agent model and tool policy verified; authentication deferred to execution" : successfulPreflightEvidence(options.provider, options.model, apiKeyAuth)
-      : rawPreflightEvidence;
+      : renderPreflightDetail();
 
     if (
       options.provider === "grok" &&
@@ -791,7 +785,7 @@ async function executeLane(
       preflightState = {
         argv: [preflightExecutable, ...preflight.args],
         status: "failed",
-        evidence: rawPreflightEvidence,
+        evidence: preflightEvidence,
       };
       progress.preflight = preflightState;
 
@@ -808,7 +802,7 @@ async function executeLane(
         );
       }
 
-      const firstPreflightEvidence = rawPreflightEvidence;
+      const firstPreflightEvidence = preflightEvidence;
       preflightResult = await runProcess(
         preflightExecutable,
         preflight,
@@ -824,7 +818,7 @@ async function executeLane(
         firstPreflightEvidence,
         passed
           ? successfulPreflightEvidence(options.provider, options.model, apiKeyAuth)
-          : rawPreflightEvidence,
+          : renderPreflightDetail(),
         passed
       );
     }
@@ -956,13 +950,22 @@ async function executeLane(
   } as const;
 
   if (result.cancelledBy !== null || result.timedOut || result.exitCode !== 0) {
-    const rawFailureEvidence = `${result.stderr}\n${failureStdoutEvidence(options.provider, result.stdout)}`;
-    const failureEvidence = evidence(rawFailureEvidence);
+    const outcome = classifyProcessOutcome(options.provider, {
+      stdout: result.stdout,
+      stderr: result.stderr,
+      exitCode: result.exitCode,
+    });
+    const failureEvidence = failureDiagnostic(options.provider, {
+      phase: "invocation",
+      stdout: result.stdout,
+      stderr: result.stderr,
+      diagnostic: outcome.code ?? undefined,
+    });
     const status: ReceiptStatus = result.cancelledBy !== null
       ? "cancelled"
       : result.timedOut
         ? "timed-out"
-        : terminalFailureStatus(options.provider, result.stdout, result.stderr, result.exitCode);
+        : outcome.status ?? "child-failed";
     const terminalSuccess =
       status !== "cancelled" &&
       (devinFinalExportCompleted(options) ||
@@ -1017,7 +1020,7 @@ async function executeLane(
       parsed.reportedModel
     );
     if (!proof.modelVerified && proof.modelEvidence !== "pinned-argv") {
-      throw new Error(
+      throw new OutputValidationError(
         `requested model ${options.model} was not reported by ${options.provider}`
       );
     }
@@ -1035,7 +1038,11 @@ async function executeLane(
       apiSpend: options.apiSpend ?? "legacy",
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
+    const message =
+      error instanceof ProviderTerminalError ||
+      error instanceof OutputValidationError
+        ? error.message.slice(0, 500)
+        : launcherDiagnostic(error) || "postprocess validation failed";
     removeIfExists(options.outputPath);
     const terminal =
       error instanceof ProviderTerminalError
@@ -1067,9 +1074,14 @@ async function executeLane(
       costUsd: null,
       error: {
         message,
-        evidence: terminal?.evidence
-          ? evidence(terminal.evidence)
-          : evidence(`${result.stderr}\n${failureStdoutEvidence(options.provider, result.stdout)}`),
+        evidence: failureDiagnostic(options.provider, {
+          phase: "postprocess",
+          stdout: result.stdout,
+          stderr: result.stderr,
+          diagnostic: terminal?.code ?? undefined,
+          terminalEnvelope:
+            error instanceof ProviderTerminalError ? error.envelope : undefined,
+        }),
       },
       failurePhase: "postprocess",
       processStarted: true,
@@ -1156,7 +1168,6 @@ export async function runLane(
         : deadlineAt !== null && completed >= deadlineAt
           ? "timed-out"
           : "child-failed";
-      const message = error instanceof Error ? error.message : String(error);
       const terminalPreflight = preflight !== null && progress.preflight.status === "not-run" && status !== "child-failed"
         ? { ...progress.preflight, status }
         : progress.preflight;
@@ -1182,7 +1193,7 @@ export async function runLane(
             : status === "timed-out"
               ? "explicit deadline elapsed after reserving output paths"
               : "launcher failed after reserving output paths",
-          evidence: evidence(message),
+          evidence: launcherDiagnostic(error),
         },
         failurePhase: progress.modelStarted ? "invocation" : "preflight",
         processStarted: progress.modelStarted,

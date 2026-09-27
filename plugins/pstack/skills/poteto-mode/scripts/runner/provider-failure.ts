@@ -287,12 +287,6 @@ function claudeTerminalResult(events: readonly JsonObject[]): JsonObject | null 
   return result;
 }
 
-export function failureStdoutEvidence(provider: Provider, stdout: string): string {
-  if (provider !== "claude") return stdout;
-  const result = claudeTerminalResult(jsonObjects(stdout));
-  return result === null ? "" : JSON.stringify(result);
-}
-
 const claudeAdapter: QuotaAdapter = {
   classify(outcome) {
     if (outcome.terminalEnvelope !== undefined) {
@@ -629,4 +623,139 @@ export function subscriptionAuthEvidence(
     case "antigravity":
       return null;
   }
+}
+
+const RECEIPT_FIELD_LIMIT = 500;
+const RECEIPT_EVIDENCE_LIMIT = 4_000;
+
+function boundedText(value: unknown): string | null {
+  return typeof value === "string" && value.trim().length > 0
+    ? value.trim().slice(0, RECEIPT_FIELD_LIMIT)
+    : null;
+}
+
+function terminalEnvelopeDetail(provider: Provider, envelope: unknown): JsonObject | null {
+  const event = object(envelope);
+  if (event === null) return null;
+  switch (provider) {
+    case "claude":
+    case "cursor":
+    case "grok": {
+      if (event.type !== "result") return null;
+      const detail: JsonObject = {};
+
+      if (typeof event.is_error === "boolean") detail.is_error = event.is_error;
+      const result = boundedText(event.result);
+      if (result !== null) detail.result = result;
+      if (provider === "grok" && Array.isArray(event.errors)) {
+        const errors = event.errors
+          .map(boundedText)
+          .filter((entry) => entry !== null)
+          .slice(0, 3);
+        if (errors.length > 0) detail.errors = errors;
+      }
+      return Object.keys(detail).length > 0 ? detail : null;
+    }
+    case "codex": {
+      if (
+        event.type !== "turn.completed" &&
+        event.type !== "turn.failed" &&
+        event.type !== "error"
+      ) {
+        return null;
+      }
+      const detail: JsonObject = { type: event.type };
+      const message = boundedText(event.type === "turn.failed" ? object(event.error)?.message : event.type === "error" ? event.message : null);
+      if (message !== null) detail.message = message;
+      return detail;
+    }
+    case "antigravity": {
+      const result = event.event === "result" ? object(event.result) : event;
+      if (result === null) return null;
+      const detail: JsonObject = {};
+
+      const response = boundedText(result.response);
+      if (response !== null) detail.response = response;
+      return Object.keys(detail).length > 0 ? detail : null;
+    }
+    case "opencode": {
+      if (event.type !== "error") return null;
+      const error = object(event.error);
+      const detail: JsonObject = {};
+
+      const message = boundedText(error?.message ?? object(error?.data)?.message);
+      if (message !== null) detail.message = message;
+      return Object.keys(detail).length > 0 ? detail : null;
+    }
+    case "devin":
+      return null;
+  }
+}
+
+function isTerminalEvent(provider: Provider, event: JsonObject): boolean {
+  switch (provider) {
+    case "codex":
+      return event.type === "turn.completed" || event.type === "turn.failed" || event.type === "error";
+    case "claude":
+    case "cursor":
+    case "grok":
+      return event.type === "result";
+    case "antigravity":
+      return event.event === "result";
+    case "opencode":
+      return event.type === "error";
+    case "devin":
+      return false;
+  }
+}
+
+function captureSummary(text: string): string {
+  let lines = 0;
+  let events = 0;
+  for (const line of text.split("\n")) {
+    if (line.trim().length === 0) continue;
+    lines += 1;
+    try {
+      if (object(JSON.parse(line.trim())) !== null) events += 1;
+    } catch {}
+  }
+  return `${lines} line(s), ${events} JSON event(s)`;
+}
+
+export interface FailureCapture {
+  readonly phase: "preflight" | "invocation" | "postprocess";
+  readonly stdout: string;
+  readonly stderr: string;
+  readonly note?: string;
+  readonly diagnostic?: string;
+  readonly terminalEnvelope?: unknown;
+}
+
+export function failureDiagnostic(provider: Provider, capture: FailureCapture): string {
+  const sections: string[] = [];
+  if (capture.note !== undefined) sections.push(capture.note);
+  if (capture.diagnostic !== undefined) sections.push(`diagnostic: ${capture.diagnostic}`);
+  if (capture.phase !== "preflight") {
+    const envelope = capture.terminalEnvelope ?? (capture.phase === "invocation" ? (() => {
+      if (provider === "opencode") {
+        const parsed = parseOpenCodeTranscript(capture.stdout);
+        return parsed.kind === "error" ? parsed.envelope : null;
+      }
+      const last = jsonObjects(capture.stdout).at(-1);
+      return last !== undefined && isTerminalEvent(provider, last) ? last : null;
+    })() : null);
+    const terminal = terminalEnvelopeDetail(provider, envelope);
+    if (terminal !== null) sections.push(`terminal: ${JSON.stringify(terminal)}`);
+  }
+  sections.push(
+    `stdout: ${captureSummary(capture.stdout)}; stderr: ${captureSummary(capture.stderr)}`
+  );
+  return sections.join("\n").slice(0, RECEIPT_EVIDENCE_LIMIT);
+}
+
+export function launcherDiagnostic(error: unknown): string {
+  if (!(error instanceof Error)) return "";
+  const code = "code" in error ? error.code : null;
+  const knownCodes = ["ENOENT", "EACCES", "EPERM", "EIO", "EEXIST", "ENOSPC", "ENOTDIR", "EISDIR", "EMFILE", "EPIPE"];
+  return typeof code === "string" && knownCodes.includes(code) ? `Error (${code})` : "Error";
 }

@@ -31,7 +31,8 @@ const isPreflight =
   (name === "codex" && args[0] === "login") ||
   (name === "grok" && args[0] === "models") ||
   (name === "devin" && args[0] === "auth") ||
-  (name === "cursor-agent" && (args[0] === "status" || args[0] === "--version"));
+  (name === "cursor-agent" && (args[0] === "status" || args[0] === "--version")) ||
+  (name === "agy" && args[0] === "models");
 if (name === "claude" && !isPreflight && process.env.CLAUDECODE) {
   console.error("Claude cannot launch inside an existing Claude session.");
   process.exit(1);
@@ -49,6 +50,15 @@ const startedPath = isPreflight
   ? process.env.FAKE_PREFLIGHT_STARTED_PATH
   : process.env.FAKE_MODEL_STARTED_PATH;
 if (startedPath) writeFileSync(startedPath, String(process.pid));
+if (isPreflight && process.env.FAKE_PREFLIGHT_STDOUT !== undefined) {
+  process.stdout.write(process.env.FAKE_PREFLIGHT_STDOUT);
+  if (process.env.FAKE_PREFLIGHT_STDERR !== undefined) console.error(process.env.FAKE_PREFLIGHT_STDERR);
+  process.exit(Number(process.env.FAKE_PREFLIGHT_EXIT ?? "1"));
+}
+const genericStdout = stage === "model" && process.env.FAKE_STDOUT !== undefined;
+const genericStderr = stage === "model" && process.env.FAKE_STDERR !== undefined;
+if (genericStdout) process.stdout.write(process.env.FAKE_STDOUT);
+if (genericStderr) console.error(process.env.FAKE_STDERR);
 const cancelStage = process.env.FAKE_CANCEL_STAGE ??
   (process.env.FAKE_CANCEL === "1" ? "model" : "");
 if (cancelStage === stage) {
@@ -96,7 +106,7 @@ if (name === "grok" && args[0] === "models") {
   if (transientMarker && !existsSync(transientMarker)) {
     writeFileSync(transientMarker, String(process.pid));
     console.log("Available models:\\n  * grok-4.7 (default)");
-    console.error("You are not authenticated.");
+    console.error("You are not authenticated." + (process.env.FAKE_GROK_TRANSIENT_EXTRA ?? ""));
     process.exit(0);
   }
   if (process.env.FAKE_GROK_MISSING_MODEL === "1") {
@@ -112,6 +122,10 @@ if (name === "grok" && args[0] === "models") {
 }
 const modelIndex = args.findIndex((value) => value === "--model");
 const model = modelIndex >= 0 ? args[modelIndex + 1] : "unknown";
+if (name === "agy" && args[0] === "models") {
+  console.log(process.env.FAKE_AGY_MODELS ?? "gemini-3.1-pro-high\\tfixture listing");
+  process.exit(Number(process.env.FAKE_PREFLIGHT_EXIT ?? "0"));
+}
 const reportedModel = process.env.FAKE_CLAUDE_REPORTED_MODEL ?? (model === "fable"
   ? "claude-fable-9-9"
   : model === "opus"
@@ -202,21 +216,23 @@ if (name === "cursor-agent" && stage === "model" && process.env.FAKE_CURSOR_STDE
   console.error(process.env.FAKE_CURSOR_STDERR);
   process.exit(Number(process.env.FAKE_CURSOR_EXIT ?? "1"));
 }
-if (name === "claude" && stage === "model" && process.env.FAKE_CLAUDE_STREAM) {
-  process.stdout.write(process.env.FAKE_CLAUDE_STREAM);
-} else if (name === "claude") {
-  console.log(JSON.stringify({type:"system",subtype:"init",session_id:"c1",model}));
-  console.log(JSON.stringify({type:"assistant",session_id:"c1",parent_tool_use_id:null,message:{role:"assistant",model:reportedModel,content:[{type:"text",text:"CLAUDE_OK"}]}}));
-  console.log(JSON.stringify({type:"result",subtype:"success",is_error:false,result:"CLAUDE_OK",session_id:"c1",usage:{input_tokens:10,output_tokens:2},total_cost_usd:0.01,modelUsage:{[reportedModel]:{}}}));
-} else if (name === "codex" && process.env.FAKE_CODEX_STDOUT !== undefined) {
-  process.stdout.write(process.env.FAKE_CODEX_STDOUT);
-} else if (name === "codex") {
-  console.log(JSON.stringify({type:"thread.started",thread_id:"o1"}));
-  console.log(JSON.stringify({type:"item.completed",item:{type:"agent_message",text:"CODEX_OK"}}));
-  console.log(JSON.stringify({type:"turn.completed",usage:{input_tokens:20,cached_input_tokens:5,output_tokens:3,reasoning_output_tokens:1}}));
-} else {
-  console.log(JSON.stringify({type:"assistant",message:{content:[{type:"text",text:"progress"}]}}));
-  console.log(JSON.stringify({type:"result",subtype:"success",is_error:false,result:"GROK_OK",session_id:"g1",usage:{input_tokens:30,output_tokens:4,total_tokens:34},total_cost_usd:0.02,modelUsage:{[model + "-build"]:{}}}));
+if (!genericStdout) {
+  if (name === "claude" && stage === "model" && process.env.FAKE_CLAUDE_STREAM) {
+    process.stdout.write(process.env.FAKE_CLAUDE_STREAM);
+  } else if (name === "claude") {
+    console.log(JSON.stringify({type:"system",subtype:"init",session_id:"c1",model}));
+    console.log(JSON.stringify({type:"assistant",session_id:"c1",parent_tool_use_id:null,message:{role:"assistant",model:reportedModel,content:[{type:"text",text:"CLAUDE_OK"}]}}));
+    console.log(JSON.stringify({type:"result",subtype:"success",is_error:false,result:"CLAUDE_OK",session_id:"c1",usage:{input_tokens:10,output_tokens:2},total_cost_usd:0.01,modelUsage:{[reportedModel]:{}}}));
+  } else if (name === "codex" && process.env.FAKE_CODEX_STDOUT !== undefined) {
+    process.stdout.write(process.env.FAKE_CODEX_STDOUT);
+  } else if (name === "codex") {
+    console.log(JSON.stringify({type:"thread.started",thread_id:"o1"}));
+    console.log(JSON.stringify({type:"item.completed",item:{type:"agent_message",text:"CODEX_OK"}}));
+    console.log(JSON.stringify({type:"turn.completed",usage:{input_tokens:20,cached_input_tokens:5,output_tokens:3,reasoning_output_tokens:1}}));
+  } else {
+    console.log(JSON.stringify({type:"assistant",message:{content:[{type:"text",text:"progress"}]}}));
+    console.log(JSON.stringify({type:"result",subtype:"success",is_error:false,result:"GROK_OK",session_id:"g1",usage:{input_tokens:30,output_tokens:4,total_tokens:34},total_cost_usd:0.02,modelUsage:{[model + "-build"]:{}}}));
+  }
 }
 if (process.env.FAKE_MODEL_EXITING_PATH) {
   writeFileSync(process.env.FAKE_MODEL_EXITING_PATH, String(process.pid));
@@ -319,7 +335,7 @@ beforeEach(() => {
   bin = join(scratch, "bin");
   mkdirSync(bin);
   writeFileSync(join(scratch, "prompt.md"), "Return the marker.");
-  for (const name of ["claude", "codex", "grok", "devin", "cursor-agent"]) makeExecutable(name);
+  for (const name of ["claude", "codex", "grok", "devin", "cursor-agent", "agy"]) makeExecutable(name);
   previousPath = process.env.PATH;
   process.env.PATH = `${bin}:${dirname(process.execPath)}:${previousPath ?? ""}`;
   delete process.env.FAKE_NETWORK_TEST_URL;
@@ -370,6 +386,13 @@ beforeEach(() => {
   delete process.env.FAKE_CLAUDE_API_ERROR_STATUS;
   delete process.env.FAKE_CLAUDE_API_ERROR;
   delete process.env.FAKE_CLAUDE_STREAM;
+  delete process.env.FAKE_STDOUT;
+  delete process.env.FAKE_STDERR;
+  delete process.env.FAKE_PREFLIGHT_STDOUT;
+  delete process.env.FAKE_PREFLIGHT_STDERR;
+  delete process.env.FAKE_PREFLIGHT_EXIT;
+  delete process.env.FAKE_AGY_MODELS;
+  delete process.env.FAKE_GROK_TRANSIENT_EXTRA;
   delete process.env.CURSOR_API_KEY;
   delete process.env.ANTHROPIC_API_KEY;
   delete process.env.ANTHROPIC_AUTH_TOKEN;
@@ -432,6 +455,13 @@ afterEach(() => {
   delete process.env.FAKE_CLAUDE_API_ERROR_STATUS;
   delete process.env.FAKE_CLAUDE_API_ERROR;
   delete process.env.FAKE_CLAUDE_STREAM;
+  delete process.env.FAKE_STDOUT;
+  delete process.env.FAKE_STDERR;
+  delete process.env.FAKE_PREFLIGHT_STDOUT;
+  delete process.env.FAKE_PREFLIGHT_STDERR;
+  delete process.env.FAKE_PREFLIGHT_EXIT;
+  delete process.env.FAKE_AGY_MODELS;
+  delete process.env.FAKE_GROK_TRANSIENT_EXTRA;
   delete process.env.CURSOR_API_KEY;
   delete process.env.ANTHROPIC_API_KEY;
   delete process.env.ANTHROPIC_AUTH_TOKEN;
@@ -540,9 +570,10 @@ describe("runLane", () => {
       failurePhase: "invocation",
       processStarted: true,
     });
-    expect(receipt(input.receiptPath).error?.evidence).toContain(
+    expect(receipt(input.receiptPath).error?.evidence).not.toContain(
       "The requested model is not supported with this account."
     );
+    expect(receipt(input.receiptPath).error?.evidence).toContain("stderr:");
   });
 
   it("retries a contradictory Grok authentication preflight before running the model", async () => {
@@ -550,6 +581,7 @@ describe("runLane", () => {
     const preflightLog = join(scratch, "grok-transient-unauth.log");
     process.env.FAKE_GROK_TRANSIENT_UNAUTH_PATH = transientMarker;
     process.env.FAKE_GROK_PREFLIGHT_LOG_PATH = preflightLog;
+    process.env.FAKE_GROK_TRANSIENT_EXTRA = " CANARY_PREFLIGHT_TRANSIENT";
     const modelStarted = join(scratch, "grok-transient-model.started");
     process.env.FAKE_MODEL_STARTED_PATH = modelStarted;
     const input = options("grok", "grok-transient-unauth");
@@ -562,9 +594,12 @@ describe("runLane", () => {
       status: "complete",
       preflight: { status: "passed" },
     });
-    expect(receipt(input.receiptPath).preflight.evidence).toContain(
+    expect(receipt(input.receiptPath).preflight.evidence).not.toContain(
       "You are not authenticated."
     );
+    expect(
+      JSON.stringify(receipt(input.receiptPath))
+    ).not.toContain("CANARY_PREFLIGHT_TRANSIENT");
     expect(receipt(input.receiptPath).preflight.evidence).toContain(
       "attempt 2 passed"
     );
@@ -606,6 +641,7 @@ describe("runLane", () => {
     const preflightLog = join(scratch, "grok-deadline-unauth.log");
     process.env.FAKE_GROK_TRANSIENT_UNAUTH_PATH = transientMarker;
     process.env.FAKE_GROK_PREFLIGHT_LOG_PATH = preflightLog;
+    process.env.FAKE_GROK_TRANSIENT_EXTRA = " CANARY_PREFLIGHT_TRANSIENT";
     const modelStarted = join(scratch, "grok-deadline-model.started");
     process.env.FAKE_MODEL_STARTED_PATH = modelStarted;
     const input = {
@@ -622,7 +658,10 @@ describe("runLane", () => {
       status: "timed-out",
       preflight: { status: "timed-out" },
     });
-    expect(recorded.preflight.evidence).toContain("You are not authenticated.");
+    expect(recorded.preflight.evidence).not.toContain(
+      "You are not authenticated."
+    );
+    expect(JSON.stringify(recorded)).not.toContain("CANARY_PREFLIGHT_TRANSIENT");
     expect(recorded.elapsedMs).toBeLessThan(1_200);
   });
 
@@ -636,6 +675,7 @@ describe("runLane", () => {
         ...process.env,
         FAKE_GROK_TRANSIENT_UNAUTH_PATH: transientMarker,
         FAKE_GROK_PREFLIGHT_LOG_PATH: preflightLog,
+        FAKE_GROK_TRANSIENT_EXTRA: " CANARY_PREFLIGHT_TRANSIENT",
       },
       stdout: "pipe",
       stderr: "pipe",
@@ -657,6 +697,9 @@ describe("runLane", () => {
         message: "launcher received SIGTERM during authentication preflight retry delay",
       },
     });
+    expect(
+      JSON.stringify(receipt(input.receiptPath))
+    ).not.toContain("CANARY_PREFLIGHT_TRANSIENT");
   });
 
   it("does not retry a Grok preflight with a missing model", async () => {
@@ -1346,9 +1389,10 @@ describe("backend-recovery receipt evidence", () => {
     expect(result.receipt.failurePhase).toBe("invocation");
     expect(result.receipt.processStarted).toBe(true);
     expect(result.receipt.terminalSuccess).toBe(false);
-    expect(result.receipt.error?.evidence).toContain(
+    expect(result.receipt.error?.evidence).not.toContain(
       "authentication required for the app under test"
     );
+    expect(result.receipt.error?.evidence).toContain("generic backend error");
     const event = normalizeReceiptEvent(result.receipt, {
       parent: input.parent,
       provider: input.provider,
@@ -1980,5 +2024,329 @@ describe("usage exhaustion and billing guard", () => {
     const result = await runLane(input);
     expect(result.receipt.status).toBe("complete");
     expect(result.receipt.apiSpend).toBe("legacy");
+  });
+});
+
+describe("failure receipt privacy", () => {
+  const RECEIPT_CANARIES = [
+    "CANARY_PROMPT_EVENT",
+    "CANARY_REASONING",
+    "CANARY_TOOL_ARGUMENTS",
+    "CANARY_TOOL_RESULT",
+    "CANARY_NARRATION",
+    "CANARY_STDERR",
+    "CANARY_TERMINAL_EXTENSION",
+    "CANARY_MALFORMED_LINE",
+  ] as const;
+
+  function assertBoundedReceipt(
+    recorded: RunnerReceipt,
+    input: RunnerOptions,
+    extraForbidden: readonly string[] = []
+  ): void {
+    const serialized = `${JSON.stringify(recorded)}\n${readFileSync(input.receiptPath, "utf8")}`;
+    for (const canary of [...RECEIPT_CANARIES, ...extraForbidden]) {
+      expect(serialized).not.toContain(canary);
+    }
+    expect(recorded.error?.evidence ?? "").toContain("stdout:");
+    expect((recorded.error?.message ?? "").length).toBeLessThanOrEqual(500);
+    expect((recorded.error?.evidence ?? "").length).toBeLessThanOrEqual(4_000);
+  }
+
+  it("bounds a Codex nonzero-exit receipt to terminal fields and capture counts", async () => {
+    process.env.FAKE_CODEX_STDOUT = [
+      JSON.stringify({ type: "thread.started", thread_id: "t1" }),
+      JSON.stringify({ type: "turn.started" }),
+      JSON.stringify({ type: "item.completed", item: { type: "user_message", text: "CANARY_PROMPT_EVENT" } }),
+      JSON.stringify({ type: "item.completed", item: { type: "reasoning", text: "CANARY_REASONING" } }),
+      JSON.stringify({ type: "item.completed", item: { type: "command_execution", command: "cat CANARY_TOOL_ARGUMENTS", aggregated_output: "CANARY_TOOL_RESULT" } }),
+      JSON.stringify({ type: "item.completed", item: { type: "agent_message", text: "CANARY_NARRATION" } }),
+      "CANARY_MALFORMED_LINE",
+      JSON.stringify({ type: "turn.failed", error: { message: "backend rejected the request", code: "CANARY_TERMINAL_EXTENSION" } }),
+    ].join("\n");
+    process.env.FAKE_STDERR = "wrapper warning CANARY_STDERR";
+    process.env.FAKE_MODEL_EXIT = "1";
+    const input = options("codex", "privacy-codex-invocation");
+    const result = await runLane(input);
+    expect(result.receipt.status).toBe("child-failed");
+    expect(result.receipt.failurePhase).toBe("invocation");
+    assertBoundedReceipt(result.receipt, input);
+    expect(result.receipt.error?.evidence).toContain("backend rejected the request");
+  });
+
+  it("keeps a Codex terminal failure message while dropping the stream around it", async () => {
+    process.env.FAKE_CODEX_AGENT_MESSAGE = "CANARY_NARRATION";
+    process.env.FAKE_CODEX_TURN_FAILED = "terminal detail the backend returned";
+    process.env.FAKE_STDERR = "CANARY_STDERR";
+    const input = options("codex", "privacy-codex-terminal");
+    const result = await runLane(input);
+    expect(result.receipt.status).toBe("child-failed");
+    expect(result.receipt.failurePhase).toBe("postprocess");
+    assertBoundedReceipt(result.receipt, input);
+    expect(result.receipt.error?.evidence).toContain("terminal detail the backend returned");
+  });
+
+  it("bounds long terminal failure messages in the whole receipt", async () => {
+    process.env.FAKE_CODEX_TURN_FAILED = "x".repeat(500) + "CANARY_TERMINAL_EXTENSION";
+    const input = options("codex", "privacy-long-terminal");
+    const result = await runLane(input);
+    expect(result.receipt.status).toBe("child-failed");
+    assertBoundedReceipt(result.receipt, input);
+  });
+
+  it("omits a result followed by further Claude activity", async () => {
+    process.env.FAKE_CLAUDE_STREAM = [
+      JSON.stringify({ type: "result", subtype: "success", is_error: false, result: "CANARY_NARRATION", session_id: "s" }),
+      JSON.stringify({ type: "assistant", message: { content: "CANARY_TOOL_RESULT" } }),
+    ].join("\n");
+    const input = options("claude", "privacy-trailing-event");
+    const result = await runLane(input);
+    expect(result.receipt.status).toBe("malformed-output");
+    assertBoundedReceipt(result.receipt, input);
+  });
+
+  it("keeps Claude stream detail out of a conflicting nonzero-exit receipt", async () => {
+    const session = "privacy-claude-session";
+    process.env.FAKE_CLAUDE_STREAM = [
+      JSON.stringify({ type: "system", subtype: "init", session_id: session, model: "fable" }),
+      JSON.stringify({ type: "user", session_id: session, message: { role: "user", content: "CANARY_PROMPT_EVENT" } }),
+      JSON.stringify({ type: "assistant", session_id: session, parent_tool_use_id: null, message: { role: "assistant", model: "claude-fable-9-9", content: [
+        { type: "thinking", thinking: "CANARY_REASONING" },
+        { type: "text", text: "CANARY_NARRATION" },
+        { type: "tool_use", name: "Bash", input: { command: "CANARY_TOOL_ARGUMENTS" } },
+      ] } }),
+      JSON.stringify({ type: "user", session_id: session, parent_tool_use_id: "toolu_1", message: { role: "user", content: [{ type: "tool_result", content: "CANARY_TOOL_RESULT" }] } }),
+      "CANARY_MALFORMED_LINE",
+      JSON.stringify({ type: "result", subtype: "success", is_error: false, result: "CLAUDE_OK", session_id: session, extension: "CANARY_TERMINAL_EXTENSION" }),
+    ].join("\n") + "\n";
+    process.env.FAKE_STDERR = "CANARY_STDERR";
+    process.env.FAKE_MODEL_EXIT = "1";
+    const input = options("claude", "privacy-claude-conflict");
+    const result = await runLane(input);
+    expect(result.receipt.status).toBe("child-failed");
+    expect(result.receipt.terminalSuccess).toBe(true);
+    assertBoundedReceipt(result.receipt, input);
+    expect(result.receipt.error?.evidence).toContain("CLAUDE_OK");
+    expect(
+      normalizeReceiptEvent(result.receipt, {
+        parent: input.parent, provider: input.provider, model: input.model,
+        effort: input.effort, mode: input.mode, apiSpend: "unset",
+      }).status
+    ).toBe("failed");
+  });
+
+  it("bounds a Claude malformed-stream postprocess receipt", async () => {
+    const session = "privacy-malformed";
+    process.env.FAKE_CLAUDE_STREAM = [
+      JSON.stringify({ type: "system", subtype: "init", session_id: session, model: "fable" }),
+      JSON.stringify({ type: "assistant", session_id: session, parent_tool_use_id: null, message: { role: "assistant", model: "claude-fable-9-9", content: [{ type: "text", text: "CANARY_NARRATION" }] } }),
+      "CANARY_MALFORMED_LINE",
+    ].join("\n") + "\n";
+    process.env.FAKE_STDERR = "CANARY_STDERR";
+    const input = options("claude", "privacy-claude-malformed");
+    const result = await runLane(input);
+    expect(result.receipt.status).toBe("malformed-output");
+    expect(result.receipt.error?.message).toContain("terminal result");
+    assertBoundedReceipt(result.receipt, input);
+  });
+
+  it("does not serialize reported model IDs into a multiple-primary rejection", async () => {
+    const session = "privacy-multi-primary";
+    const assistant = (model: string) => JSON.stringify({
+      type: "assistant", session_id: session, parent_tool_use_id: null,
+      message: { role: "assistant", model, content: [{ type: "text", text: "work" }] },
+    });
+    process.env.FAKE_CLAUDE_STREAM = [
+      JSON.stringify({ type: "system", subtype: "init", session_id: session, model: "fable" }),
+      assistant("claude-CANARY_PRIMARY-ONE-9"),
+      assistant("claude-CANARY_PRIMARY-TWO-9"),
+      JSON.stringify({ type: "result", subtype: "success", is_error: false, result: "CLAUDE_OK", session_id: session }),
+    ].join("\n") + "\n";
+    const input = options("claude", "privacy-claude-multi");
+    const result = await runLane(input);
+    expect(result.receipt.status).toBe("malformed-output");
+    expect(result.receipt.error?.message).toContain("multiple primary models");
+    assertBoundedReceipt(result.receipt, input, ["CANARY_PRIMARY"]);
+  });
+
+  it("bounds a Grok terminal-error postprocess receipt to its errors field", async () => {
+    process.env.FAKE_STDOUT = [
+      JSON.stringify({ type: "assistant", message: { content: [
+        { type: "text", text: "CANARY_NARRATION" },
+        { type: "tool_use", name: "bash", input: "CANARY_TOOL_ARGUMENTS" },
+      ] } }),
+      JSON.stringify({ type: "result", subtype: "error_during_execution", is_error: true, errors: ["provider terminal detail"], extension: "CANARY_TERMINAL_EXTENSION" }),
+    ].join("\n") + "\n";
+    process.env.FAKE_STDERR = "CANARY_STDERR";
+    const input = options("grok", "privacy-grok-error");
+    const result = await runLane(input);
+    expect(result.receipt.status).toBe("child-failed");
+    expect(result.receipt.failurePhase).toBe("postprocess");
+    assertBoundedReceipt(result.receipt, input);
+    expect(result.receipt.error?.evidence).toContain("provider terminal detail");
+  });
+
+  it("bounds a Grok nonzero-exit receipt to capture counts", async () => {
+    process.env.FAKE_STDOUT = [
+      JSON.stringify({ type: "assistant", message: { content: [{ type: "text", text: "CANARY_NARRATION" }] } }),
+      "CANARY_MALFORMED_LINE",
+    ].join("\n") + "\n";
+    process.env.FAKE_STDERR = "CANARY_STDERR progress";
+    process.env.FAKE_MODEL_EXIT = "1";
+    const input = options("grok", "privacy-grok-invocation");
+    const result = await runLane(input);
+    expect(result.receipt.status).toBe("child-failed");
+    assertBoundedReceipt(result.receipt, input);
+  });
+
+  it("bounds a Devin nonzero-exit receipt to capture counts", async () => {
+    process.env.FAKE_STDOUT = "progress CANARY_NARRATION CANARY_TOOL_RESULT\n";
+    process.env.FAKE_STDERR = "progress CANARY_STDERR\nError: CANARY_STDERR devin process detail\nCANARY_MALFORMED_LINE";
+    process.env.FAKE_MODEL_EXIT = "1";
+    const input = { ...options("devin", "privacy-devin"), model: "swe-2", effort: "high" as const };
+    const result = await runLane(input);
+    expect(result.receipt.status).toBe("child-failed");
+    expect(result.receipt.terminalSuccess).toBe(false);
+    assertBoundedReceipt(result.receipt, input);
+    expect(result.receipt.error?.evidence).not.toContain("devin process detail");
+  });
+
+  it("bounds a Cursor nonzero-exit receipt to the terminal result field", async () => {
+    process.env.FAKE_STDOUT = JSON.stringify({
+      type: "result", subtype: "error", is_error: true,
+      result: "cursor terminal detail", extension: "CANARY_TERMINAL_EXTENSION",
+    }) + "\nCANARY_MALFORMED_LINE";
+    process.env.FAKE_STDERR = "ActionRequiredError: CANARY_STDERR cursor rejected the request\nCANARY_STDERR wrapper noise";
+    process.env.FAKE_MODEL_EXIT = "1";
+    const input = { ...options("cursor", "privacy-cursor"), model: "composer-2.5", effort: "default" as const };
+    const result = await runLane(input);
+    expect(result.receipt.status).toBe("child-failed");
+    assertBoundedReceipt(result.receipt, input);
+    expect(result.receipt.error?.evidence).toContain("cursor terminal detail");
+    expect(result.receipt.error?.evidence).not.toContain("cursor rejected the request");
+  });
+
+  it("bounds an Antigravity nonzero-exit receipt to terminal result fields", async () => {
+    process.env.FAKE_STDOUT = [
+      JSON.stringify({ event: "init", conversation_id: "s", init: { model: "gemini-3.1-pro-high", agent: "pstack-fixture" } }),
+      JSON.stringify({ event: "step_update", step_update: { step_type: "thought", text: "CANARY_REASONING" } }),
+      JSON.stringify({ event: "step_update", step_update: { step_type: "tool", tool_name: "run_command", detail: "CANARY_TOOL_ARGUMENTS" } }),
+      "CANARY_MALFORMED_LINE",
+      JSON.stringify({ event: "result", result: { conversation_id: "s", status: "ERROR", response: "antigravity terminal detail", extension: "CANARY_TERMINAL_EXTENSION" } }),
+    ].join("\n");
+    process.env.FAKE_STDERR = "CANARY_STDERR";
+    process.env.FAKE_MODEL_EXIT = "1";
+    const input = { ...options("antigravity", "privacy-agy"), model: "gemini-3.1-pro-high", effort: "default" as const, apiSpend: "approved" as const };
+    const result = await runLane(input);
+    expect(result.receipt.status).toBe("child-failed");
+    assertBoundedReceipt(result.receipt, input);
+    expect(result.receipt.error?.evidence).toContain("antigravity terminal detail");
+  });
+
+  it("bounds a failed Codex preflight to structural counts", async () => {
+    process.env.FAKE_PREFLIGHT_STDOUT = "CANARY_PROMPT_EVENT\nnot logged in CANARY_NARRATION\n";
+    process.env.FAKE_PREFLIGHT_STDERR = "CANARY_STDERR";
+    const input = options("codex", "privacy-preflight");
+    const result = await runLane(input);
+    expect(result.receipt.status).toBe("unauthenticated");
+    expect(result.receipt.preflight.status).toBe("failed");
+    assertBoundedReceipt(result.receipt, input, ["not logged in"]);
+  });
+
+  it("bounds a timed-out invocation receipt to capture counts", async () => {
+    process.env.FAKE_TIMEOUT = "1";
+    process.env.FAKE_STDOUT = "CANARY_NARRATION partial output";
+    process.env.FAKE_STDERR = "CANARY_STDERR";
+    const input = { ...options("codex", "privacy-timeout"), timeoutMs: 300 };
+    const result = await runLane(input);
+    expect(result.receipt.status).toBe("timed-out");
+    assertBoundedReceipt(result.receipt, input);
+  });
+
+  it("bounds a cancelled invocation receipt to capture counts", async () => {
+    const started = join(scratch, "privacy-cancel.started");
+    const terminated = join(scratch, "privacy-cancel.term");
+    const input = options("codex", "privacy-cancel");
+    const runner = Bun.spawn([process.execPath, ...runnerArgs(input)], {
+      cwd: scratch,
+      env: {
+        ...process.env,
+        FAKE_CANCEL: "1",
+        FAKE_STARTED_PATH: started,
+        FAKE_TERMINATED_PATH: terminated,
+        FAKE_STDOUT: "CANARY_NARRATION",
+        FAKE_STDERR: "CANARY_STDERR",
+      },
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+    const stdout = new Response(runner.stdout).text();
+    const stderr = new Response(runner.stderr).text();
+    await waitFor(started);
+    runner.kill("SIGTERM");
+    expect(await exitWithin(runner, 2_000)).toBe(130);
+    await Promise.all([stdout, stderr]);
+    const recorded = receipt(input.receiptPath);
+    expect(recorded.status).toBe("cancelled");
+    assertBoundedReceipt(recorded, input);
+  });
+
+  it("keeps a launcher failure to a fixed error shape", async () => {
+    const input = options("claude", "privacy-launcher");
+    chmodSync(input.promptPath, 0o000);
+    try {
+      const result = await runLane(input);
+      expect(result.receipt.status).toBe("child-failed");
+      expect(result.receipt.error?.message).toBe("launcher failed after reserving output paths");
+      expect(result.receipt.error?.evidence).toMatch(/^[A-Za-z]+( \([A-Z0-9]+\))?$/);
+    } finally {
+      chmodSync(input.promptPath, 0o600);
+    }
+  });
+
+  it("preserves the completed-turn replay veto while bounding postprocess evidence", async () => {
+    process.env.FAKE_CODEX_STDOUT = [
+      JSON.stringify({ type: "thread.started", thread_id: "t-veto" }),
+      JSON.stringify({ type: "turn.started" }),
+      JSON.stringify({ type: "item.completed", item: { type: "agent_message", text: "CANARY_NARRATION" } }),
+      JSON.stringify({ type: "item.completed", item: { type: "agent_message", text: " " } }),
+      JSON.stringify({ type: "turn.completed", usage: { input_tokens: 3, output_tokens: 1 } }),
+    ].join("\n");
+    process.env.FAKE_STDERR = "CANARY_STDERR";
+    const input = options("codex", "privacy-codex-veto");
+    const result = await runLane(input);
+    expect(result.receipt.status).toBe("malformed-output");
+    expect(result.receipt.terminalSuccess).toBe(true);
+    assertBoundedReceipt(result.receipt, input);
+    expect(
+      normalizeReceiptEvent(result.receipt, {
+        parent: input.parent, provider: input.provider, model: input.model,
+        effort: input.effort, mode: input.mode, apiSpend: "unset",
+      }).status
+    ).toBe("failed");
+  });
+
+  it("keeps canonical quota diagnostics while dropping other stderr lines", async () => {
+    process.env.FAKE_DEVIN_STDERR =
+      "progress line CANARY_STDERR\nError: Quota exhausted: You've reached your monthly usage limit. Wait for the limit to reset next month.";
+    const input = { ...options("devin", "privacy-devin-quota"), model: "swe-2", effort: "high" as const };
+    const result = await runLane(input);
+    expect(result.receipt.status).toBe("usage-exhausted");
+    expect(result.receipt.error?.evidence).toContain("devin_quota_exhausted");
+    expect(result.receipt.error?.evidence).not.toContain("Wait for the limit");
+    assertBoundedReceipt(result.receipt, input);
+  });
+
+  it("keeps a Codex quota code and message in bounded evidence", async () => {
+    process.env.FAKE_CODEX_TURN_FAILED =
+      "You've hit your usage limit. Visit https://chatgpt.com/codex/settings/usage to purchase more credits or try again later.";
+    process.env.FAKE_CODEX_TURN_FAILED_EXIT = "1";
+    process.env.FAKE_STDERR = "CANARY_STDERR";
+    const input = options("codex", "privacy-codex-quota");
+    const result = await runLane(input);
+    expect(result.receipt.status).toBe("usage-exhausted");
+    expect(result.receipt.error?.evidence).toContain("codex_usage_limit_exceeded");
+    expect(result.receipt.error?.evidence).toContain("usage limit");
+    assertBoundedReceipt(result.receipt, input);
   });
 });

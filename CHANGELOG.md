@@ -4,6 +4,12 @@ This file records what each version of the Open Pstack package changed. Versions
 
 Entries describe package versions. Published release checkpoints have tag links; installation follows `main` unless pinned. Validation belongs to the linked pull requests. Older reports remain available through immutable links.
 
+## 1.8.5 bounds failure-receipt diagnostics
+
+Cursor baseline: [0.15.5](https://github.com/cursor/plugins/tree/12d587dfb20741cafc376c42c696c5f6e2a64487/pstack). [PR #68](https://github.com/arjitj2/open-pstack/pull/68).
+
+Failure receipts persist a bounded provider-aware diagnostic instead of truncated raw output: launcher notes, canonical quota codes, selected terminal fields and structural capture counts. Prompts, reasoning, tool IO, narration, unknown envelope fields, and arbitrary stderr stay transient. Routing, quota, timeout, cancellation, and cleanup semantics are unchanged.
+
 ## 1.8.4 requires Codex final-turn completion
 
 Cursor baseline: [0.15.5](https://github.com/cursor/plugins/tree/12d587dfb20741cafc376c42c696c5f6e2a64487/pstack). [Issue #51](https://github.com/arjitj2/open-pstack/pull/58).

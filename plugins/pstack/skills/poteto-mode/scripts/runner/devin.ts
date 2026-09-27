@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { UsageError, type Effort, type RunnerOptions } from "./types.ts";
+import { OutputValidationError, UsageError, type Effort, type RunnerOptions } from "./types.ts";
 
 export function devinModel(model: string, effort: Effort): string {
   if (model === "swe-2" && ["medium", "high", "max"].includes(effort)) {
@@ -48,7 +48,7 @@ export function readDevinExport(options: RunnerOptions): string {
   try {
     return readFileSync(devinExportPath(options), "utf8");
   } catch {
-    throw new Error("devin did not produce a readable export");
+    throw new OutputValidationError("devin did not produce a readable export");
   }
 }
 
