@@ -11,6 +11,13 @@ import {
   writeFileSync,
 } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
+import {
+  NO_PROGRESS,
+  captureStartToken,
+  openReporter,
+  type ChildRole,
+  type ProgressReporter,
+} from "./progress.ts";
 import { invocationCommand, preflightCommand, type CommandSpec } from "./commands.ts";
 import { nativeLane } from "./native-route.ts";
 import { openCodeConfig, openCodeDirectory, openCodeEnvironment, openCodePreflightPassed, openCodeVersionError, OPENCODE_MINIMUM_VERSION, validateOpenCodeModel } from "./opencode.ts";
@@ -101,11 +108,19 @@ function reserveOutputs(options: RunnerOptions): void {
   if (options.outputPath === options.receiptPath) {
     throw new UsageError("output and receipt paths must differ");
   }
-  reserve(options.outputPath);
+  const progressPath = options.progressPath ?? null;
+  const reserved: string[] = [];
   try {
-    reserve(options.receiptPath);
+    for (const path of [
+      options.outputPath,
+      options.receiptPath,
+      ...(progressPath === null ? [] : [progressPath]),
+    ]) {
+      reserve(path);
+      reserved.push(path);
+    }
   } catch (error) {
-    removeIfExists(options.outputPath);
+    for (const path of reserved) removeIfExists(path);
     throw error;
   }
 }
@@ -207,7 +222,10 @@ interface StreamCapture {
   cancel(): Promise<void>;
 }
 
-function captureStream(stream: ReadableStream<Uint8Array>): StreamCapture {
+function captureStream(
+  stream: ReadableStream<Uint8Array>,
+  onBytes?: (byteLength: number) => void
+): StreamCapture {
   const reader = stream.getReader();
   const decoder = new TextDecoder();
   let text = "";
@@ -218,6 +236,10 @@ function captureStream(stream: ReadableStream<Uint8Array>): StreamCapture {
       while (true) {
         const next = await reader.read();
         if (next.done) break;
+        try {
+          onBytes?.(next.value.byteLength);
+        } catch {
+        }
         text += decoder.decode(next.value, { stream: true });
       }
       text += decoder.decode();
@@ -249,6 +271,11 @@ type ProcessEvent =
   | { readonly kind: "cancelled"; readonly signal: CancellationSignal }
   | { readonly kind: "timed-out" };
 
+interface ProcessObserver {
+  readonly reporter: ProgressReporter;
+  readonly role: ChildRole;
+}
+
 async function runProcess(
   executable: string,
   spec: CommandSpec,
@@ -256,8 +283,10 @@ async function runProcess(
   env: NodeJS.ProcessEnv,
   prompt: string,
   deadlineAt: number | null,
-  cancellation: RunCancellation
+  cancellation: RunCancellation,
+  observer?: ProcessObserver
 ): Promise<ProcessResult> {
+  if (observer?.reporter === NO_PROGRESS) observer = undefined;
   const child = Bun.spawn([executable, ...spec.args], {
     cwd: spec.cwd ?? cwd,
     env,
@@ -266,8 +295,31 @@ async function runProcess(
     stderr: "pipe",
   });
   let deadlineTimer: ReturnType<typeof setTimeout> | null = null;
-  const stdoutCapture = captureStream(child.stdout);
-  const stderrCapture = captureStream(child.stderr);
+  let exitRecorded = false;
+  const recordExit = (exitCode: number): void => {
+    if (exitRecorded || observer === undefined) return;
+    exitRecorded = true;
+    observer.reporter.record({ t: "exited", role: observer.role, exitCode });
+  };
+  const recordSettled = (sent: boolean, cause: "cancel" | "deadline"): void => {
+    observer?.reporter.record({
+      t: "child-settled",
+      outcome: sent ? "signalled-and-exited" : "already-exited",
+      cause,
+    });
+  };
+  observer?.reporter.record({
+    t: "spawned",
+    role: observer.role,
+    pid: child.pid,
+    startToken: captureStartToken(child.pid),
+  });
+  const stdoutCapture = captureStream(child.stdout, (n) =>
+    observer?.reporter.record({ t: "bytes", stream: "stdout", n })
+  );
+  const stderrCapture = captureStream(child.stderr, (n) =>
+    observer?.reporter.record({ t: "bytes", stream: "stderr", n })
+  );
   const streams = Promise.all([stdoutCapture.result, stderrCapture.result]);
   const exited = child.exited.then((exitCode): ProcessEvent => ({
     kind: "exited",
@@ -307,6 +359,7 @@ async function runProcess(
     let signalSent: CancellationSignal | null = null;
 
     if (first.kind === "exited") {
+      recordExit(first.exitCode);
       const drains: Array<Promise<
         | { readonly kind: "drained"; readonly captured: readonly [string, string] }
         | ProcessEvent
@@ -317,6 +370,7 @@ async function runProcess(
       if (deadline !== null) drains.push(deadline);
       const drain = await Promise.race(drains);
       if (drain.kind === "drained") {
+        observer?.reporter.record({ t: "drained", role: observer.role });
         captured = drain.captured;
         if (deadlineAt !== null && Date.now() >= deadlineAt) {
           outcome = { kind: "timed-out" };
@@ -329,9 +383,15 @@ async function runProcess(
     const cancelledBy = cancellation.signal;
     const timedOut = cancelledBy === null && outcome.kind === "timed-out";
     if (cancelledBy !== null) {
-      if (await terminate(child, cancelledBy)) signalSent = cancelledBy;
+      const sent = await terminate(child, cancelledBy);
+      if (sent) signalSent = cancelledBy;
+      recordExit(await child.exited);
+      recordSettled(sent, "cancel");
     } else if (timedOut) {
-      if (await terminate(child)) signalSent = "SIGTERM";
+      const sent = await terminate(child);
+      if (sent) signalSent = "SIGTERM";
+      recordExit(await child.exited);
+      recordSettled(sent, "deadline");
     }
     if (captured === null) {
       await Promise.all([stdoutCapture.cancel(), stderrCapture.cancel()]);
@@ -607,6 +667,27 @@ export function validateOptions(options: RunnerOptions): void {
   ) {
     throw new UsageError("prompt, output, and receipt paths must be distinct");
   }
+  const progressPath = options.progressPath ?? null;
+  if (progressPath !== null) {
+    if (
+      progressPath === options.promptPath ||
+      progressPath === options.cwd ||
+      progressPath === options.outputPath ||
+      progressPath === options.receiptPath
+    ) {
+      throw new UsageError(
+        "progress path must differ from prompt, cwd, output, and receipt"
+      );
+    }
+    if (
+      progressPath.startsWith(`${options.outputPath}.`) ||
+      progressPath.startsWith(`${options.receiptPath}.`)
+    ) {
+      throw new UsageError(
+        "progress path must not collide with output or receipt sidecars"
+      );
+    }
+  }
 }
 
 interface LaneProgress {
@@ -624,7 +705,8 @@ async function executeLane(
   invocation: CommandSpec,
   preflight: CommandSpec | null,
   progress: LaneProgress,
-  antigravityCreated: AntigravityCreatedFiles | null
+  antigravityCreated: AntigravityCreatedFiles | null,
+  reporter: ProgressReporter
 ): Promise<RunResult> {
   const startedAt = new Date(started).toISOString();
   const rawPrompt = readFileSync(options.promptPath, "utf8");
@@ -784,7 +866,8 @@ async function executeLane(
       env,
       "",
       deadlineAt,
-      cancellation
+      cancellation,
+      { reporter, role: "preflight" }
     );
     let versionError: string | null = null;
     if (options.provider === "opencode") {
@@ -794,7 +877,7 @@ async function executeLane(
       if (versionError === null && preflightResult.cancelledBy === null && !preflightResult.timedOut) {
         activePreflight = preflight;
         progress.preflight = { ...progress.preflight, argv: [preflightExecutable, ...activePreflight.args] };
-        preflightResult = await runProcess(preflightExecutable, activePreflight, options.cwd, env, "", deadlineAt, cancellation);
+        preflightResult = await runProcess(preflightExecutable, activePreflight, options.cwd, env, "", deadlineAt, cancellation, { reporter, role: "preflight" });
       }
     }
     let rawPreflightEvidence = versionError ?? (options.provider === "opencode"
@@ -830,7 +913,9 @@ async function executeLane(
       };
       progress.preflight = preflightState;
 
+      reporter.record({ t: "retry-wait", on: true });
       const retryWait = await waitForGrokPreflightRetry(deadlineAt, cancellation);
+      reporter.record({ t: "retry-wait", on: false });
       if (retryWait !== "ready") {
         preflightState = {
           ...preflightState,
@@ -851,7 +936,8 @@ async function executeLane(
         env,
         "",
         deadlineAt,
-        cancellation
+        cancellation,
+        { reporter, role: "preflight" }
       );
       rawPreflightEvidence = evidence(`${preflightResult.stdout}\n${preflightResult.stderr}`);
       passed = preflightPassed(options.provider, options.model, preflightResult, apiKeyAuth);
@@ -976,7 +1062,8 @@ async function executeLane(
     env,
     options.provider === "antigravity" ? antigravityStdin(prompt, options.cwd, options.mode) : prompt,
     deadlineAt,
-    cancellation
+    cancellation,
+    { reporter, role: "workload" }
   );
   const completed = Date.now();
   const base = {
@@ -1208,6 +1295,8 @@ export async function runLane(
     modelStarted: false,
   };
   const cancellation = installRunCancellation();
+  let reporter: ProgressReporter = NO_PROGRESS;
+  let outcome: RunResult | null = null;
   let createdCursorConfig = false;
   let createdOpenCodeConfig = false;
   let devinConfigCreated = false;
@@ -1216,6 +1305,31 @@ export async function runLane(
   let antigravityCreated: AntigravityCreatedFiles | null = null;
   try {
     reserveOutputs(options);
+    const progressPath = options.progressPath ?? null;
+    if (progressPath !== null) {
+      let receiptRef: { dev: number; ino: number } | null = null;
+      try {
+        const stat = statSync(options.receiptPath);
+        receiptRef = { dev: stat.dev, ino: stat.ino };
+      } catch {
+        receiptRef = null;
+      }
+      reporter = openReporter(progressPath, {
+        provider: options.provider,
+        startedAt: started,
+        receiptRef,
+      });
+      if (cancellation.signal !== null) {
+        reporter.record({ t: "cancel-requested", signal: cancellation.signal });
+      }
+      const attached = reporter;
+      cancellation.promise.then((signal) => {
+        try {
+          attached.record({ t: "cancel-requested", signal });
+        } catch {
+        }
+      });
+    }
     try {
       if (options.provider === "devin") {
         writeFileSync(devinConfigPath(options), JSON.stringify(devinConfig(options)), {
@@ -1259,7 +1373,7 @@ export async function runLane(
         writeFileSync(`${directory}/cli-config.json`, JSON.stringify(cursorConfig(options.mode, cursorUserConfigPath(process.env, undefined, options.cwd))), { flag: "wx", mode: 0o600 });
       }
       if (options.provider === "antigravity") antigravityCreated = createAntigravityLaneFiles(options);
-      return await executeLane(
+      outcome = await executeLane(
         options,
         cancellation,
         started,
@@ -1267,8 +1381,10 @@ export async function runLane(
         invocation,
         preflight,
         progress,
-        antigravityCreated
+        antigravityCreated,
+        reporter
       );
+      return outcome;
     } catch (error) {
       const completed = Date.now();
       const signal = cancellation.signal;
@@ -1310,7 +1426,8 @@ export async function runLane(
       });
       removeIfExists(options.outputPath);
       writeReceipt(options.receiptPath, receipt);
-      return { exitCode: statusExitCode(status), receipt };
+      outcome = { exitCode: statusExitCode(status), receipt };
+      return outcome;
     }
   } finally {
     try {
@@ -1321,7 +1438,12 @@ export async function runLane(
       if (contractPromptCreated) removeIfExists(contractPromptPath(options));
       antigravityCreated?.cleanup();
     } finally {
-      cancellation.dispose();
+      try {
+        reporter.record({ t: "terminal", receiptWritten: outcome !== null });
+        reporter.close();
+      } finally {
+        cancellation.dispose();
+      }
     }
   }
 }
@@ -1333,5 +1455,9 @@ export function resolvedOptions(options: RunnerOptions): RunnerOptions {
     cwd: resolve(options.cwd),
     outputPath: resolve(options.outputPath),
     receiptPath: resolve(options.receiptPath),
+    progressPath:
+      options.progressPath === null || options.progressPath === undefined
+        ? null
+        : resolve(options.progressPath),
   };
 }

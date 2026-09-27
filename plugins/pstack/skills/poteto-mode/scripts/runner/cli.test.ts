@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import { join } from "node:path";
-import { parseArgs } from "./cli.ts";
+import { main, parseArgs } from "./cli.ts";
 
 function argv(extra: readonly string[] = []): string[] {
   return [
@@ -54,5 +54,55 @@ describe("runner --api-spend flag", () => {
 
   it("rejects an unrecognized spend mode", () => {
     expect(() => parseArgs(argv(["--api-spend", "maybe"]))).toThrow("api-spend");
+  });
+});
+
+describe("runner --progress flag", () => {
+  it("leaves progress unset by default", () => {
+    expect(parseArgs(argv())?.progressPath).toBeNull();
+  });
+
+  it("resolves an explicit progress path", () => {
+    expect(
+      parseArgs(argv(["--progress", "lane.progress.json"]))?.progressPath
+    ).toBe(join(process.cwd(), "lane.progress.json"));
+  });
+});
+
+describe("runner status subcommand", () => {
+  const io = () => {
+    const captured = {
+      out: "",
+      err: "",
+      stdout: (value: string) => {
+        captured.out += value;
+      },
+      stderr: (value: string) => {
+        captured.err += value;
+      },
+    };
+    return captured;
+  };
+
+  it("routes status before the strict run-lane parser", async () => {
+    const captured = io();
+    const code = await main(
+      ["status", "--progress", "missing.progress.json", "--receipt", "missing.receipt.json"],
+      0,
+      captured
+    );
+    expect(code).toBe(0);
+    expect(captured.out).toContain("L1 unknown:");
+  });
+
+  it("rejects unpaired progress and receipt arguments", async () => {
+    const captured = io();
+    const code = await main(
+      ["status", "--progress", "only.progress.json"],
+      0,
+      captured
+    );
+    expect(code).toBe(64);
+    expect(captured.err).toContain("--progress");
   });
 });
