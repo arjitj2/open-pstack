@@ -172,6 +172,7 @@ export function childEnvironment(
     ? CLAUDE_IDENTITY
     : [...CODEX_IDENTITY, ...CLAUDE_IDENTITY];
   for (const key of remove) delete result[key];
+  if (provider === "devin") delete result.DEVIN_REFUSAL_FALLBACK;
   return result;
 }
 

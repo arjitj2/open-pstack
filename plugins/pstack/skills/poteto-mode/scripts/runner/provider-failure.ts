@@ -1,5 +1,6 @@
 import { parseOpenCodeTranscript } from "./opencode.ts";
 import type { Provider, ToolDenial } from "./types.ts";
+import { assessCodexTranscript, codexTerminalEvent, type CodexTerminal } from "./codex.ts";
 import { antigravityEvents, antigravitySuccessfulResult } from "./antigravity.ts";
 
 type JsonObject = Record<string, unknown>;
@@ -149,38 +150,6 @@ function isCodexQuotaMessage(message: string): boolean {
   );
 }
 
-interface CodexTerminal {
-  readonly kind: "failed" | "completed";
-  readonly message: string | null;
-  readonly event: JsonObject;
-}
-
-// The last terminal event in a Codex exec stream decides the outcome: a
-// turn.completed after an earlier error means the turn recovered, and item
-// events (including agent_message text) are generated content, never errors.
-function codexTerminalEvent(events: readonly JsonObject[]): CodexTerminal | null {
-  let terminal: CodexTerminal | null = null;
-  for (const event of events) {
-    if (event.type === "turn.failed") {
-      const error = object(event.error);
-      terminal = {
-        kind: "failed",
-        message: typeof error?.message === "string" ? error.message : null,
-        event,
-      };
-    } else if (event.type === "error") {
-      terminal = {
-        kind: "failed",
-        message: typeof event.message === "string" ? event.message : null,
-        event,
-      };
-    } else if (event.type === "turn.completed") {
-      terminal = { kind: "completed", message: null, event };
-    }
-  }
-  return terminal;
-}
-
 // The backend `subscription:free-usage-exhausted` code maps uniquely to this
 // message; the terminal error shape is {type:"result",
 // subtype:"error_during_execution", is_error:true, errors:[message]}.
@@ -279,17 +248,15 @@ const codexAdapter: QuotaAdapter = {
       const terminal = codexTerminalEvent([event]);
       return terminal === null ? UNKNOWN : classifyCodexTerminal(terminal);
     }
-    const terminal = codexTerminalEvent(jsonObjects(outcome.stdout));
+    const terminal = assessCodexTranscript(outcome.stdout).terminal;
     return terminal === null ? UNKNOWN : classifyCodexTerminal(terminal);
   },
   succeeded(outcome) {
-    const events =
-      outcome.terminalEnvelope !== undefined
-        ? [object(outcome.terminalEnvelope)].filter(
-            (event): event is JsonObject => event !== null
-          )
-        : jsonObjects(outcome.stdout);
-    return codexTerminalEvent(events)?.kind === "completed";
+    if (outcome.terminalEnvelope !== undefined) {
+      const event = object(outcome.terminalEnvelope);
+      return event !== null && codexTerminalEvent([event])?.kind === "completed";
+    }
+    return assessCodexTranscript(outcome.stdout).terminal?.kind === "completed";
   },
 };
 

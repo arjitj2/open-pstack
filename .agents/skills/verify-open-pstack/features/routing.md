@@ -6,6 +6,8 @@ Users inspect how a saved role resolves, while the parent owns execution and any
 
 - `routing-resolve`: read the configured lane chains without dispatch.
 - `claude-primary-model`: verify the main Claude assistant model independently of helper usage.
+- `codex-completion`: require completed final-turn output while preserving protocol success as a replay veto.
+- `devin-refusal-fallback`: exclude inherited provider-side fallback from an assigned Devin lane.
 - `routing-live`: observe the exact approved descriptor and terminal outcome in a parent workflow.
 - `routing-recovery`: verify saved fallback transitions with authentic terminal evidence.
 
@@ -35,6 +37,22 @@ For a change to Claude output parsing, install the candidate in both parents and
 Expect `stream-json` and `--verbose` in argv, `modelVerified: true`, and `modelEvidence: "provider-report"`. The reported model must come from main assistant events. A real probe establishes execution; a synthetic stream fixture establishes rejection behavior. Keep those claims separate.
 
 From each installed parent, run the [synthetic boundary checks](../../../../tests/claude-primary-model/verify-fixtures.py) with `--runner` pointing at that parent's installed runner, `--parent` matching the parent, and a fresh `--evidence` directory. The fixture covers valid primary plus helper usage, requested model used only by a helper, usage-only output, and conflicting primary models. Rejected cases must leave no output file and preserve the terminal-success veto against replay. Failure receipts must omit the private transcript marker.
+
+### Codex completion evidence
+
+For a change to Codex transcript assessment, install the exact candidate in both parents. From an installed Claude Code parent, dispatch an external `codex:*` lane through the shipped runner with a read-only marker task; retain the parent invocation, runner receipt, and an independent output-file check. From an installed Codex parent, verify skill discovery and dispatch a marker task through the native route for an approved `codex:*` descriptor — Codex-to-Codex dispatches through `spawn_agent` and never executes the external adapter, so do not bypass that rule or induce an external Codex call.
+
+From each installed candidate, run the Codex runner regressions against the installed tree (`runner/codex.test.ts` and the `codex output acceptance and terminal veto` rows in `runner/run.test.ts`). The shared synthetic corpus proves acceptance versus the no-replay veto at the CLI boundary: item-only streams reject without completion evidence. A later unfinished turn rejects output while an earlier completed terminal still vetoes replay. Malformed lines preserve their precedence over typed quota failures. These fixtures prove parser behavior, not live provider execution; keep the claims separate and do not count them as the live adapter proof.
+
+### Devin refusal-fallback isolation
+
+Install the exact candidate in isolated Codex and Claude Code sessions. In each parent, invoke `pstack:setup-pstack` for the selected Devin availability probe only. Retain the frozen approved model sheet and use its model, effort, and API-spend policy. Do not save a new sheet.
+
+Set `DEVIN_REFUSAL_FALLBACK` to a synthetic value in the test parent's environment. Put a transparent recorder before the real Devin executable on that session's `PATH`. The recorder must abort before invoking Devin if the variable reaches it. Otherwise, record only the variable's absence, the requested model argument, and the temporary permission configuration, then forward the original arguments and environment to the real executable. Do not record credentials or the full environment.
+
+Have the parent launch the installed runner without unsetting the synthetic variable. Ask the read-only worker to return a unique marker from a file, then independently compare the output with that file. Retain the parent skill invocation, installed-tree identity, boundary records, receipt, and output. Expect the control to be absent from preflight and workload, the assigned model to remain pinned, and the permission configuration to retain its deny rules. Devin receipts must still report `modelEvidence: "pinned-argv"`, `modelVerified: false`, and the saved API-spend policy.
+
+Run the Devin Bun regressions for absent, blank, and nonblank controls, unchanged parent input, and descendant inheritance at the synthetic executable boundary. Capture `devin --version` and `devin acp --help` to confirm the current CLI's fallback contract. These synthetic tests prove environment propagation. The real marker probe proves ordinary execution from each installed parent. Neither requires inducing a refusal or executing a backup model.
 
 ## Gotchas
 
