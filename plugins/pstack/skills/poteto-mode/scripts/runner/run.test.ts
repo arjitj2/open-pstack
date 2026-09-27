@@ -208,6 +208,8 @@ if (name === "claude" && stage === "model" && process.env.FAKE_CLAUDE_STREAM) {
   console.log(JSON.stringify({type:"system",subtype:"init",session_id:"c1",model}));
   console.log(JSON.stringify({type:"assistant",session_id:"c1",parent_tool_use_id:null,message:{role:"assistant",model:reportedModel,content:[{type:"text",text:"CLAUDE_OK"}]}}));
   console.log(JSON.stringify({type:"result",subtype:"success",is_error:false,result:"CLAUDE_OK",session_id:"c1",usage:{input_tokens:10,output_tokens:2},total_cost_usd:0.01,modelUsage:{[reportedModel]:{}}}));
+} else if (name === "codex" && process.env.FAKE_CODEX_STDOUT !== undefined) {
+  process.stdout.write(process.env.FAKE_CODEX_STDOUT);
 } else if (name === "codex") {
   console.log(JSON.stringify({type:"thread.started",thread_id:"o1"}));
   console.log(JSON.stringify({type:"item.completed",item:{type:"agent_message",text:"CODEX_OK"}}));
@@ -354,6 +356,7 @@ beforeEach(() => {
   delete process.env.FAKE_CODEX_TURN_FAILED_EXIT;
   delete process.env.FAKE_CODEX_AGENT_MESSAGE;
   delete process.env.FAKE_CODEX_RECOVERED_ERROR;
+  delete process.env.FAKE_CODEX_STDOUT;
   delete process.env.FAKE_GROK_FREE_USAGE;
   delete process.env.FAKE_GROK_FREE_USAGE_EXIT;
   delete process.env.FAKE_CURSOR_EXIT;
@@ -415,6 +418,7 @@ afterEach(() => {
   delete process.env.FAKE_CODEX_TURN_FAILED_EXIT;
   delete process.env.FAKE_CODEX_AGENT_MESSAGE;
   delete process.env.FAKE_CODEX_RECOVERED_ERROR;
+  delete process.env.FAKE_CODEX_STDOUT;
   delete process.env.FAKE_GROK_FREE_USAGE;
   delete process.env.FAKE_GROK_FREE_USAGE_EXIT;
   delete process.env.FAKE_CURSOR_EXIT;
@@ -1465,6 +1469,123 @@ describe("backend-recovery receipt evidence", () => {
       model: unreadable.model,
       effort: unreadable.effort,
       mode: unreadable.mode,
+      apiSpend: "unset",
+    });
+    expect(event.status).toBe("failed");
+  });
+});
+
+describe("codex output acceptance and terminal veto", () => {
+  const codexStream = (...events: Record<string, unknown>[]) =>
+    events.map((event) => JSON.stringify(event)).join("\n");
+  const codexMessage = (text: string) => ({
+    type: "item.completed",
+    item: { type: "agent_message", text },
+  });
+  const codexDone = (usage?: Record<string, unknown>) => ({
+    type: "turn.completed",
+    ...(usage === undefined ? {} : { usage }),
+  });
+
+  it("rejects an item-only codex stream without terminal completion evidence", async () => {
+    process.env.FAKE_CODEX_STDOUT = codexStream(codexMessage("unfinished-answer"));
+    const input = options("codex", "codex-item-only");
+    const result = await runLane(input);
+    expect(result.receipt.status).toBe("malformed-output");
+    expect(result.receipt.failurePhase).toBe("postprocess");
+    expect(result.receipt.terminalSuccess).toBe(false);
+    expect(existsSync(input.outputPath)).toBe(false);
+    const event = normalizeReceiptEvent(result.receipt, {
+      parent: input.parent,
+      provider: input.provider,
+      model: input.model,
+      effort: input.effort,
+      mode: input.mode,
+      apiSpend: "unset",
+    });
+    expect(event.status).toBe("terminal-failure");
+  });
+
+  it("keeps the completed-terminal veto when a later turn is unfinished", async () => {
+    process.env.FAKE_CODEX_STDOUT = codexStream(
+      { type: "turn.started" },
+      codexMessage("A"),
+      codexDone(),
+      { type: "turn.started" },
+      codexMessage("B")
+    );
+    const input = options("codex", "codex-later-unfinished");
+    const result = await runLane(input);
+    expect(result.receipt.status).toBe("malformed-output");
+    expect(result.receipt.terminalSuccess).toBe(true);
+    expect(existsSync(input.outputPath)).toBe(false);
+    const event = normalizeReceiptEvent(result.receipt, {
+      parent: input.parent,
+      provider: input.provider,
+      model: input.model,
+      effort: input.effort,
+      mode: input.mode,
+      apiSpend: "unset",
+    });
+    expect(event.status).toBe("failed");
+  });
+
+  it("keeps malformed-first precedence over a zero-exit quota failure", async () => {
+    process.env.FAKE_CODEX_STDOUT =
+      "garbage\n" +
+      codexStream({
+        type: "turn.failed",
+        error: { message: "You've hit your usage limit. Visit https://chatgpt.com/codex/settings/usage to purchase more credits or try again later." },
+      });
+    const input = options("codex", "codex-malformed-quota");
+    const result = await runLane(input);
+    expect(result.receipt.status).toBe("malformed-output");
+    expect(result.receipt.failurePhase).toBe("postprocess");
+    expect(result.receipt.terminalSuccess).toBe(false);
+    expect(existsSync(input.outputPath)).toBe(false);
+  });
+
+  it("publishes recovered codex text with final-turn usage and pinned-argv model", async () => {
+    process.env.FAKE_CODEX_STDOUT = codexStream(
+      { type: "error", message: "stream error: reconnecting" },
+      { type: "thread.started", thread_id: "t-recovered" },
+      { type: "turn.started" },
+      codexMessage("RECOVERED_OK"),
+      codexDone({ input_tokens: 11, output_tokens: 4 })
+    );
+    const input = options("codex", "codex-recovered");
+    const result = await runLane(input);
+    expect(result.receipt.status).toBe("complete");
+    expect(readFileSync(input.outputPath, "utf8")).toBe("RECOVERED_OK");
+    expect(receipt(input.receiptPath)).toMatchObject({
+      status: "complete",
+      provider: "codex",
+      model: "gpt-5.6-sol",
+      reportedModel: null,
+      modelVerified: false,
+      modelEvidence: "pinned-argv",
+      sessionId: "t-recovered",
+      usage: { inputTokens: 11, outputTokens: 4 },
+    });
+  });
+
+  it("vetoes replay when the final agent message is empty", async () => {
+    process.env.FAKE_CODEX_STDOUT = codexStream(
+      codexMessage("A"),
+      codexMessage(""),
+      codexDone()
+    );
+    const input = options("codex", "codex-empty-final");
+    const result = await runLane(input);
+    expect(result.receipt.status).toBe("malformed-output");
+    expect(result.receipt.terminalSuccess).toBe(true);
+    expect(existsSync(input.outputPath)).toBe(false);
+    const event = normalizeReceiptEvent(result.receipt, {
+      parent: input.parent,
+      provider: input.provider,
+      model: input.model,
+      effort: input.effort,
+      mode: input.mode,
       apiSpend: "unset",
     });
     expect(event.status).toBe("failed");
