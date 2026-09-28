@@ -14,7 +14,7 @@ import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 import { childEnvironment, runLane } from "./run.ts";
 import { main } from "./cli.ts";
-import { decodeSnapshot, type SnapshotV1 } from "./progress.ts";
+import { decodeSnapshot, statusMain, type SnapshotV1 } from "./progress.ts";
 import { nextAttempt, type LanePolicy } from "../model-policy/model-policy.ts";
 import { normalizeReceiptEvent } from "../model-policy/receipt-event.ts";
 import type { Provider, ReceiptStatus, RunnerOptions, RunnerReceipt } from "./types.ts";
@@ -2540,6 +2540,22 @@ describe("worker progress", () => {
     }
   });
 
+  it("marks strict rejection terminal without launching or changing recovery", async () => {
+    const input = { ...progressOptions("claude", "strict-progress"), contract: "strict" as const };
+    const result = await runLane(input);
+    expect(result.receipt.status).toBe("unsupported-capability");
+    expect(result.receipt.processStarted).toBe(false);
+    expect(result.receipt.argv).toEqual([]);
+    expect(readSnapshot(input.progressPath!).terminal?.receiptWritten).toBe(true);
+    const io = statusIO();
+    expect(statusMain(["--progress", input.progressPath!, "--receipt", input.receiptPath], io.io)).toBe(0);
+    expect(io.out).toContain("terminal unsupported-capability (from receipt)");
+    expect(normalizeReceiptEvent(result.receipt, {
+      parent: input.parent, provider: input.provider, model: input.model,
+      effort: input.effort, mode: input.mode, apiSpend: "unset",
+    }).status).toBe("failed");
+  });
+
   const PROGRESS_CANARY = "PROGRESS_CANARY_PROMPT_OR_STREAM_TEXT";
 
   function progressOptions(provider: Provider, suffix: string): RunnerOptions {
@@ -2594,6 +2610,8 @@ describe("worker progress", () => {
     delete copy.outputPath;
     delete copy.receiptPath;
     delete copy.promptPath;
+    delete copy.executionId;
+    delete copy.canonicalPaths;
     return copy;
   }
 

@@ -608,3 +608,20 @@ describe("independent review regressions", () => {
     expect(Date.now() - started).toBeLessThan(5_000);
   });
 });
+
+
+describe("worker contract receipt integration", () => {
+  it("shows new terminal statuses without exposing handoffs or denial evidence", () => {
+    for (const status of ["needs-parent-operation", "child-failed", "unsupported-capability"]) {
+      const path = writeSnapshot(baseState());
+      const receipt = join(scratch, "contract.receipt.json");
+      writeFileSync(receipt, JSON.stringify({ schemaVersion: 2, status,
+        handoff: { summary: CANARY, files: [CANARY] }, error: { evidence: CANARY } }));
+      let out = "";
+      statusMain(["--progress", path, "--receipt", receipt, "--json"],
+        { stdout: value => { out += value; }, stderr: () => {} });
+      expect(JSON.parse(out).lanes[0]).toMatchObject({ kind: "terminal", status });
+      expect(out).not.toContain(CANARY);
+    }
+  });
+});

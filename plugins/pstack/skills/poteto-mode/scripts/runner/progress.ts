@@ -624,7 +624,7 @@ function readReceiptStatus(receiptPath: string, ref: { dev: number; ino: number 
   if (file.kind !== "ok") return { status: null, exists: file.kind !== "missing" };
   try {
     const parsed: unknown = JSON.parse(file.text);
-    if (isObject(parsed) && parsed.schemaVersion === 1 && oneOfStrings(parsed.status, RECEIPT_STATUSES)) {
+    if (isObject(parsed) && (parsed.schemaVersion === 1 || parsed.schemaVersion === 2) && oneOfStrings(parsed.status, RECEIPT_STATUSES)) {
       return { status: parsed.status as ReceiptStatus, exists: true };
     }
   } catch {}

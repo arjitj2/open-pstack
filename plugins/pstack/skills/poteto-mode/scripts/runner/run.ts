@@ -124,6 +124,20 @@ function reserveOutputs(options: RunnerOptions): void {
   }
 }
 
+function openLaneReporter(options: RunnerOptions, started: number): ProgressReporter {
+  if (options.progressPath == null) return NO_PROGRESS;
+  try {
+    const stat = statSync(options.receiptPath);
+    return openReporter(options.progressPath, {
+      provider: options.provider,
+      startedAt: started,
+      receiptRef: { dev: stat.dev, ino: stat.ino },
+    });
+  } catch {
+    return NO_PROGRESS;
+  }
+}
+
 function writeReceipt(path: string, receipt: RunnerReceipt): void {
   writeFileSync(path, `${JSON.stringify(receipt, null, 2)}\n`, {
     encoding: "utf8",
@@ -1274,6 +1288,9 @@ export async function runLane(
     });
     removeIfExists(options.outputPath);
     writeReceipt(options.receiptPath, receipt);
+    const reporter = openLaneReporter(options, started);
+    reporter.record({ t: "terminal", receiptWritten: true });
+    reporter.close();
     return { exitCode: statusExitCode(receipt.status), receipt };
   }
   const deadlineAt = options.timeoutMs === null ? null : started + options.timeoutMs;
@@ -1306,18 +1323,7 @@ export async function runLane(
     reserveOutputs(options);
     const progressPath = options.progressPath ?? null;
     if (progressPath !== null) {
-      let receiptRef: { dev: number; ino: number } | null = null;
-      try {
-        const stat = statSync(options.receiptPath);
-        receiptRef = { dev: stat.dev, ino: stat.ino };
-      } catch {
-        receiptRef = null;
-      }
-      reporter = openReporter(progressPath, {
-        provider: options.provider,
-        startedAt: started,
-        receiptRef,
-      });
+      reporter = openLaneReporter(options, started);
       if (cancellation.signal !== null) {
         reporter.record({ t: "cancel-requested", signal: cancellation.signal });
       }
