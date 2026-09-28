@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it, spyOn } from "bun:test";
 import {
   chmodSync,
   symlinkSync,
@@ -27,6 +27,7 @@ import {
   reduce,
   renderLane,
   statusMain,
+  type ReporterDeps,
   type ProbeResult,
   type ProcessProbe,
   type ProgressEvent,
@@ -198,13 +199,13 @@ describe("snapshot codec", () => {
 });
 
 describe("progress reporter", () => {
-  function open(path: string): ReturnType<typeof openReporter> {
+  function open(path: string, deps: ReporterDeps = {}): ReturnType<typeof openReporter> {
     writeFileSync(path, "", { flag: "wx", mode: 0o600 });
     return openReporter(path, {
       provider: "codex",
       startedAt: Date.now(),
       receiptRef: null,
-    }, { activityFlushMs: 20 });
+    }, { activityFlushMs: 20, ...deps });
   }
 
   function readSnapshotFile(path: string): SnapshotV1 {
@@ -223,19 +224,97 @@ describe("progress reporter", () => {
     reporter.close();
   });
 
-  it("coalesces a byte burst into bounded writes and still lands the trailing flush", async () => {
+  function stubPs(tokenFor: (pid: string) => string | null) {
+    const spawn = Bun.spawn;
+    return spyOn(Bun, "spawn").mockImplementation(((...args: Parameters<typeof Bun.spawn>) => {
+      const command = args[0];
+      if (!Array.isArray(command) || command[0] !== "ps") return spawn(...args);
+      const token = tokenFor(String(command[2]));
+      return {
+        stdout: new ReadableStream<Uint8Array>({
+          start(controller) {
+            if (token !== null) controller.enqueue(new TextEncoder().encode(token));
+            controller.close();
+          },
+        }),
+        exited: Promise.resolve(token === null ? 1 : 0),
+        exitCode: token === null ? 1 : 0,
+        unref() {},
+        kill() {},
+      } as ReturnType<typeof Bun.spawn>;
+    }) as typeof Bun.spawn);
+  }
+
+  async function waitForSnapshot(
+    path: string,
+    predicate: (snapshot: SnapshotV1) => boolean
+  ): Promise<SnapshotV1> {
+    const deadline = Date.now() + 2_000;
+    do {
+      const snapshot = readSnapshotFile(path);
+      if (predicate(snapshot)) return snapshot;
+      await Bun.sleep(5);
+    } while (Date.now() < deadline);
+    throw new Error("progress snapshot did not reach the expected state");
+  }
+
+  it("coalesces a byte burst into one trailing activity write", async () => {
+    const ps = stubPs(() => null);
     const path = progressPath();
-    const reporter = open(path);
-    reporter.record({ t: "spawned", role: "workload", pid: 1, startToken: null });
-    const beforeBurst = readSnapshotFile(path).seq;
-    for (let index = 0; index < 1_000; index += 1) {
-      reporter.record({ t: "bytes", stream: "stdout", n: 10 });
+    let now = 100_000;
+    const reporter = open(path, { now: () => now });
+    try {
+      reporter.record({ t: "spawned", role: "workload", pid: 1, startToken: null });
+      const beforeBurst = readSnapshotFile(path);
+      for (let index = 0; index < 1_000; index += 1) {
+        reporter.record({ t: "bytes", stream: "stdout", n: 10 });
+      }
+      expect(readSnapshotFile(path).seq).toBe(beforeBurst.seq);
+      const after = await waitForSnapshot(path, (s) => s.activity.stdoutBytes === 10_000);
+      expect(after.seq - beforeBurst.seq).toBe(1);
+      expect(after.activity.stdoutBytes).toBe(10_000);
+      expect(after.runner.startToken).toBeNull();
+      expect(after.child?.startToken).toBeNull();
+
+      now += 20;
+      reporter.record({ t: "bytes", stream: "stderr", n: 7 });
+      const immediate = readSnapshotFile(path);
+      expect(immediate.seq).toBe(after.seq + 1);
+      expect(immediate.activity.stderrBytes).toBe(7);
+      reporter.record({ t: "bytes", stream: "stdout", n: 5 });
+      expect(readSnapshotFile(path).seq).toBe(immediate.seq);
+      const trailing = await waitForSnapshot(path, (s) => s.activity.stdoutBytes === 10_005);
+      expect(trailing.seq).toBe(immediate.seq + 1);
+      expect(trailing.activity.stderrBytes).toBe(7);
+    } finally {
+      reporter.close();
+      ps.mockRestore();
     }
-    await Bun.sleep(60);
-    const after = readSnapshotFile(path);
-    expect(after.seq - beforeBurst).toBeLessThanOrEqual(2);
-    expect(after.activity.stdoutBytes).toBe(10_000);
-    reporter.close();
+  });
+
+  it("publishes both identities while preserving pending byte activity", async () => {
+    const ps = stubPs((pid) => `fixture-${pid}`);
+    const path = progressPath();
+    const reporter = open(path, { now: () => 100_000, activityFlushMs: 10_000 });
+    try {
+      reporter.record({ t: "spawned", role: "workload", pid: 123, startToken: null });
+      const before = readSnapshotFile(path);
+      expect(before.runner.startToken).toBeNull();
+      expect(before.child?.startToken).toBeNull();
+      reporter.record({ t: "bytes", stream: "stdout", n: 10_000 });
+      expect(readSnapshotFile(path).seq).toBe(before.seq);
+      const after = await waitForSnapshot(path, (s) =>
+        s.runner.startToken !== null && s.child?.startToken !== null
+      );
+      expect(after.runner.startToken).toBe(`fixture-${process.pid}`);
+      expect(after.child?.startToken).toBe("fixture-123");
+      expect(after.seq - before.seq).toBe(2);
+      expect(after.activity.stdoutBytes).toBe(10_000);
+      expect(after.child?.running).toBe(true);
+    } finally {
+      reporter.close();
+      ps.mockRestore();
+    }
   });
 
   it("flushes transitions immediately", () => {
