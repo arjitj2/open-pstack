@@ -1,4 +1,5 @@
 import { parseOpenCodeTranscript } from "./opencode.ts";
+import { isAbsolute } from "node:path";
 import type {
   NormalizedUsage,
   ParsedOutput,
@@ -31,6 +32,34 @@ function finiteNumber(value: unknown): number | undefined {
 
 function nullableString(value: unknown): string | null {
   return typeof value === "string" && value.length > 0 ? value : null;
+}
+
+function devinAtifWriteDenied(exported: JsonObject): boolean {
+  const steps = exported.steps;
+  if (!Array.isArray(steps) || steps.length === 0) return false;
+  const earlierFinal = steps.slice(0, -1).some((entry) => {
+    const step = object(entry);
+    const calls = step?.tool_calls;
+    return step?.source === "agent" &&
+      typeof step.message === "string" && step.message.trim().length > 0 &&
+      (calls === undefined || (Array.isArray(calls) && calls.length === 0));
+  });
+  if (earlierFinal) return false;
+  const last = object(steps.at(-1));
+  if (last?.source !== "agent" || last.message !== "" ||
+      !Array.isArray(last.tool_calls) || last.tool_calls.length !== 1) return false;
+  const call = object(last.tool_calls[0]);
+  const args = object(call?.arguments);
+  const path = args?.file_path;
+  if (call?.function_name !== "write" || typeof call.tool_call_id !== "string" ||
+      !call.tool_call_id || typeof path !== "string" || !isAbsolute(path) ||
+      typeof args?.content !== "string" ||
+      Object.keys(args).sort().join(",") !== "content,file_path") return false;
+  const results = object(last.observation)?.results;
+  if (!Array.isArray(results) || results.length !== 1) return false;
+  const result = object(results[0]);
+  return result?.source_call_id === call.tool_call_id &&
+    result.content === `Write access to '${path}' was denied. The user needs to grant write permission for this directory — ask them to approve the write access request or add the directory to the workspace.`;
 }
 
 function normalizedUsage(value: unknown): NormalizedUsage | null {
@@ -330,6 +359,14 @@ export function parseProviderOutput(
       }
       if (exported?.schema_version !== "ATIF-v1.7" || !Array.isArray(exported.steps)) {
         throw new OutputValidationError("devin export has an unsupported schema");
+      }
+      if (devinAtifWriteDenied(exported)) {
+        throw new ProviderToolDeniedError(
+          "devin", "devin denied a direct write in non-interactive mode", null,
+          { verified: true, cause: "permission", tool: "write", requestedAction: null,
+            evidence: "devin_atif_write_permission_denied" },
+          "malformed-output"
+        );
       }
       const last = object(exported.steps.at(-1));
       const calls = last?.tool_calls;

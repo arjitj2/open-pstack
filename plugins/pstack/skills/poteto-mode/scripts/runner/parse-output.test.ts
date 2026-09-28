@@ -515,6 +515,49 @@ describe("structured provider terminal errors", () => {
 });
 
 describe("provider-owned tool denial evidence", () => {
+  it("accepts only Devin's final bound write-denial observation", () => {
+    const path = "/tmp/recovery.txt";
+    const denial = `Write access to '${path}' was denied. The user needs to grant write permission for this directory — ask them to approve the write access request or add the directory to the workspace.`;
+    const step = {
+      source: "agent", message: "", tool_calls: [{
+        tool_call_id: "call-1", function_name: "write",
+        arguments: { file_path: path, content: "recovered\n" },
+      }],
+      observation: { results: [{ source_call_id: "call-1", content: denial }] },
+    };
+    const exported = { schema_version: "ATIF-v1.7", steps: [
+      { source: "agent", message: "Working", tool_calls: [{ function_name: "exec" }] }, step,
+    ] };
+    const parse = (value: unknown) => parseProviderOutput("devin", JSON.stringify(value), "", "swe-2");
+    try {
+      parse(exported);
+      throw new Error("expected a denial");
+    } catch (error) {
+      expect(error).toBeInstanceOf(ProviderToolDeniedError);
+      const typed = error as ProviderToolDeniedError;
+      expect(typed.denial).toEqual({
+        verified: true, cause: "permission", tool: "write", requestedAction: null,
+        evidence: "devin_atif_write_permission_denied",
+      });
+      expect(typed.receiptStatus).toBe("malformed-output");
+    }
+    for (const changed of [
+      { ...step, tool_calls: [{ ...step.tool_calls[0], function_name: "exec" }] },
+      { ...step, tool_calls: [{ ...step.tool_calls[0], tool_call_id: "other" }] },
+      { ...step, tool_calls: [{ ...step.tool_calls[0], arguments: { file_path: "/tmp/other.txt", content: "recovered\n" } }] },
+      { ...step, tool_calls: [...step.tool_calls, step.tool_calls[0]] },
+      { ...step, observation: { results: [...step.observation.results, step.observation.results[0]] } },
+      { ...step, observation: { results: [{ source_call_id: "call-1", content: "permission denied" }] } },
+    ]) {
+      expect(() => parse({ ...exported, steps: [changed] })).not.toThrow(ProviderToolDeniedError);
+    }
+    expect(parse({ ...exported, steps: [{ source: "agent", message: denial, tool_calls: [] }] }).text).toBe(denial);
+    expect(() => parse({ ...exported, steps: [
+      { source: "agent", message: "DONE", tool_calls: [] }, step,
+    ] })).not.toThrow(ProviderToolDeniedError);
+    expect(parse({ ...exported, steps: [step, { source: "agent", message: "DONE", tool_calls: [] }] }).text).toBe("DONE");
+  });
+
   it("classifies Devin's headless rejection frame as verified denial evidence", () => {
     const stderr =
       "warning: rejected a tool call that requires confirmation. Running in non-interactive mode. Use --permission-mode dangerous to auto-approve all tools.";

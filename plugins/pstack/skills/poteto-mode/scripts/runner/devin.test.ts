@@ -305,6 +305,36 @@ describe("Devin external provider", () => {
     expect(existsSync(input.outputPath)).toBe(false);
   });
 
+  it("normalizes an ATIF write denial without persisting its path or content", async () => {
+    const filePath = join(scratch, "CANARY_DENIED_PATH.txt");
+    const exported = { schema_version: "ATIF-v1.7", steps: [{
+      source: "agent", message: "", tool_calls: [{
+        tool_call_id: "call-1", function_name: "write",
+        arguments: { file_path: filePath, content: "CANARY_DENIED_CONTENT" },
+      }],
+      observation: { results: [{
+        source_call_id: "call-1",
+        content: `Write access to '${filePath}' was denied. The user needs to grant write permission for this directory — ask them to approve the write access request or add the directory to the workspace.`,
+      }] },
+    }] };
+    fakeDevin("I am making the requested direct write.", 0, "Logged in (via Devin).", "", exported);
+    const input = { ...options, mode: "isolated-write" as const };
+    const result = await runLane(input);
+    expect(result.receipt.status).toBe("malformed-output");
+    expect(result.receipt.terminalSuccess).toBe(false);
+    expect(result.receipt.toolDenial).toMatchObject({
+      verified: true, cause: "permission", tool: "write",
+      evidence: "devin_atif_write_permission_denied",
+    });
+    const serialized = readFileSync(input.receiptPath, "utf8");
+    expect(serialized).not.toContain("CANARY_DENIED_PATH");
+    expect(serialized).not.toContain("CANARY_DENIED_CONTENT");
+    expect(normalizeReceiptEvent(result.receipt, {
+      parent: input.parent, provider: input.provider, model: input.model,
+      effort: input.effort, mode: input.mode, apiSpend: "unset",
+    }).status).toBe("permission-blocked");
+  });
+
   for (const [name, exported] of [
     ["progress before rejected tools", transcript("I'll attempt both writes now.", [{ function_name: "write" }])],
     ["tool-only turn", transcript("", [{ function_name: "exec" }])],
