@@ -24,37 +24,37 @@ Native and external workers now receive the same parent-owned Git and handoff in
 
 ## 1.8.5 bounds failure-receipt diagnostics
 
-Cursor baseline: [0.15.5](https://github.com/cursor/plugins/tree/12d587dfb20741cafc376c42c696c5f6e2a64487/pstack). [PR #68](https://github.com/arjitj2/open-pstack/pull/68).
+Cursor baseline: [0.15.5](https://github.com/cursor/plugins/tree/12d587dfb20741cafc376c42c696c5f6e2a64487/pstack). [PR #68](https://github.com/arjitj2/open-pstack/pull/68). Tag [v1.8.5](https://github.com/arjitj2/open-pstack/releases/tag/v1.8.5).
 
-Failure receipts persist a bounded provider-aware diagnostic instead of truncated raw output: launcher notes, canonical quota codes, selected terminal fields and structural capture counts. Prompts, reasoning, tool IO, narration, unknown envelope fields, and arbitrary stderr stay transient. Routing, quota, timeout, cancellation, and cleanup semantics are unchanged.
+Failure receipts persist a bounded provider-aware diagnostic instead of truncated raw output: launcher notes, canonical quota codes, selected terminal fields and structural capture counts. Intermediate prompts, reasoning, tool IO, narration, unknown envelope fields, and arbitrary stderr are excluded from persisted diagnostics. Retained terminal result or error text can still quote task content. Routing, quota, timeout, cancellation, and cleanup semantics are unchanged.
 
 ## 1.8.4 requires Codex final-turn completion
 
-Cursor baseline: [0.15.5](https://github.com/cursor/plugins/tree/12d587dfb20741cafc376c42c696c5f6e2a64487/pstack). [Issue #51](https://github.com/arjitj2/open-pstack/pull/58).
+Cursor baseline: [0.15.5](https://github.com/cursor/plugins/tree/12d587dfb20741cafc376c42c696c5f6e2a64487/pstack). [PR #58](https://github.com/arjitj2/open-pstack/pull/58). Tag [v1.8.4](https://github.com/arjitj2/open-pstack/releases/tag/v1.8.4).
 
 Codex workers publish output only when the final turn completes with valid text and consistent available framing. A shared assessment preserves recovery from intermediate errors and keeps protocol completion as a replay veto when output validation or process exit fails.
 
 ## 1.8.3 disables inherited Devin refusal fallback
 
-Cursor baseline: [0.15.5](https://github.com/cursor/plugins/tree/12d587dfb20741cafc376c42c696c5f6e2a64487/pstack). [PR #56](https://github.com/arjitj2/open-pstack/pull/56).
+Cursor baseline: [0.15.5](https://github.com/cursor/plugins/tree/12d587dfb20741cafc376c42c696c5f6e2a64487/pstack). [PR #56](https://github.com/arjitj2/open-pstack/pull/56). Tag [v1.8.3](https://github.com/arjitj2/open-pstack/releases/tag/v1.8.3).
 
 The runner removes inherited `DEVIN_REFUSAL_FALLBACK` from Devin child environments. That inherited variable can no longer enable model substitution outside the assigned route. The parent environment, pinned model, billing controls, and permissions are unchanged.
 
 ## 1.8.2 verifies Claude's primary model
 
-Cursor baseline: [0.15.5](https://github.com/cursor/plugins/tree/12d587dfb20741cafc376c42c696c5f6e2a64487/pstack). [Issue #45](https://github.com/arjitj2/open-pstack/issues/45).
+Cursor baseline: [0.15.5](https://github.com/cursor/plugins/tree/12d587dfb20741cafc376c42c696c5f6e2a64487/pstack). [Issue #45](https://github.com/arjitj2/open-pstack/issues/45). Tag [v1.8.2](https://github.com/arjitj2/open-pstack/releases/tag/v1.8.2).
 
 Claude workers verify the model from main-conversation assistant events. A requested model that appears only in helper usage no longer passes verification. Missing or conflicting primary evidence fails closed, and generic failure receipts omit the verbose transcript. See the [verification recipe and evidence](tests/claude-primary-model/README.md).
 
 ## 1.8.1 omits Claude authentication-status probes
 
-Cursor baseline: [0.15.5](https://github.com/cursor/plugins/tree/12d587dfb20741cafc376c42c696c5f6e2a64487/pstack). [Pull request #41](https://github.com/arjitj2/open-pstack/pull/41).
+Cursor baseline: [0.15.5](https://github.com/cursor/plugins/tree/12d587dfb20741cafc376c42c696c5f6e2a64487/pstack). [Pull request #41](https://github.com/arjitj2/open-pstack/pull/41). Tag [v1.8.1](https://github.com/arjitj2/open-pstack/releases/tag/v1.8.1).
 
 Claude workers and setup skip the separate auth-status command because startup refresh can consume a token without saving its replacement. Authentication happens in the task. Known API environment guards and the empty settings-source list under `apiSpend: deny` remain, but Claude billing type is explicitly unverified. Other providers retain their checks. See [the recorded exception](https://github.com/arjitj2/open-pstack/issues/38) and [reproduction](tests/claude-auth-repro/README.md).
 
 ## 1.8.0 accepts newly available provider models
 
-Cursor baseline: [0.15.5](https://github.com/cursor/plugins/tree/12d587dfb20741cafc376c42c696c5f6e2a64487/pstack). [Pull request #46](https://github.com/arjitj2/open-pstack/pull/46).
+Cursor baseline: [0.15.5](https://github.com/cursor/plugins/tree/12d587dfb20741cafc376c42c696c5f6e2a64487/pstack). [Pull request #46](https://github.com/arjitj2/open-pstack/pull/46). Tag [v1.8.0](https://github.com/arjitj2/open-pstack/releases/tag/v1.8.0).
 
 Supported external providers accept new model IDs without an Open Pstack release. Setup checks the selected ID through the provider's listing where available and a live probe. The model matrix supplies recommendations rather than an allowlist. Same-parent Claude models without a shipped native lane run through the external CLI, and Devin accepts exact model UIDs at default effort.
 
@@ -62,7 +62,7 @@ Evidence: [installed-parent validation](https://github.com/arjitj2/open-pstack/b
 
 ## 1.7.0 adds optional OpenCode workers
 
-Cursor baseline: [0.15.5](https://github.com/cursor/plugins/tree/12d587dfb20741cafc376c42c696c5f6e2a64487/pstack). [Pull request #32](https://github.com/arjitj2/open-pstack/pull/32).
+Cursor baseline: [0.15.5](https://github.com/cursor/plugins/tree/12d587dfb20741cafc376c42c696c5f6e2a64487/pstack). [Pull request #32](https://github.com/arjitj2/open-pstack/pull/32). Tag [v1.7.0](https://github.com/arjitj2/open-pstack/releases/tag/v1.7.0).
 
 Claude Code and Codex parents can assign an OpenCode worker with an exact `opencode:<provider>/<model>@default` descriptor. Existing assignments and the default panel do not change. OpenCode routes need explicit API-spend approval because the runner cannot prove subscription-only billing. The runner requires OpenCode 1.18.29 or newer.
 
@@ -72,7 +72,7 @@ Evidence: [OpenCode worker verification](https://github.com/arjitj2/open-pstack/
 
 ## 1.6.1 fixes Devin read-only tool selection
 
-Cursor baseline: [0.15.5](https://github.com/cursor/plugins/tree/12d587dfb20741cafc376c42c696c5f6e2a64487/pstack). [Pull request #31](https://github.com/arjitj2/open-pstack/pull/31).
+Cursor baseline: [0.15.5](https://github.com/cursor/plugins/tree/12d587dfb20741cafc376c42c696c5f6e2a64487/pstack). [Pull request #31](https://github.com/arjitj2/open-pstack/pull/31). Tag [v1.6.1](https://github.com/arjitj2/open-pstack/releases/tag/v1.6.1).
 
 Read-only Devin workers now disable the `exec` tool. Previously the model could select that tool, which the permissions denied, and the turn ended without a final answer. Writers keep sandboxed execution. Existing permission denials and final-answer checks are unchanged.
 
@@ -80,7 +80,7 @@ Evidence: the [Devin read-only investigation](https://github.com/arjitj2/open-ps
 
 ## 1.6.0 adds optional Antigravity workers
 
-Cursor baseline: [0.15.5](https://github.com/cursor/plugins/tree/12d587dfb20741cafc376c42c696c5f6e2a64487/pstack). [Pull request #33](https://github.com/arjitj2/open-pstack/pull/33).
+Cursor baseline: [0.15.5](https://github.com/cursor/plugins/tree/12d587dfb20741cafc376c42c696c5f6e2a64487/pstack). [Pull request #33](https://github.com/arjitj2/open-pstack/pull/33). Tag [v1.6.0](https://github.com/arjitj2/open-pstack/releases/tag/v1.6.0).
 
 Both parents can assign `antigravity:<agy-model-slug>@default` routes through `agy`. The default panel does not change. Workers use a bounded set of file tools. Writers work in their assigned worktree, and the parent runs tests. Every attempt needs a saved API-spend choice. Denial blocks known environment billing routes and unverified provider overrides in Antigravity settings. Quota failures are not yet classified. Receipts record the pinned model argument because Antigravity echoes the requested model.
 
