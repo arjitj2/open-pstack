@@ -480,36 +480,35 @@ describe("runLane", () => {
     it(`executes and receipts the ${provider} external lane`, async () => {
       const input = options(provider);
       const result = await runLane(input);
-      if (provider === "grok") {
-        expect(result.exitCode).toBe(65);
-        expect(existsSync(input.outputPath)).toBe(false);
-        expect(receipt(input.receiptPath)).toMatchObject({
-          status: "malformed-output",
-          provider,
-          model: input.model,
-          reportedModel: null,
-          modelVerified: false,
-          modelEvidence: null,
-          preflight: { status: "passed" },
-          failurePhase: "postprocess",
-          terminalSuccess: true,
-        });
-        return;
-      }
       expect(result.exitCode).toBe(0);
       expect(readFileSync(input.outputPath, "utf8")).toContain(
         provider.toUpperCase()
       );
-      expect(receipt(input.receiptPath)).toMatchObject({
+      const recorded = receipt(input.receiptPath);
+      expect(recorded).toMatchObject({
         status: "complete",
         provider,
         model: input.model,
-        modelVerified: provider !== "codex",
-        modelEvidence: provider === "codex" ? "pinned-argv" : "provider-report",
+        modelVerified: provider === "claude",
+        modelEvidence: provider === "claude" ? "provider-report" : "pinned-argv",
+        error: null,
+        failurePhase: null,
         preflight: { status: provider === "claude" ? "not-run" : "passed" },
       });
       if (provider === "claude") {
-        expect(receipt(input.receiptPath).reportedModel).toBe("claude-fable-9-9");
+        expect(recorded.reportedModel).toBe("claude-fable-9-9");
+      }
+      if (provider === "grok") {
+        expect(recorded).toMatchObject({
+          reportedModel: null,
+          sessionId: "g1",
+          usage: { inputTokens: 30, outputTokens: 4, totalTokens: 34 },
+          costUsd: 0.02,
+        });
+        expect(recorded.argv[recorded.argv.indexOf("--model") + 1]).toBe("grok-4.7");
+        expect(
+          recorded.argv[recorded.argv.indexOf("--reasoning-effort") + 1]
+        ).toBe("xhigh");
       }
     });
   }
@@ -531,7 +530,7 @@ describe("runLane", () => {
     { name: "matching selected-model echo", frames: [syntheticGrokFrame("grok-4.7")] },
   ];
   for (const { name, frames } of grokProvenanceCases) {
-    it(`rejects synthetic Grok ${name} without independent model proof`, async () => {
+    it(`accepts synthetic Grok ${name} under pinned-argv evidence`, async () => {
       process.env.FAKE_STDOUT = [
         JSON.stringify({ type: "system", subtype: "init", session_id: "g1", model: "grok-4.7" }),
         JSON.stringify({ type: "user", session_id: "g1", message: { role: "user", content: "CANARY_PROMPT_EVENT" } }),
@@ -543,24 +542,23 @@ describe("runLane", () => {
       const input = options("grok", "grok-unverified-success");
       const result = await runLane(input);
 
-      expect(result.exitCode).toBe(65);
-      expect(existsSync(input.outputPath)).toBe(false);
+      expect(result.exitCode).toBe(0);
+      expect(readFileSync(input.outputPath, "utf8")).toBe("GROK_OK");
       expect(result.receipt).toMatchObject({
-        status: "malformed-output",
+        status: "complete",
         provider: "grok",
         model: "grok-4.7",
         reportedModel: null,
         modelVerified: false,
-        modelEvidence: null,
-        sessionId: null,
-        usage: null,
-        costUsd: null,
-        failurePhase: "postprocess",
+        modelEvidence: "pinned-argv",
+        sessionId: "g1",
+        usage: { inputTokens: 30, outputTokens: 4, totalTokens: 34 },
+        costUsd: 0.02,
+        error: null,
+        failurePhase: null,
         processStarted: true,
-        terminalSuccess: true,
         preflight: { status: "passed" },
       });
-      expect(result.receipt.error?.message).toContain("was not reported");
       const serialized = JSON.stringify(result.receipt);
       for (const canary of [
         "CANARY_PROMPT_EVENT",
@@ -580,7 +578,7 @@ describe("runLane", () => {
         mode: input.mode,
         apiSpend: "unset",
       });
-      expect(event.status).toBe("failed");
+      expect(event.status).toBe("complete");
       const broadLane: LanePolicy = {
         id: "how explorer#1",
         fallback: { on: ["usage-exhausted", "route-unavailable", "terminal-failure", "deadline-exceeded"] },
@@ -591,7 +589,7 @@ describe("runLane", () => {
       };
       expect(
         nextAttempt(broadLane, [{ attemptIndex: 0, status: event.status, processStarted: event.processStarted }], new Set(), "read-only")
-      ).toMatchObject({ kind: "stop", reason: "not-eligible" });
+      ).toMatchObject({ kind: "stop", reason: "complete" });
     });
   }
 
@@ -684,14 +682,15 @@ describe("runLane", () => {
     const input = options("grok", "grok-transient-unauth");
     const result = await runLane(input);
 
-    expect(result.exitCode).toBe(65);
+    expect(result.exitCode).toBe(0);
     expect(readFileSync(preflightLog, "utf8")).toBe("attempt\nattempt\n");
     expect(existsSync(modelStarted)).toBe(true);
-    expect(existsSync(input.outputPath)).toBe(false);
+    expect(readFileSync(input.outputPath, "utf8")).toContain("GROK_OK");
     expect(receipt(input.receiptPath)).toMatchObject({
-      status: "malformed-output",
+      status: "complete",
+      modelEvidence: "pinned-argv",
+      modelVerified: false,
       preflight: { status: "passed" },
-      terminalSuccess: true,
     });
     expect(receipt(input.receiptPath).preflight.evidence).not.toContain(
       "You are not authenticated."
@@ -1599,6 +1598,74 @@ describe("backend-recovery receipt evidence", () => {
     ).toMatchObject({ kind: "stop", reason: "not-eligible" });
   });
 
+  it("never advances a broad chain on a Grok success stream with a nonzero exit", async () => {
+    process.env.FAKE_STDOUT = [
+      JSON.stringify({ type: "assistant", message: { content: [{ type: "text", text: "CANARY_NARRATION" }] } }),
+      JSON.stringify({ type: "result", subtype: "success", is_error: false, result: "GROK_OK", session_id: "g1", usage: { input_tokens: 30, output_tokens: 4, total_tokens: 34 }, total_cost_usd: 0.02 }),
+    ].join("\n") + "\n";
+    process.env.FAKE_MODEL_EXIT = "1";
+    const input = options("grok", "grok-conflicted-success");
+    const result = await runLane(input);
+    expect(result.receipt.status).toBe("child-failed");
+    expect(result.receipt.failurePhase).toBe("invocation");
+    expect(result.receipt.terminalSuccess).toBe(true);
+    expect(existsSync(input.outputPath)).toBe(false);
+    const event = normalizeReceiptEvent(result.receipt, {
+      parent: input.parent,
+      provider: input.provider,
+      model: input.model,
+      effort: input.effort,
+      mode: input.mode,
+      apiSpend: "unset",
+    });
+    expect(event.status).toBe("failed");
+    const broadLane: LanePolicy = {
+      id: "how explorer#1",
+      fallback: { on: ["usage-exhausted", "route-unavailable", "terminal-failure", "deadline-exceeded"] },
+      attempts: [
+        { descriptor: "grok:grok-4.7@xhigh", attempt: { kind: "descriptor", provider: "grok", model: "grok-4.7", effort: "xhigh" }, exhaustionGroup: "grok", funding: "included", apiSpend: "deny", route: "external", authorization: { state: "allowed" } },
+        { descriptor: "codex:gpt-5.6-sol@max", attempt: { kind: "descriptor", provider: "codex", model: "gpt-5.6-sol", effort: "max" }, exhaustionGroup: "codex", funding: "included", apiSpend: "deny", route: "external", authorization: { state: "allowed" } },
+      ],
+    };
+    expect(
+      nextAttempt(broadLane, [{ attemptIndex: 0, status: event.status }], new Set(), "read-only")
+    ).toMatchObject({ kind: "stop", reason: "not-eligible" });
+  });
+
+  it("never advances a broad chain when Grok capture is malformed after a terminal success", async () => {
+    process.env.FAKE_STDOUT = [
+      JSON.stringify({ type: "result", subtype: "success", is_error: false, result: "GROK_OK", session_id: "g1" }),
+      "CANARY_MALFORMED_LINE",
+    ].join("\n") + "\n";
+    const input = options("grok", "grok-success-malformed-capture");
+    const result = await runLane(input);
+    expect(result.receipt.status).toBe("malformed-output");
+    expect(result.receipt.failurePhase).toBe("postprocess");
+    expect(result.receipt.terminalSuccess).toBe(true);
+    expect(existsSync(input.outputPath)).toBe(false);
+    expect(JSON.stringify(result.receipt)).not.toContain("CANARY_MALFORMED_LINE");
+    const event = normalizeReceiptEvent(result.receipt, {
+      parent: input.parent,
+      provider: input.provider,
+      model: input.model,
+      effort: input.effort,
+      mode: input.mode,
+      apiSpend: "unset",
+    });
+    expect(event.status).toBe("failed");
+    const broadLane: LanePolicy = {
+      id: "how explorer#1",
+      fallback: { on: ["usage-exhausted", "route-unavailable", "terminal-failure", "deadline-exceeded"] },
+      attempts: [
+        { descriptor: "grok:grok-4.7@xhigh", attempt: { kind: "descriptor", provider: "grok", model: "grok-4.7", effort: "xhigh" }, exhaustionGroup: "grok", funding: "included", apiSpend: "deny", route: "external", authorization: { state: "allowed" } },
+        { descriptor: "codex:gpt-5.6-sol@max", attempt: { kind: "descriptor", provider: "codex", model: "gpt-5.6-sol", effort: "max" }, exhaustionGroup: "codex", funding: "included", apiSpend: "deny", route: "external", authorization: { state: "allowed" } },
+      ],
+    };
+    expect(
+      nextAttempt(broadLane, [{ attemptIndex: 0, status: event.status }], new Set(), "read-only")
+    ).toMatchObject({ kind: "stop", reason: "not-eligible" });
+  });
+
   it("normalizes a launcher-programming failure as ineligible, not a backend failure", async () => {
     const unreadable = options("claude", "normalize-launcher-failure");
     chmodSync(unreadable.promptPath, 0o000);
@@ -1953,10 +2020,12 @@ describe("usage exhaustion and billing guard", () => {
   it("blocks unverifiable Grok subscription routing before starting a model", async () => {
     const started = join(scratch, "grok-billing-model-started");
     process.env.FAKE_MODEL_STARTED_PATH = started;
-    const result = await runLane({ ...options("grok", "grok-deny-unknown-auth"), apiSpend: "deny" });
+    const input = { ...options("grok", "grok-deny-unknown-auth"), apiSpend: "deny" as const };
+    const result = await runLane(input);
     expect(result.receipt.status).toBe("billing-policy-blocked");
     expect(result.receipt.processStarted).toBe(false);
     expect(existsSync(started)).toBe(false);
+    expect(existsSync(input.outputPath)).toBe(false);
   });
 
   it("keeps an unsubstantiated structured error envelope as an ordinary failure", async () => {
