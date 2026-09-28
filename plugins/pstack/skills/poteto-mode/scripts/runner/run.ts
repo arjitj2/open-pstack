@@ -499,7 +499,7 @@ function modelProof(
       modelEvidence: "provider-report",
     };
   }
-  if ((provider === "codex" || provider === "devin" || provider === "cursor" || provider === "opencode") && reported === null) {
+  if ((provider === "codex" || provider === "devin" || provider === "cursor" || provider === "opencode" || provider === "grok") && reported === null) {
     return {
       reportedModel: null,
       modelVerified: false,
