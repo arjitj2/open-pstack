@@ -2615,7 +2615,8 @@ describe("worker progress", () => {
     return copy;
   }
 
-  it("reports a quiet active worker honestly through the status subcommand", async () => {
+  it.each([false, true])("reports a quiet worker honestly (ps unavailable: %s)", async (psUnavailable) => {
+    if (psUnavailable) writeFileSync(join(bin, "ps"), "#!/bin/sh\nexit 1\n", { mode: 0o700 });
     const input = progressOptions("claude", "quiet-worker");
     const runner = Bun.spawn([process.execPath, ...runnerArgs(input)], {
       cwd: scratch,
@@ -2642,8 +2643,18 @@ describe("worker progress", () => {
       const statusOut = await new Response(statusRunner.stdout).text();
       expect(await statusRunner.exited).toBe(0);
       expect(statusOut).toContain("workload-running");
-      expect(statusOut).toMatch(/runner (present|unverified)/);
-      expect(statusOut).toContain("no output observed yet");
+      if (psUnavailable) {
+        expect(statusOut).toContain("unknown: launcher identity unverified");
+        expect(statusOut).not.toContain("runner present");
+      } else {
+        expect(statusOut).toMatch(/runner present|unknown: launcher identity unverified/);
+      }
+      if (statusOut.includes("runner present")) {
+        expect(statusOut).toContain("no output observed yet");
+      } else {
+        expect(statusOut).toContain("last observed workload-running");
+        expect(statusOut).toContain("not a failure verdict");
+      }
       expect(statusOut).toContain("quiet is not failure");
       expect(statusOut).not.toContain("Return the marker");
     } finally {
@@ -2839,7 +2850,8 @@ describe("worker progress", () => {
     expect(io.out).toContain("descendants not verified");
   });
 
-  it("reports a killed launcher as interrupted, never active", async () => {
+  it.each([false, true])("reports a killed launcher without claiming it is active (ps unavailable: %s)", async (psUnavailable) => {
+    if (psUnavailable) writeFileSync(join(bin, "ps"), "#!/bin/sh\nexit 1\n", { mode: 0o700 });
     const input = progressOptions("codex", "crashed-launcher");
     const runner = Bun.spawn([process.execPath, ...runnerArgs(input)], {
       cwd: scratch,
@@ -2866,7 +2878,12 @@ describe("worker progress", () => {
         io.io
       )
     ).toBe(0);
-    expect(io.out).toMatch(/interrupted: launcher gone|runner unverified/);
+    if (psUnavailable) {
+      expect(io.out).toContain("unknown: launcher identity unverified");
+    } else {
+      expect(io.out).toMatch(/interrupted: launcher gone|unknown: launcher identity unverified/);
+    }
+    expect(io.out).toContain("not a failure verdict");
     expect(io.out).not.toContain("runner present");
     expect(io.out).not.toContain("terminal");
   });
