@@ -26,6 +26,7 @@ For repository changes, carry the work through validation, public PR review, and
 2. Request Copilot review and use `address-copilot-review` to assess every finding, verify and push appropriate fixes, publish replies, and resolve addressed threads. Confirm replies are submitted rather than pending. If Copilot is unavailable or quota-limited, record that fact; do not treat it as an approval or wait indefinitely.
 3. Run the project-local [verify-open-pstack skill](.agents/skills/verify-open-pstack/SKILL.md) against the final candidate. Complete the applicable installed-parent or maintenance checks above and record observed results in the PR. Revalidate behavior affected by review fixes.
 4. Once required checks and applicable validation pass and review findings are addressed, squash merge the PR using a server-enforced expected-head SHA. Verify the resulting merge into `main`.
+5. After merging, check linked issues, close those fully resolved by the PR, and verify their closed status on GitHub; report any issue left open to the user with the reason and remaining work.
 
 Proceed autonomously through routine fixes and retries justified by evidence. Existing validation gates and explicit restrictions on credentials, spending, or other actions still apply. When a required check cannot run, document the concrete blocker, complete independent work, and leave the affected PR unmerged. Do not replace a missing live test with a unit-test or source-inspection claim. Tags, releases, and installation changes outside validation require their own task scope.
 
