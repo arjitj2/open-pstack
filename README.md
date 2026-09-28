@@ -92,6 +92,8 @@ multi_agent = true
 
 Start a new Codex task after installation so it can discover the new skills and setting.
 
+Pstack also bundles an optional `SessionStart` hook that routes non-trivial engineering tasks into `pstack:poteto-mode` at session startup, resume, clear, and compaction. It is inactive until you review and trust it: open [`/hooks` in Codex CLI](https://developers.openai.com/codex/hooks), inspect the pstack `SessionStart` entry, and trust it to turn routing on. Disable the same entry to turn it off again. Leaving it untrusted keeps ordinary Codex behavior; `$pstack:poteto-mode` and the other skills still work by name.
+
 ## Get started
 
 Configure model access, establish verification for your repository, then start a task.
@@ -142,7 +144,7 @@ $pstack:poteto-mode Add saved filters to search. Keep the design simple, verify 
 
 In this example, poteto-mode first examines the existing search implementation before deciding how to add saved filters. It settles how saved filters are stored before writing code, then implements the smallest complete version. It runs the feature the way a user would, reviews the result, and prepares the pull request.
 
-The skill name is `poteto-mode`, spelled with an “e”. Claude Code also loads this distribution's startup instruction for non-trivial engineering work. In Codex, select the skill explicitly or add a standing instruction if you want it used by default. Model setup saves routing preferences; it does not install an always-on Codex workflow instruction.
+The skill name is `poteto-mode`, spelled with an “e”. Claude Code loads this distribution's startup instruction for non-trivial engineering work. Codex delivers the same instruction once you trust the plugin's `SessionStart` hook in `/hooks` as described under [Install](#install); without that opt-in, select the skill explicitly. Model setup saves routing preferences; it never changes the hook's trust or enabled state.
 
 Use the verification skill for each change. If you add or change a feature, update its entry in the feature map too. The other skills are there when poteto-mode needs them or when you want to call one directly.
 
