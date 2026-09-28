@@ -590,6 +590,8 @@ describe("independent review regressions", () => {
     statusMain(["--progress", path, "--receipt", receipt, "--json"], { stdout: v => { out += v; }, stderr: () => {} });
     const lane = JSON.parse(out).lanes[0];
     expect(lane.cancellation.confirmed).toBe(false);
+    expect(lane.elapsedMs).toBeNull();
+    expect(lane.line).toContain("elapsed unknown");
     expect(lane.line).toContain("child settlement unverified");
     expect(lane.line).not.toContain("no child launched");
     expect(lane.updatedAt).toEqual(expect.any(String));

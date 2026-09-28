@@ -687,7 +687,8 @@ export function renderLane(view: LaneView, now: number = Date.now()): RenderedLa
   if (view.kind === "terminal") {
     parts.push(`terminal ${view.status} (from receipt)`);
     if (snapshot !== null) {
-      parts.push(`elapsed ${duration(Date.parse(snapshot.terminal?.at ?? snapshot.updatedAt) - Date.parse(snapshot.runner.startedAt))}`);
+      parts.push(snapshot.terminal === null ? "elapsed unknown" :
+        `elapsed ${duration(Date.parse(snapshot.terminal.at) - Date.parse(snapshot.runner.startedAt))}`);
       if (view.status === "cancelled") {
         parts.push(snapshot.terminal === null ? "cancellation recorded, child settlement unverified" :
           snapshot.child === null ? "cancellation confirmed, no child launched" :
@@ -812,7 +813,9 @@ function laneJson(
     seq: snapshot?.seq ?? null,
     line: rendered.line,
     changeKey: `${snapshot?.attemptId ?? index + 1}|${rendered.changeKey}`,
-    elapsedMs: snapshot === null ? null : Math.max(0, Date.parse(snapshot.terminal?.at ?? new Date(now).toISOString()) - Date.parse(snapshot.runner.startedAt)),
+    elapsedMs: snapshot === null || (view.kind === "terminal" && snapshot.terminal === null)
+      ? null
+      : Math.max(0, Date.parse(snapshot.terminal?.at ?? new Date(now).toISOString()) - Date.parse(snapshot.runner.startedAt)),
     cancellation: snapshot === null ? null : {
       requested: snapshot.cancellation.requested?.signal ?? null,
       childSettled: snapshot.childSettled?.outcome ?? null,
