@@ -22,7 +22,7 @@ To test an unreleased change, use a separate installation or a disposable worksp
 
 Read [AGENTS.md](AGENTS.md) and [UPSTREAM.md](UPSTREAM.md) before editing. Keep one shared skill tree for Codex and Claude Code. Preserve upstream licenses and credit. Record intentional differences from Cursor in the [decision ledger](maintenance/upstream-ledger.json). Each fact has one owner in the [documentation ownership](AGENTS.md#documentation-ownership) map. Update that owner and link to it from other pages.
 
-`main` is protected: changes land through pull requests, the `verify` check from GitHub Actions must be up to date on the head commit (including for the owner), and force pushes and deletion of `main` are blocked. External approvals are not required. The installed-parent evidence under [Validate a change](#validate-a-change) is maintainer policy, not a branch-protection gate.
+`main` requires pull requests and a passing `verify` check from GitHub Actions on a branch that is up to date with `main`. Repository administrators can bypass those requirements, including pushing directly to `main` or merging without updating the PR branch first. Force pushes and deletion of `main` remain disabled. External approvals are not required. The installed-parent evidence under [Validate a change](#validate-a-change) is maintainer policy, not a branch-protection gate.
 
 ## Development tools
 
