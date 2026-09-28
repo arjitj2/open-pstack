@@ -505,17 +505,112 @@ describe("runLane", () => {
       expect(readFileSync(input.outputPath, "utf8")).toContain(
         provider.toUpperCase()
       );
-      expect(receipt(input.receiptPath)).toMatchObject({
+      const recorded = receipt(input.receiptPath);
+      expect(recorded).toMatchObject({
         status: "complete",
         provider,
         model: input.model,
-        modelVerified: provider !== "codex",
-        modelEvidence: provider === "codex" ? "pinned-argv" : "provider-report",
+        modelVerified: provider === "claude",
+        modelEvidence: provider === "claude" ? "provider-report" : "pinned-argv",
+        error: null,
+        failurePhase: null,
         preflight: { status: provider === "claude" ? "not-run" : "passed" },
       });
       if (provider === "claude") {
-        expect(receipt(input.receiptPath).reportedModel).toBe("claude-fable-9-9");
+        expect(recorded.reportedModel).toBe("claude-fable-9-9");
       }
+      if (provider === "grok") {
+        expect(recorded).toMatchObject({
+          reportedModel: null,
+          sessionId: "g1",
+          usage: { inputTokens: 30, outputTokens: 4, totalTokens: 34 },
+          costUsd: 0.02,
+        });
+        expect(recorded.argv[recorded.argv.indexOf("--model") + 1]).toBe("grok-4.7");
+        expect(
+          recorded.argv[recorded.argv.indexOf("--reasoning-effort") + 1]
+        ).toBe("xhigh");
+      }
+    });
+  }
+
+  const syntheticGrokFrame = (model: string | null, session = "g1", owner: string | null = null) => ({
+    type: "assistant", session_id: session, parent_tool_use_id: owner,
+    message: { role: "assistant", model, content: [
+      { type: "text", text: "CANARY_NARRATION" },
+      { type: "tool_use", name: "bash", input: "CANARY_TOOL_ARGUMENTS" },
+    ] },
+  });
+  const grokProvenanceCases = [
+    { name: "accounting-only", frames: [] },
+    { name: "helper-only match", frames: [syntheticGrokFrame("grok-other"), syntheticGrokFrame("grok-4.7", "g1", "helper")] },
+    { name: "conflicting models", frames: [syntheticGrokFrame("grok-4.7"), syntheticGrokFrame("grok-other")] },
+    { name: "mixed sessions", frames: [syntheticGrokFrame("grok-4.7", "other-session")] },
+    { name: "missing model", frames: [syntheticGrokFrame(null)] },
+    { name: "missing session", frames: [syntheticGrokFrame("grok-4.7", "")] },
+    { name: "matching selected-model echo", frames: [syntheticGrokFrame("grok-4.7")] },
+  ];
+  for (const { name, frames } of grokProvenanceCases) {
+    it(`accepts synthetic Grok ${name} under pinned-argv evidence`, async () => {
+      process.env.FAKE_STDOUT = [
+        JSON.stringify({ type: "system", subtype: "init", session_id: "g1", model: "grok-4.7" }),
+        JSON.stringify({ type: "user", session_id: "g1", message: { role: "user", content: "CANARY_PROMPT_EVENT" } }),
+        ...frames.map((frame) => JSON.stringify(frame)),
+        JSON.stringify({ type: "user", session_id: "g1", message: { role: "user", content: [{ type: "tool_result", content: "CANARY_TOOL_RESULT" }] } }),
+        JSON.stringify({ type: "result", subtype: "success", is_error: false, result: "GROK_OK", session_id: "g1", usage: { input_tokens: 30, output_tokens: 4, total_tokens: 34 }, total_cost_usd: 0.02, modelUsage: { "grok-other": {}, "grok-4.7": {} } }),
+      ].join("\n") + "\n";
+      process.env.FAKE_STDERR = "CANARY_STDERR";
+      const input = options("grok", "grok-unverified-success");
+      const result = await runLane(input);
+
+      expect(result.exitCode).toBe(0);
+      expect(readFileSync(input.outputPath, "utf8")).toBe("GROK_OK");
+      expect(result.receipt).toMatchObject({
+        status: "complete",
+        provider: "grok",
+        model: "grok-4.7",
+        reportedModel: null,
+        modelVerified: false,
+        modelEvidence: "pinned-argv",
+        sessionId: "g1",
+        usage: { inputTokens: 30, outputTokens: 4, totalTokens: 34 },
+        costUsd: 0.02,
+        error: null,
+        failurePhase: null,
+        processStarted: true,
+        preflight: { status: "passed" },
+      });
+      const serialized = JSON.stringify(result.receipt);
+      for (const canary of [
+        "CANARY_PROMPT_EVENT",
+        "CANARY_NARRATION",
+        "CANARY_TOOL_ARGUMENTS",
+        "CANARY_TOOL_RESULT",
+        "CANARY_STDERR",
+      ]) {
+        expect(serialized).not.toContain(canary);
+      }
+
+      const event = normalizeReceiptEvent(result.receipt, {
+        parent: input.parent,
+        provider: input.provider,
+        model: input.model,
+        effort: input.effort,
+        mode: input.mode,
+        apiSpend: "unset",
+      });
+      expect(event.status).toBe("complete");
+      const broadLane: LanePolicy = {
+        id: "how explorer#1",
+        fallback: { on: ["usage-exhausted", "route-unavailable", "terminal-failure", "deadline-exceeded"] },
+        attempts: [
+          { descriptor: "grok:grok-4.7@xhigh", attempt: { kind: "descriptor", provider: "grok", model: "grok-4.7", effort: "xhigh" }, exhaustionGroup: "grok", funding: "included", apiSpend: "deny", route: "external", authorization: { state: "allowed" } },
+          { descriptor: "codex:gpt-5.6-sol@max", attempt: { kind: "descriptor", provider: "codex", model: "gpt-5.6-sol", effort: "max" }, exhaustionGroup: "codex", funding: "included", apiSpend: "deny", route: "external", authorization: { state: "allowed" } },
+        ],
+      };
+      expect(
+        nextAttempt(broadLane, [{ attemptIndex: 0, status: event.status, processStarted: event.processStarted }], new Set(), "read-only")
+      ).toMatchObject({ kind: "stop", reason: "complete" });
     });
   }
 
@@ -611,8 +706,11 @@ describe("runLane", () => {
     expect(result.exitCode).toBe(0);
     expect(readFileSync(preflightLog, "utf8")).toBe("attempt\nattempt\n");
     expect(existsSync(modelStarted)).toBe(true);
+    expect(readFileSync(input.outputPath, "utf8")).toContain("GROK_OK");
     expect(receipt(input.receiptPath)).toMatchObject({
       status: "complete",
+      modelEvidence: "pinned-argv",
+      modelVerified: false,
       preflight: { status: "passed" },
     });
     expect(receipt(input.receiptPath).preflight.evidence).not.toContain(
@@ -1130,13 +1228,21 @@ describe("runLane", () => {
   });
 
   it("runs simultaneous same-provider lanes only into their unique paths", async () => {
-    const first = options("grok", "first");
-    const second = options("grok", "second");
+    const first = options("claude", "first");
+    const second = options("claude", "second");
     const results = await Promise.all([runLane(first), runLane(second)]);
     expect(results.map((result) => result.exitCode)).toEqual([0, 0]);
     expect(first.outputPath).not.toBe(second.outputPath);
-    expect(receipt(first.receiptPath).sessionId).toBe("g1");
-    expect(receipt(second.receiptPath).sessionId).toBe("g1");
+    expect(first.receiptPath).not.toBe(second.receiptPath);
+    for (const lane of [first, second]) {
+      expect(readFileSync(lane.outputPath, "utf8")).toContain("CLAUDE");
+      expect(receipt(lane.receiptPath)).toMatchObject({
+        status: "complete",
+        provider: "claude",
+        outputPath: lane.outputPath,
+        modelVerified: true,
+      });
+    }
   });
 
   it("refuses a second writer for an already-reserved path", async () => {
@@ -1519,6 +1625,74 @@ describe("backend-recovery receipt evidence", () => {
     ).toMatchObject({ kind: "stop", reason: "not-eligible" });
   });
 
+  it("never advances a broad chain on a Grok success stream with a nonzero exit", async () => {
+    process.env.FAKE_STDOUT = [
+      JSON.stringify({ type: "assistant", message: { content: [{ type: "text", text: "CANARY_NARRATION" }] } }),
+      JSON.stringify({ type: "result", subtype: "success", is_error: false, result: "GROK_OK", session_id: "g1", usage: { input_tokens: 30, output_tokens: 4, total_tokens: 34 }, total_cost_usd: 0.02 }),
+    ].join("\n") + "\n";
+    process.env.FAKE_MODEL_EXIT = "1";
+    const input = options("grok", "grok-conflicted-success");
+    const result = await runLane(input);
+    expect(result.receipt.status).toBe("child-failed");
+    expect(result.receipt.failurePhase).toBe("invocation");
+    expect(result.receipt.terminalSuccess).toBe(true);
+    expect(existsSync(input.outputPath)).toBe(false);
+    const event = normalizeReceiptEvent(result.receipt, {
+      parent: input.parent,
+      provider: input.provider,
+      model: input.model,
+      effort: input.effort,
+      mode: input.mode,
+      apiSpend: "unset",
+    });
+    expect(event.status).toBe("failed");
+    const broadLane: LanePolicy = {
+      id: "how explorer#1",
+      fallback: { on: ["usage-exhausted", "route-unavailable", "terminal-failure", "deadline-exceeded"] },
+      attempts: [
+        { descriptor: "grok:grok-4.7@xhigh", attempt: { kind: "descriptor", provider: "grok", model: "grok-4.7", effort: "xhigh" }, exhaustionGroup: "grok", funding: "included", apiSpend: "deny", route: "external", authorization: { state: "allowed" } },
+        { descriptor: "codex:gpt-5.6-sol@max", attempt: { kind: "descriptor", provider: "codex", model: "gpt-5.6-sol", effort: "max" }, exhaustionGroup: "codex", funding: "included", apiSpend: "deny", route: "external", authorization: { state: "allowed" } },
+      ],
+    };
+    expect(
+      nextAttempt(broadLane, [{ attemptIndex: 0, status: event.status }], new Set(), "read-only")
+    ).toMatchObject({ kind: "stop", reason: "not-eligible" });
+  });
+
+  it("never advances a broad chain when Grok capture is malformed after a terminal success", async () => {
+    process.env.FAKE_STDOUT = [
+      JSON.stringify({ type: "result", subtype: "success", is_error: false, result: "GROK_OK", session_id: "g1" }),
+      "CANARY_MALFORMED_LINE",
+    ].join("\n") + "\n";
+    const input = options("grok", "grok-success-malformed-capture");
+    const result = await runLane(input);
+    expect(result.receipt.status).toBe("malformed-output");
+    expect(result.receipt.failurePhase).toBe("postprocess");
+    expect(result.receipt.terminalSuccess).toBe(true);
+    expect(existsSync(input.outputPath)).toBe(false);
+    expect(JSON.stringify(result.receipt)).not.toContain("CANARY_MALFORMED_LINE");
+    const event = normalizeReceiptEvent(result.receipt, {
+      parent: input.parent,
+      provider: input.provider,
+      model: input.model,
+      effort: input.effort,
+      mode: input.mode,
+      apiSpend: "unset",
+    });
+    expect(event.status).toBe("failed");
+    const broadLane: LanePolicy = {
+      id: "how explorer#1",
+      fallback: { on: ["usage-exhausted", "route-unavailable", "terminal-failure", "deadline-exceeded"] },
+      attempts: [
+        { descriptor: "grok:grok-4.7@xhigh", attempt: { kind: "descriptor", provider: "grok", model: "grok-4.7", effort: "xhigh" }, exhaustionGroup: "grok", funding: "included", apiSpend: "deny", route: "external", authorization: { state: "allowed" } },
+        { descriptor: "codex:gpt-5.6-sol@max", attempt: { kind: "descriptor", provider: "codex", model: "gpt-5.6-sol", effort: "max" }, exhaustionGroup: "codex", funding: "included", apiSpend: "deny", route: "external", authorization: { state: "allowed" } },
+      ],
+    };
+    expect(
+      nextAttempt(broadLane, [{ attemptIndex: 0, status: event.status }], new Set(), "read-only")
+    ).toMatchObject({ kind: "stop", reason: "not-eligible" });
+  });
+
   it("normalizes a launcher-programming failure as ineligible, not a backend failure", async () => {
     const unreadable = options("claude", "normalize-launcher-failure");
     chmodSync(unreadable.promptPath, 0o000);
@@ -1873,10 +2047,12 @@ describe("usage exhaustion and billing guard", () => {
   it("blocks unverifiable Grok subscription routing before starting a model", async () => {
     const started = join(scratch, "grok-billing-model-started");
     process.env.FAKE_MODEL_STARTED_PATH = started;
-    const result = await runLane({ ...options("grok", "grok-deny-unknown-auth"), apiSpend: "deny" });
+    const input = { ...options("grok", "grok-deny-unknown-auth"), apiSpend: "deny" as const };
+    const result = await runLane(input);
     expect(result.receipt.status).toBe("billing-policy-blocked");
     expect(result.receipt.processStarted).toBe(false);
     expect(existsSync(started)).toBe(false);
+    expect(existsSync(input.outputPath)).toBe(false);
   });
 
   it("keeps an unsubstantiated structured error envelope as an ordinary failure", async () => {

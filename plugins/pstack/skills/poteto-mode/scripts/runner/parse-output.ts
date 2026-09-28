@@ -84,21 +84,6 @@ function normalizedUsage(value: unknown): NormalizedUsage | null {
     : null;
 }
 
-function modelFromUsage(
-  value: unknown,
-  provider: Provider,
-  requestedModel: string
-): string | null {
-  const usage = object(value);
-  if (usage === null) return null;
-  const models = Object.keys(usage);
-  return models.find((model) =>
-    reportedModelMatches(provider, requestedModel, model)
-  )
-    ?? models[0]
-    ?? null;
-}
-
 // Claude stream-json output is the only shape that identifies the primary
 // model: each main-agent assistant event carries `message.model` with an
 // explicit null `parent_tool_use_id` in the result's session. Helper events
@@ -184,7 +169,9 @@ function parseClaude(stdout: string): ParsedOutput {
   };
 }
 
-function parseGrok(stdout: string, requestedModel: string): ParsedOutput {
+// Grok's usage ledger is accounting; assistant models can echo session selection.
+// Neither independently identifies the answering model (grok-build @f0e3be11).
+function parseGrok(stdout: string): ParsedOutput {
   let result: JsonObject | null = null;
   for (const line of stdout.split("\n")) {
     if (line.trim().length === 0) continue;
@@ -207,7 +194,7 @@ function parseGrok(stdout: string, requestedModel: string): ParsedOutput {
 
   return {
     text,
-    reportedModel: modelFromUsage(result.modelUsage, "grok", requestedModel),
+    reportedModel: null,
     sessionId: nullableString(result.session_id),
     usage: normalizedUsage(result.usage),
     costUsd: finiteNumber(result.total_cost_usd) ?? null,
@@ -385,7 +372,7 @@ export function parseProviderOutput(
     case "codex":
       return parseCodex(stdout);
     case "grok":
-      return parseGrok(stdout, requestedModel);
+      return parseGrok(stdout);
   }
 }
 
