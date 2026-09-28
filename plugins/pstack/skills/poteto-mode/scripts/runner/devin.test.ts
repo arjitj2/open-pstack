@@ -308,7 +308,7 @@ describe("Devin external provider", () => {
   it("normalizes an ATIF write denial without persisting its path or content", async () => {
     const filePath = join(scratch, "CANARY_DENIED_PATH.txt");
     const exported = { schema_version: "ATIF-v1.7", steps: [{
-      source: "agent", message: "", tool_calls: [{
+      source: "agent", message: "CANARY_DENIED_NARRATION", tool_calls: [{
         tool_call_id: "call-1", function_name: "write",
         arguments: { file_path: filePath, content: "CANARY_DENIED_CONTENT" },
       }],
@@ -329,6 +329,7 @@ describe("Devin external provider", () => {
     const serialized = readFileSync(input.receiptPath, "utf8");
     expect(serialized).not.toContain("CANARY_DENIED_PATH");
     expect(serialized).not.toContain("CANARY_DENIED_CONTENT");
+    expect(serialized).not.toContain("CANARY_DENIED_NARRATION");
     expect(normalizeReceiptEvent(result.receipt, {
       parent: input.parent, provider: input.provider, model: input.model,
       effort: input.effort, mode: input.mode, apiSpend: "unset",

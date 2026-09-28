@@ -541,6 +541,8 @@ describe("provider-owned tool denial evidence", () => {
       });
       expect(typed.receiptStatus).toBe("malformed-output");
     }
+    expect(() => parse({ ...exported, steps: [{ ...step, message: "Attempting the direct write." }] }))
+      .toThrow(ProviderToolDeniedError);
     for (const changed of [
       { ...step, tool_calls: [{ ...step.tool_calls[0], function_name: "exec" }] },
       { ...step, tool_calls: [{ ...step.tool_calls[0], tool_call_id: "other" }] },

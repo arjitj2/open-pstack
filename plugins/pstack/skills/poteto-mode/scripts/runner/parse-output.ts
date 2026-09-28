@@ -46,7 +46,7 @@ function devinAtifWriteDenied(exported: JsonObject): boolean {
   });
   if (earlierFinal) return false;
   const last = object(steps.at(-1));
-  if (last?.source !== "agent" || last.message !== "" ||
+  if (last?.source !== "agent" || typeof last.message !== "string" ||
       !Array.isArray(last.tool_calls) || last.tool_calls.length !== 1) return false;
   const call = object(last.tool_calls[0]);
   const args = object(call?.arguments);
