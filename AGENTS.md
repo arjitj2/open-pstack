@@ -51,6 +51,8 @@ Add or keep a public document only when it answers a question readers ask repeat
 | Bug reports and contribution checks | `CONTRIBUTING.md` |
 | Install-source policy | this file (the `main` paragraph above) |
 | Skill purpose and invocation | each packaged `SKILL.md`; README lists common entry points |
+| Session-start routing behavior | `plugins/pstack/hooks/session-start-context.md` and each host's hook descriptor in `plugins/pstack/hooks/` |
+| Codex startup-routing setup choice | `plugins/pstack/skills/setup-pstack/SKILL.md` (`## Codex startup routing`) |
 | Reproducible verification | `.agents/skills/verify-open-pstack/` and `tests/` |
 
 `python3 scripts/check-docs.py` checks that the README provider table matches the runner IDs, that relative links and heading anchors resolve, that the public documentation inventory stays within its approved scope, and that the current `CHANGELOG.md` entry and pinned upstream README agree with the package version and Cursor baseline. Passing proves structure, not that all prose is current.

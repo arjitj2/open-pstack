@@ -4,6 +4,12 @@ This file records what each version of the Open Pstack package changed. Versions
 
 Entries describe package versions. Published release checkpoints have tag links; installation follows `main` unless pinned. Validation belongs to the linked pull requests. Older reports remain available through immutable links.
 
+## 1.10.0 adds opt-in Codex startup routing
+
+Cursor baseline: [0.15.5](https://github.com/cursor/plugins/tree/12d587dfb20741cafc376c42c696c5f6e2a64487/pstack). [Issue #88](https://github.com/arjitj2/open-pstack/issues/88).
+
+Codex can route engineering requests into Pstack through an optional plugin hook, enabled through its native `/hooks` trust controls. Startup, resume, clear, and compaction reuse the shared routing instruction. A routing-only setup request leaves model assignments and spending permissions unchanged.
+
 ## 1.9.1 packages license texts and credits the Open Pstack port
 
 Cursor baseline: [0.15.5](https://github.com/cursor/plugins/tree/12d587dfb20741cafc376c42c696c5f6e2a64487/pstack). [Issue #82](https://github.com/arjitj2/open-pstack/issues/82). Tag [v1.9.1](https://github.com/arjitj2/open-pstack/releases/tag/v1.9.1).

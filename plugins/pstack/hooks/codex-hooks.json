@@ -1,0 +1,18 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "^(startup|resume|clear|compact)$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${PLUGIN_ROOT}/hooks/run-hook.cmd\" session-start",
+            "commandWindows": "\"%PLUGIN_ROOT%\\hooks\\run-hook.cmd\" session-start",
+            "async": false,
+            "statusMessage": "Loading pstack routing"
+          }
+        ]
+      }
+    ]
+  }
+}

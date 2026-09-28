@@ -6,6 +6,7 @@ Run the parent skill's Launch and Doctor first. Use one fresh scratch store per 
 
 - [Installation and discovery](installation.md): marketplace installation, reload, skill discovery in both parents.
 - [Model setup](setup.md): selected-provider checks, confirmation, persistence, native probes.
+- [Startup routing](startup-routing.md): bundled SessionStart hook registration, opt-in trust, and shared routing text.
 - [Engineering workflows](workflows.md): invoking poteto-mode and direct focused skills.
 - [Routing policy](routing.md): inspecting a saved role through the CLI and observing parent-owned dispatch.
 - [Worker ownership and continuation](worker-contract.md): enforced capabilities, parent Git operations, handoffs and bounded recovery.

@@ -12,7 +12,7 @@ This page records the current Cursor baseline and the maintainer procedure for r
 | Path | `pstack/` |
 | Commit | `12d587dfb20741cafc376c42c696c5f6e2a64487` |
 | Upstream version | `0.15.5` |
-| open-pstack version | `1.9.1` |
+| open-pstack version | `1.10.0` |
 
 The table records the packaged version on `main` and the Cursor content it incorporates, minus the exclusions below. Detecting or reviewing a newer Cursor commit does not advance this baseline. Cursor's version identifies the imported content. The open-pstack version identifies the cross-harness package, and its numbers are independent of Cursor and Eric's port.
 
@@ -29,7 +29,7 @@ Earlier exclusions include Cursor's Benny automation, tutorial and sticky-mode U
 
 ## Port adaptations
 
-Both parent apps load the same `plugins/pstack/skills/` tree through their own plugin manifests. Claude Code also loads a SessionStart instruction that routes engineering tasks into `poteto-mode`. Codex users invoke the skill explicitly or add a standing instruction.
+Both parent apps load the same `plugins/pstack/skills/` tree and `hooks/session-start-context.md`. Claude Code uses `hooks/hooks.json`; the Codex manifest selects `hooks/codex-hooks.json`. See [Codex installation](README.md#codex) for the optional routing and trust controls.
 
 When incorporating Cursor content, translate harness primitives at the existing boundaries:
 
