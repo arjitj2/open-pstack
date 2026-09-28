@@ -177,4 +177,28 @@ describe("handoff", () => {
     expect(nextAttempt(lane(HANDOFF), [handoff(), op, { attemptIndex: 0, status: "complete" }], new Set(), "isolated-write"))
       .toMatchObject({ kind: "stop", reason: "complete" });
   });
+
+  it("keeps handoff access fixed in live and historical decisions", () => {
+    for (const [recorded, requested] of [
+      ["read-only", "isolated-write"],
+      ["isolated-write", "read-only"],
+    ] as const) {
+      const base = handoff();
+      const event: AttemptEvent = {
+        ...base,
+        execution: { ...base.execution!, access: recorded },
+        recovery: {
+          ...base.recovery!,
+          nextExecution: { ...base.recovery!.nextExecution, access: recorded },
+        },
+      };
+      expect(eventSuccessorAuthorized(lane(HANDOFF), event, op, requested)).toBe(false);
+      for (const livePreparation of [true, false]) {
+        expect(nextAttempt(lane(HANDOFF), [event], new Set(), requested, livePreparation).kind)
+          .not.toBe("parent-operation");
+        expect(nextAttempt(lane(HANDOFF), [event, op], new Set(), requested, livePreparation).kind)
+          .not.toBe("continue");
+      }
+    }
+  });
 });

@@ -498,6 +498,41 @@ describe("recorded continuation history", () => {
     expect(repeat.code).toBe(64);
     expect(repeat.error).toContain("recorded continuation");
   });
+
+  it("rejects handoff history that changes access in either direction", () => {
+    const root = realpathSync(scratch);
+    const sheet = join(scratch, "models.sheet");
+    writeFileSync(sheet, SHEET.replace("swarm workers:", '# continuation: {"on":["handoff"],"max":2}\nswarm workers:'));
+    const state = join(scratch, "state.json");
+    for (const [recorded, requested] of [
+      ["read-only", "isolated-write"],
+      ["isolated-write", "read-only"],
+    ] as const) {
+      const identity = (index: number) => ({
+        id: `handoff-execution-${index}`, outputPath: join(root, `handoff-output-${index}`),
+        receiptPath: join(root, `handoff-receipt-${index}`),
+        workspacePath: join(root, `handoff-workspace-${index}`),
+        descriptor: "grok:grok-4.7@xhigh", apiSpend: "deny", access: recorded, contract: "legacy",
+      });
+      writeFileSync(state, JSON.stringify({ access: requested, events: [
+        {
+          attemptIndex: 0, status: "needs-parent-operation", processStarted: true,
+          inspection: { state: "clear", evidenceRef: "review" }, execution: identity(0),
+          handoff: { operation: "commit-checkpoint", taskId: "task", checkpointId: "cp" },
+          recovery: {
+            correction: "parent committed", blockageId: "cp", snapshotRef: "snapshot",
+            snapshotDigest: "a".repeat(64), partialWorkRef: "partial", sideEffectsRef: "effects",
+            stoppedWritersRef: "stopped", nextExecution: identity(1),
+          },
+        },
+        { attemptIndex: 0, status: "complete", parentOperation: { kind: "commit-checkpoint", taskId: "task", checkpointId: "cp" } },
+        { attemptIndex: 0, status: "complete", execution: identity(1) },
+      ] }));
+      const capture = io();
+      expect(main(["next", "--sheet", sheet, "--role", "swarm workers", "--parent", "codex", "--state", state], capture.capture)).toBe(64);
+      expect(capture.stderr.join("")).toContain("continuation");
+    }
+  });
 });
 
 describe("model-policy normalize command", () => {

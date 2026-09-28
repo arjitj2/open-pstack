@@ -992,7 +992,9 @@ export function eventAdvancesUnderPolicy(
   }
   if (event.status === "complete" || event.status === "failed") return false;
   if (event.status === "needs-parent-operation") {
-    return event.handoff !== undefined && writerInspectionOk(event, access);
+    return event.handoff !== undefined &&
+      (event.execution === undefined || event.execution.access === access) &&
+      writerInspectionOk(event, access);
   }
   if (event.status === "permission-blocked") {
     const cause = eventDeniedCause(event);
@@ -1050,6 +1052,7 @@ function continueDecision(
   anchor: AttemptEvent,
   events: readonly AttemptEvent[],
   reason: ContinuationReason,
+  access: "read-only" | "isolated-write",
   livePreparation: boolean
 ): NextAttempt {
   const cont = lane.continuation;
@@ -1060,7 +1063,7 @@ function continueDecision(
   if (executions >= cont.maxExecutions) {
     return { kind: "policy-denied", reason: "exhausted-allowance" };
   }
-  if (!recoveryReady(lane, anchor, events, anchor.recovery?.nextExecution.access ?? "isolated-write", livePreparation)) {
+  if (!recoveryReady(lane, anchor, events, access, livePreparation)) {
     return { kind: "policy-denied", reason: "missing-readiness" };
   }
   return {
@@ -1102,7 +1105,7 @@ function deniedDecision(
   if (!recoveryReady(lane, anchor, events, access, livePreparation)) {
     return { kind: "policy-denied", reason: "missing-readiness" };
   }
-  return continueDecision(lane, anchor, events, cause, livePreparation);
+  return continueDecision(lane, anchor, events, cause, access, livePreparation);
 }
 
 // A delivered handoff names the parent operation to run next; after the op
@@ -1119,6 +1122,9 @@ function handoffDecision(
   const request = anchor.handoff;
   if (request === undefined) {
     return { kind: "policy-denied", reason: "handoff-malformed" };
+  }
+  if (anchor.execution !== undefined && anchor.execution.access !== access) {
+    return { kind: "policy-denied", reason: "missing-readiness" };
   }
   if (anchor.inspection?.state === "unsafe") {
     return { kind: "stop", reason: "unsafe-writer" };
@@ -1153,7 +1159,7 @@ function handoffDecision(
   if (op.status !== "complete") {
     return { kind: "stop", reason: "not-eligible" };
   }
-  return continueDecision(lane, anchor, events, "handoff", livePreparation);
+  return continueDecision(lane, anchor, events, "handoff", access, livePreparation);
 }
 
 export function nextAttempt(
