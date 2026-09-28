@@ -117,7 +117,8 @@ describe("Devin external provider", () => {
   it("keeps metacharacters in prompt paths as argv data", () => {
     const promptPath = join(scratch, "prompt $(touch BAD).md");
     const command = invocationCommand({ ...options, promptPath });
-    expect(command.args).toContain(promptPath);
+    expect(command.args).toContain(devinPromptPath({ ...options, promptPath }));
+    expect(command.args).not.toContain(promptPath);
     expect(command.args).toContain("swe-2-high");
     expect(command.args).not.toContain("--effort");
     expect(command.stdin).toBe("none");
@@ -282,7 +283,7 @@ describe("Devin external provider", () => {
     expect(existsSync(input.outputPath)).toBe(false);
   });
 
-  it("keeps an unfinished export as failure evidence despite a rejected tool call", async () => {
+  it("normalizes a verified tool rejection into a permission-blocked event", async () => {
     fakeDevin("I will create the file.", 0, "Logged in (via Devin).",
       "warning: rejected a tool call that requires confirmation. Running in non-interactive mode. Use --permission-mode dangerous to auto-approve all tools.",
       { schema_version: "ATIF-v1.7", steps: [{ source: "agent", message: "Working", tool_calls: [{ function_name: "exec" }] }] });
@@ -290,17 +291,49 @@ describe("Devin external provider", () => {
     const result = await runLane(input);
     expect(result.receipt.status).toBe("malformed-output");
     expect(result.receipt.terminalSuccess).toBe(false);
-    expect(
-      normalizeReceiptEvent(result.receipt, {
-        parent: input.parent,
-        provider: input.provider,
-        model: input.model,
-        effort: input.effort,
-        mode: input.mode,
-        apiSpend: "unset",
-      }).status
-    ).toBe("terminal-failure");
+    expect(result.receipt.toolDenial?.verified).toBe(true);
+    const event = normalizeReceiptEvent(result.receipt, {
+      parent: input.parent,
+      provider: input.provider,
+      model: input.model,
+      effort: input.effort,
+      mode: input.mode,
+      apiSpend: "unset",
+    });
+    expect(event.status).toBe("permission-blocked");
+    expect(event.deniedCause).toBe("permission");
     expect(existsSync(input.outputPath)).toBe(false);
+  });
+
+  it("normalizes an ATIF write denial without persisting its path or content", async () => {
+    const filePath = join(scratch, "CANARY_DENIED_PATH.txt");
+    const exported = { schema_version: "ATIF-v1.7", steps: [{
+      source: "agent", message: "CANARY_DENIED_NARRATION", tool_calls: [{
+        tool_call_id: "call-1", function_name: "write",
+        arguments: { file_path: filePath, content: "CANARY_DENIED_CONTENT" },
+      }],
+      observation: { results: [{
+        source_call_id: "call-1",
+        content: `Write access to '${filePath}' was denied. The user needs to grant write permission for this directory — ask them to approve the write access request or add the directory to the workspace.`,
+      }] },
+    }] };
+    fakeDevin("I am making the requested direct write.", 0, "Logged in (via Devin).", "", exported);
+    const input = { ...options, mode: "isolated-write" as const };
+    const result = await runLane(input);
+    expect(result.receipt.status).toBe("malformed-output");
+    expect(result.receipt.terminalSuccess).toBe(false);
+    expect(result.receipt.toolDenial).toMatchObject({
+      verified: true, cause: "permission", tool: "write",
+      evidence: "devin_atif_write_permission_denied",
+    });
+    const serialized = readFileSync(input.receiptPath, "utf8");
+    expect(serialized).not.toContain("CANARY_DENIED_PATH");
+    expect(serialized).not.toContain("CANARY_DENIED_CONTENT");
+    expect(serialized).not.toContain("CANARY_DENIED_NARRATION");
+    expect(normalizeReceiptEvent(result.receipt, {
+      parent: input.parent, provider: input.provider, model: input.model,
+      effort: input.effort, mode: input.mode, apiSpend: "unset",
+    }).status).toBe("permission-blocked");
   });
 
   for (const [name, exported] of [

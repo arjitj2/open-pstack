@@ -4,11 +4,23 @@ This file records what each version of the Open Pstack package changed. Versions
 
 Entries describe package versions. Published release checkpoints have tag links; installation follows `main` unless pinned. Validation belongs to the linked pull requests. Older reports remain available through immutable links.
 
-## 1.8.6 rejects unverifiable Grok model reports
+## 1.9.1 accepts Grok output with unverified model identity
 
 Cursor baseline: [0.15.5](https://github.com/cursor/plugins/tree/12d587dfb20741cafc376c42c696c5f6e2a64487/pstack). [PR #70](https://github.com/arjitj2/open-pstack/pull/70).
 
-Grok usage accounting and session-selected model echoes no longer count as primary-model proof. Otherwise successful Grok output now fails closed and cannot be replayed through fallback. The [provider contract](plugins/pstack/skills/poteto-mode/references/provider-dispatch.md#external-lanes) describes the evidence limit. Live verification remains deferred to [issue #67](https://github.com/arjitj2/open-pstack/issues/67).
+Grok completions no longer claim model verification from usage accounting or selected-model echoes. Valid output keeps its session and accounting with `modelVerified: false` and `modelEvidence: "pinned-argv"`. Billing guards and the terminal-success replay veto remain unchanged. The [provider contract](plugins/pstack/skills/poteto-mode/references/provider-dispatch.md#external-lanes) describes the evidence limit and upstream requests. [Issue #67](https://github.com/arjitj2/open-pstack/issues/67) tracks remaining live verification.
+
+## 1.9.0 exposes external worker lifecycle progress
+
+Cursor baseline: [0.15.5](https://github.com/cursor/plugins/tree/12d587dfb20741cafc376c42c696c5f6e2a64487/pstack). [PR #71](https://github.com/arjitj2/open-pstack/pull/71).
+
+External lanes accept an optional `--progress` path: an exclusively reserved, private, atomically replaced lifecycle snapshot carrying the derived phase, last-observed direct-child state, content-free byte activity, and cancellation facts. `pstack-runner status` reads explicit progress/receipt pairs, probes launcher identity by process start time, and prints one coalesced line or bounded JSON per lane. Terminal outcomes still come only from the receipt; a finished marker without a valid receipt reports `unknown`, and an absent or reused launcher pid reports `interrupted` rather than active. Receipts, parsing, cancellation, deadlines, cleanup, and recovery policy are unchanged.
+
+## 1.8.6 gives workers a shared parent-owned Git contract
+
+Cursor baseline: [0.15.5](https://github.com/cursor/plugins/tree/12d587dfb20741cafc376c42c696c5f6e2a64487/pstack). [Issue #57](https://github.com/arjitj2/open-pstack/issues/57).
+
+Native and external workers now receive the same parent-owned Git and handoff instructions. The runner distinguishes delivered handoffs from task completion, while the parent can validate a scoped checkpoint and record an idempotent operation before continuing a blocked execution. Same-route continuation requires explicit saved policy and parent inspection evidence. Strict confinement reports unsupported on every route until a live runtime boundary is proven; the default legacy contract remains prompt guidance.
 
 ## 1.8.5 bounds failure-receipt diagnostics
 

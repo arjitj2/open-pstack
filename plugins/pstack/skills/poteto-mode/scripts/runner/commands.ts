@@ -9,6 +9,8 @@ import type {
 } from "./types.ts";
 
 import { devinConfigPath, devinExportPath, devinModel, devinPromptPath } from "./devin.ts";
+import { strictRouteSupport } from "../worker-contract/worker-contract.ts";
+import { UsageError } from "./types.ts";
 
 export interface CommandSpec {
   readonly command: string;
@@ -77,7 +79,20 @@ function effortOverride(effort: Effort): string {
   return `model_reasoning_effort=${JSON.stringify(effort)}`;
 }
 
-export function invocationCommand(options: RunnerOptions): CommandSpec {
+export function invocationCommand(
+  options: RunnerOptions,
+  effectivePromptPath: string = options.promptPath
+): CommandSpec {
+  if ((options.contract ?? "legacy") === "strict") {
+    const verdict = strictRouteSupport({
+      parent: options.parent,
+      provider: options.provider,
+      route: "external",
+    });
+    throw new UsageError(
+      `strict worker contract is unsupported for ${options.provider} external lanes: ${verdict.reason}`
+    );
+  }
   switch (options.provider) {
     case "antigravity": {
       const files = antigravityLaneFiles(options);
@@ -188,7 +203,7 @@ export function invocationCommand(options: RunnerOptions): CommandSpec {
         command: "grok",
         args: [
           "--prompt-file",
-          options.promptPath,
+          effectivePromptPath,
           "--model",
           options.model,
           "--reasoning-effort",

@@ -14,9 +14,10 @@ import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 import { childEnvironment, runLane } from "./run.ts";
 import { main } from "./cli.ts";
+import { decodeSnapshot, statusMain, type SnapshotV1 } from "./progress.ts";
 import { nextAttempt, type LanePolicy } from "../model-policy/model-policy.ts";
 import { normalizeReceiptEvent } from "../model-policy/receipt-event.ts";
-import type { Provider, RunnerOptions, RunnerReceipt } from "./types.ts";
+import type { Provider, ReceiptStatus, RunnerOptions, RunnerReceipt } from "./types.ts";
 
 let scratch = "";
 let bin = "";
@@ -46,6 +47,14 @@ if (process.env.FAKE_NETWORK_TEST_URL) {
   } catch {}
   appendFileSync(process.env.FAKE_NETWORK_LOG_PATH, stage + ":" + connected + "\\n");
 }
+if (args.includes("--help")) {
+  console.log(process.env.FAKE_HELP_TEXT ?? "Usage: fake [options]");
+  process.exit(0);
+}
+if (process.env.FAKE_STDIN_CAPTURE_PATH && !isPreflight) {
+  const stdinText = await new Response(process.stdin).text();
+  writeFileSync(process.env.FAKE_STDIN_CAPTURE_PATH, stdinText);
+}
 const startedPath = isPreflight
   ? process.env.FAKE_PREFLIGHT_STARTED_PATH
   : process.env.FAKE_MODEL_STARTED_PATH;
@@ -70,6 +79,9 @@ if (cancelStage === stage) {
   process.on("SIGTERM", () => stop("SIGTERM"));
   writeFileSync(process.env.FAKE_STARTED_PATH, String(process.pid));
   await Bun.sleep(5_000);
+}
+if (stage === "model" && process.env.FAKE_STREAM_CHUNK !== undefined) {
+  process.stderr.write(process.env.FAKE_STREAM_CHUNK);
 }
 const delay = Number(
   stage === "preflight"
@@ -291,6 +303,9 @@ function runnerArgs(input: RunnerOptions): string[] {
   if (input.timeoutMs !== null) {
     args.push("--timeout", String(input.timeoutMs / 1_000));
   }
+  if (input.progressPath !== null && input.progressPath !== undefined) {
+    args.push("--progress", input.progressPath);
+  }
   return args;
 }
 
@@ -356,6 +371,8 @@ beforeEach(() => {
   delete process.env.FAKE_REMOVE_EXECUTABLE_AFTER_PREFLIGHT;
   delete process.env.FAKE_GROK_UNAUTH;
   delete process.env.FAKE_GROK_TRANSIENT_UNAUTH_PATH;
+  delete process.env.FAKE_HELP_TEXT;
+  delete process.env.FAKE_STDIN_CAPTURE_PATH;
   delete process.env.FAKE_GROK_PREFLIGHT_LOG_PATH;
   delete process.env.FAKE_GROK_MISSING_MODEL;
   delete process.env.FAKE_DESCENDANT_HOLDS_PIPES_MS;
@@ -388,6 +405,7 @@ beforeEach(() => {
   delete process.env.FAKE_CLAUDE_STREAM;
   delete process.env.FAKE_STDOUT;
   delete process.env.FAKE_STDERR;
+  delete process.env.FAKE_STREAM_CHUNK;
   delete process.env.FAKE_PREFLIGHT_STDOUT;
   delete process.env.FAKE_PREFLIGHT_STDERR;
   delete process.env.FAKE_PREFLIGHT_EXIT;
@@ -425,6 +443,8 @@ afterEach(() => {
   delete process.env.FAKE_REMOVE_EXECUTABLE_AFTER_PREFLIGHT;
   delete process.env.FAKE_GROK_UNAUTH;
   delete process.env.FAKE_GROK_TRANSIENT_UNAUTH_PATH;
+  delete process.env.FAKE_HELP_TEXT;
+  delete process.env.FAKE_STDIN_CAPTURE_PATH;
   delete process.env.FAKE_GROK_PREFLIGHT_LOG_PATH;
   delete process.env.FAKE_GROK_MISSING_MODEL;
   delete process.env.FAKE_DESCENDANT_HOLDS_PIPES_MS;
@@ -457,6 +477,7 @@ afterEach(() => {
   delete process.env.FAKE_CLAUDE_STREAM;
   delete process.env.FAKE_STDOUT;
   delete process.env.FAKE_STDERR;
+  delete process.env.FAKE_STREAM_CHUNK;
   delete process.env.FAKE_PREFLIGHT_STDOUT;
   delete process.env.FAKE_PREFLIGHT_STDERR;
   delete process.env.FAKE_PREFLIGHT_EXIT;
@@ -1062,8 +1083,10 @@ describe("runLane", () => {
     const input = options("codex", "preflight-cancelled");
     const started = join(scratch, "preflight-child.started");
     const terminated = join(scratch, "preflight-child.terminated");
-    const isolatedRunner = join(scratch, "isolated-runner");
+    const isolatedRunner = join(scratch, "runner");
     cpSync(import.meta.dir, isolatedRunner, { recursive: true });
+    cpSync(join(import.meta.dir, "../worker-contract"), join(scratch, "worker-contract"), { recursive: true });
+    cpSync(join(import.meta.dir, "../model-policy"), join(scratch, "model-policy"), { recursive: true });
     const runner = Bun.spawn([
       process.execPath,
       join(isolatedRunner, "pstack-runner"),
@@ -1081,7 +1104,11 @@ describe("runLane", () => {
     });
     const stdout = new Response(runner.stdout).text();
     const stderr = new Response(runner.stderr).text();
-    await waitFor(started);
+    try {
+      await waitFor(started);
+    } catch {
+      throw new Error(`isolated runner did not start preflight: ${await stderr}`);
+    }
     runner.kill("SIGINT");
 
     expect(await exitWithin(runner, 3_000)).toBe(130);
@@ -2203,6 +2230,132 @@ describe("usage exhaustion and billing guard", () => {
   });
 });
 
+describe("worker contract dispatch", () => {
+
+  it("fails a strict claude lane before dispatch when the CLI lacks the control surface", async () => {
+    const input: RunnerOptions = {
+      ...options("claude", "strict-unsupported"),
+      mode: "isolated-write",
+      contract: "strict",
+    };
+    const result = await runLane(input);
+    expect(result.exitCode).toBe(79);
+    expect(result.receipt.status).toBe("unsupported-capability");
+    expect(result.receipt.failurePhase).toBe("preflight");
+    expect(result.receipt.processStarted).toBe(false);
+    expect(result.receipt.contract).toBe("strict");
+    expect(existsSync(input.outputPath)).toBe(false);
+  });
+
+  it("does not treat advertised Claude flags as enforcement proof", async () => {
+    process.env.FAKE_HELP_TEXT = "--restricted --permission-prompts";
+    const input: RunnerOptions = {
+      ...options("claude", "strict-supported"),
+      mode: "isolated-write",
+      contract: "strict",
+    };
+    const result = await runLane(input);
+    expect(result.receipt.status).toBe("unsupported-capability");
+    expect(result.receipt.contract).toBe("strict");
+    expect(result.receipt.processStarted).toBe(false);
+  });
+
+  it("records a terminal capability stop for an unsupported provider", async () => {
+    const input: RunnerOptions = {
+      ...options("grok", "strict-grok"),
+      mode: "isolated-write",
+      contract: "strict",
+    };
+    const result = await runLane(input);
+    expect(result.receipt.status).toBe("unsupported-capability");
+    expect(result.receipt.processStarted).toBe(false);
+  });
+
+  it("prepends the shared contract to external writer prompts", async () => {
+    const stdinPath = join(scratch, "writer-stdin.txt");
+    process.env.FAKE_STDIN_CAPTURE_PATH = stdinPath;
+    const input: RunnerOptions = { ...options("codex", "writer-prompt"), mode: "isolated-write" };
+    const result = await runLane(input);
+    expect(result.receipt.status).toBe("complete");
+    expect(result.receipt.contract).toBe("legacy");
+    const sent = readFileSync(stdinPath, "utf8");
+    expect(sent).toContain("## Worker contract");
+    expect(sent).toContain("Never stage, commit, reset, rebase");
+    expect(sent.endsWith("Assigned task:\nReturn the marker.")).toBe(true);
+  });
+
+  it("prepends the shared contract to read-only external lanes", async () => {
+    const stdinPath = join(scratch, "ro-stdin.txt");
+    process.env.FAKE_STDIN_CAPTURE_PATH = stdinPath;
+    const readOnly = options("codex", "ro-prompt");
+    await runLane(readOnly);
+    const sent = readFileSync(stdinPath, "utf8");
+    expect(sent).toContain("## Worker contract");
+    expect(sent.endsWith("Assigned task:\nReturn the marker.")).toBe(true);
+  });
+
+  it("records a validated final-response handoff on the receipt and normalizes it", async () => {
+    const handoff = {
+      task: "issue-57",
+      checkpoint: "cp-1",
+      operation: "commit-checkpoint",
+      files: ["src/a.ts"],
+      checks: ["bun test"],
+      summary: "commit the prepared checkpoint",
+    };
+    const finalText = `All edits are preserved.\n\`\`\`pstack-handoff\n${JSON.stringify(handoff)}\n\`\`\``;
+    process.env.FAKE_CLAUDE_STREAM = [
+      JSON.stringify({ type: "system", subtype: "init", session_id: "c1", model: "fable" }),
+      JSON.stringify({ type: "assistant", session_id: "c1", parent_tool_use_id: null, message: { role: "assistant", model: "claude-fable-9-9", content: [{ type: "text", text: finalText }] } }),
+      JSON.stringify({ type: "result", subtype: "success", is_error: false, result: finalText, session_id: "c1", modelUsage: { "claude-fable-9-9": {} } }),
+    ].join("\n");
+    const input = options("claude", "handoff");
+    const result = await runLane(input);
+    expect(result.receipt.status).toBe("needs-parent-operation");
+    expect(result.receipt.handoff?.operation).toBe("commit-checkpoint");
+    expect(result.receipt.handoff?.checkpoint).toBe("cp-1");
+    expect(result.receipt.handoffMalformed).toBeUndefined();
+    const event = normalizeReceiptEvent(result.receipt, {
+      parent: input.parent,
+      provider: input.provider,
+      model: input.model,
+      effort: input.effort,
+      mode: input.mode,
+      apiSpend: "unset",
+    });
+    expect(event.status).toBe("needs-parent-operation");
+    expect(event.handoff).toMatchObject({
+      operation: "commit-checkpoint",
+      taskId: "issue-57",
+      checkpointId: "cp-1",
+    });
+  });
+
+  it("marks a malformed handoff without trusting it", async () => {
+    const finalText = "done\n```pstack-handoff\n{\"operation\":\"rm -rf /\"}\n```";
+    process.env.FAKE_CLAUDE_STREAM = [
+      JSON.stringify({ type: "system", subtype: "init", session_id: "c1", model: "fable" }),
+      JSON.stringify({ type: "assistant", session_id: "c1", parent_tool_use_id: null, message: { role: "assistant", model: "claude-fable-9-9", content: [{ type: "text", text: finalText }] } }),
+      JSON.stringify({ type: "result", subtype: "success", is_error: false, result: finalText, session_id: "c1", modelUsage: { "claude-fable-9-9": {} } }),
+    ].join("\n");
+    const input = options("claude", "handoff-bad");
+    const result = await runLane(input);
+    expect(result.receipt.status).toBe("malformed-output");
+    expect(result.receipt.handoff).toBeUndefined();
+    expect(result.receipt.handoffMalformed).toBe(true);
+    expect(
+      normalizeReceiptEvent(result.receipt, {
+        parent: input.parent,
+        provider: input.provider,
+        model: input.model,
+        effort: input.effort,
+        mode: input.mode,
+        apiSpend: "unset",
+      }).status
+    ).toBe("failed");
+  });
+});
+
 describe("failure receipt privacy", () => {
   const RECEIPT_CANARIES = [
     "CANARY_PROMPT_EVENT",
@@ -2419,6 +2572,21 @@ describe("failure receipt privacy", () => {
     expect(result.receipt.error?.evidence).toContain("antigravity terminal detail");
   });
 
+  it("keeps denied Antigravity tool arguments out of the receipt", async () => {
+    process.env.FAKE_STDOUT = [
+      JSON.stringify({ event: "init", conversation_id: "s", init: { model: "gemini-3.1-pro-high" } }),
+      JSON.stringify({ event: "result", result: {
+        conversation_id: "s", status: "ERROR", response: "", num_turns: 1,
+        denied_actions: [{ tool: "CANARY_TOOL_ARGUMENTS", action: "CANARY_TOOL_RESULT" }],
+      } }),
+    ].join("\n");
+    const input = { ...options("antigravity", "privacy-agy-denied"), model: "gemini-3.1-pro-high", effort: "default" as const, apiSpend: "approved" as const };
+    const result = await runLane(input);
+    expect(result.receipt.status).toBe("child-failed");
+    expect(result.receipt.toolDenial).toMatchObject({ verified: true, cause: "unknown", evidence: "antigravity_denied_actions_present" });
+    assertBoundedReceipt(result.receipt, input);
+  });
+
   it("bounds a failed Codex preflight to structural counts", async () => {
     process.env.FAKE_PREFLIGHT_STDOUT = "CANARY_PROMPT_EVENT\nnot logged in CANARY_NARRATION\n";
     process.env.FAKE_PREFLIGHT_STDERR = "CANARY_STDERR";
@@ -2524,5 +2692,508 @@ describe("failure receipt privacy", () => {
     expect(result.receipt.error?.evidence).toContain("codex_usage_limit_exceeded");
     expect(result.receipt.error?.evidence).toContain("usage limit");
     assertBoundedReceipt(result.receipt, input);
+  });
+});
+
+describe("worker progress", () => {
+  it("does not probe process identity when progress is omitted", async () => {
+    const probeLog = join(scratch, "ps-called");
+    const executable = join(bin, "ps");
+    writeFileSync(executable, `#!/bin/sh\necho called >> '${probeLog}'\nexit 1\n`, { mode: 0o700 });
+    const result = await runLane(options("claude", "disabled-progress"));
+    expect(result.receipt.status).toBe("complete");
+    expect(existsSync(probeLog)).toBe(false);
+  });
+
+  it("keeps a stalled identity probe out of prompt delivery and execution deadlines", async () => {
+    writeFileSync(join(bin, "ps"), "#!/bin/sh\nexec /bin/sleep 30\n", { mode: 0o700 });
+    for (const timeoutMs of [null, 1_500]) {
+      const input = { ...progressOptions("claude", `slow-probe-${timeoutMs}`), timeoutMs };
+      const result = await runLane(input);
+      expect(result.receipt.status).toBe("complete");
+      expect(result.exitCode).toBe(0);
+      expect(readSnapshot(input.progressPath!).terminal?.receiptWritten).toBe(true);
+    }
+  });
+
+  it("marks strict rejection terminal without launching or changing recovery", async () => {
+    const input = { ...progressOptions("claude", "strict-progress"), contract: "strict" as const };
+    const result = await runLane(input);
+    expect(result.receipt.status).toBe("unsupported-capability");
+    expect(result.receipt.processStarted).toBe(false);
+    expect(result.receipt.argv).toEqual([]);
+    expect(readSnapshot(input.progressPath!).terminal?.receiptWritten).toBe(true);
+    const io = statusIO();
+    expect(statusMain(["--progress", input.progressPath!, "--receipt", input.receiptPath], io.io)).toBe(0);
+    expect(io.out).toContain("terminal unsupported-capability (from receipt)");
+    expect(normalizeReceiptEvent(result.receipt, {
+      parent: input.parent, provider: input.provider, model: input.model,
+      effort: input.effort, mode: input.mode, apiSpend: "unset",
+    }).status).toBe("failed");
+  });
+
+  const PROGRESS_CANARY = "PROGRESS_CANARY_PROMPT_OR_STREAM_TEXT";
+
+  function progressOptions(provider: Provider, suffix: string): RunnerOptions {
+    return {
+      ...options(provider, suffix),
+      progressPath: join(scratch, `${suffix}.progress.json`),
+    };
+  }
+
+  async function waitForSnapshot(
+    path: string,
+    predicate: (snapshot: SnapshotV1) => boolean
+  ): Promise<SnapshotV1> {
+    for (let attempt = 0; attempt < 900; attempt += 1) {
+      try {
+        const decoded = decodeSnapshot(readFileSync(path, "utf8"));
+        if (decoded.ok && predicate(decoded.snapshot)) return decoded.snapshot;
+      } catch {
+      }
+      await Bun.sleep(10);
+    }
+    throw new Error(`timed out waiting for progress snapshot at ${path}`);
+  }
+
+  function statusIO() {
+    const captured = {
+      out: "",
+      err: "",
+      io: {
+        stdout: (value: string) => {
+          captured.out += value;
+        },
+        stderr: (value: string) => {
+          captured.err += value;
+        },
+      },
+    };
+    return captured;
+  }
+
+  function readSnapshot(path: string): SnapshotV1 {
+    const decoded = decodeSnapshot(readFileSync(path, "utf8"));
+    if (!decoded.ok) throw new Error(`progress file did not decode: ${decoded.reason}`);
+    return decoded.snapshot;
+  }
+
+  function stripVolatile(receiptJson: RunnerReceipt): Record<string, unknown> {
+    const copy = { ...receiptJson } as Record<string, unknown>;
+    delete copy.startedAt;
+    delete copy.completedAt;
+    delete copy.elapsedMs;
+    delete copy.outputPath;
+    delete copy.receiptPath;
+    delete copy.promptPath;
+    delete copy.executionId;
+    delete copy.canonicalPaths;
+    return copy;
+  }
+
+  it("reports a quiet active worker honestly through the status subcommand", async () => {
+    const input = progressOptions("claude", "quiet-worker");
+    const runner = Bun.spawn([process.execPath, ...runnerArgs(input)], {
+      cwd: scratch,
+      env: { ...process.env, FAKE_MODEL_DELAY_MS: "2000" },
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+    const stdout = new Response(runner.stdout).text();
+    const stderr = new Response(runner.stderr).text();
+    try {
+      const running = await waitForSnapshot(
+        input.progressPath!,
+        (s) => s.phase === "workload-running"
+      );
+      expect(running.activity.lastActivityAt).toBeNull();
+      expect(running.child?.running).toBe(true);
+      expect(running.terminal).toBeNull();
+
+      const statusRunner = Bun.spawn(
+        [process.execPath, join(import.meta.dir, "pstack-runner"), "status",
+          "--progress", input.progressPath!, "--receipt", input.receiptPath],
+        { stdout: "pipe", stderr: "pipe" }
+      );
+      const statusOut = await new Response(statusRunner.stdout).text();
+      expect(await statusRunner.exited).toBe(0);
+      expect(statusOut).toContain("workload-running");
+      expect(statusOut).toMatch(/runner (present|unverified)/);
+      expect(statusOut).toContain("no output observed yet");
+      expect(statusOut).toContain("quiet is not failure");
+      expect(statusOut).not.toContain("Return the marker");
+    } finally {
+      expect(await exitWithin(runner, 5_000)).toBe(0);
+      await Promise.all([stdout, stderr]);
+    }
+    const final = readSnapshot(input.progressPath!);
+    expect(final.phase).toBe("terminal");
+    expect(final.terminal?.receiptWritten).toBe(true);
+    expect(receipt(input.receiptPath).status).toBe("complete");
+
+    const io = statusIO();
+    expect(
+      await main(
+        ["status", "--progress", input.progressPath!, "--receipt", input.receiptPath],
+        0,
+        io.io
+      )
+    ).toBe(0);
+    expect(io.out).toContain("terminal complete");
+  });
+
+  it("records content-free byte activity without leaking output or prompt text", async () => {
+    const input = progressOptions("codex", "chatty-worker");
+    const runner = Bun.spawn([process.execPath, ...runnerArgs(input)], {
+      cwd: scratch,
+      env: {
+        ...process.env,
+        FAKE_STREAM_CHUNK: PROGRESS_CANARY,
+        FAKE_MODEL_DELAY_MS: "7000",
+      },
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+    const stdout = new Response(runner.stdout).text();
+    const stderr = new Response(runner.stderr).text();
+    try {
+      const active = await waitForSnapshot(
+        input.progressPath!,
+        (s) => s.phase === "workload-running" && s.activity.stderrBytes > 0
+      );
+      expect(active.activity.stderrBytes).toBeGreaterThan(0);
+      expect(active.activity.lastActivityAt).not.toBeNull();
+    } finally {
+      expect(await exitWithin(runner, 12_000)).toBe(0);
+      await Promise.all([stdout, stderr]);
+    }
+    const fileBytes = readFileSync(input.progressPath!, "utf8");
+    expect(fileBytes).not.toContain(PROGRESS_CANARY);
+    expect(fileBytes).not.toContain("Return the marker");
+    const io = statusIO();
+    expect(
+      await main(
+        ["status", "--progress", input.progressPath!, "--receipt", input.receiptPath],
+        0,
+        io.io
+      )
+    ).toBe(0);
+    expect(io.out).not.toContain(PROGRESS_CANARY);
+    expect(io.out).not.toContain("Return the marker");
+  }, 15_000);
+
+  it("keeps parallel lanes on separate progress identities", async () => {
+    const first = progressOptions("claude", "lane-one");
+    const second = progressOptions("codex", "lane-two");
+    const [a, b] = await Promise.all([runLane(first), runLane(second)]);
+    expect(a.exitCode).toBe(0);
+    expect(b.exitCode).toBe(0);
+    const sa = readSnapshot(first.progressPath!);
+    const sb = readSnapshot(second.progressPath!);
+    expect(sa.attemptId).not.toBe(sb.attemptId);
+    expect(sa.provider).toBe("claude");
+    expect(sb.provider).toBe("codex");
+    const io = statusIO();
+    expect(
+      await main(
+        ["status",
+          "--progress", first.progressPath!, "--receipt", first.receiptPath,
+          "--progress", second.progressPath!, "--receipt", second.receiptPath],
+        0,
+        io.io
+      )
+    ).toBe(0);
+    expect(io.out).toContain("L1 claude:");
+    expect(io.out).toContain("L2 codex:");
+    expect(io.out).toContain("terminal complete");
+  });
+
+  it("distinguishes an exited child with an inherited open pipe and records cancellation during drain", async () => {
+    const descendantPidPath = join(scratch, "progress-descendant.pid");
+    const modelExiting = join(scratch, "progress-model.exiting");
+    const input = progressOptions("claude", "drain-progress");
+    const runner = Bun.spawn([process.execPath, ...runnerArgs(input)], {
+      cwd: scratch,
+      env: {
+        ...process.env,
+        FAKE_DESCENDANT_HOLDS_PIPES_MS: "30000",
+        FAKE_DESCENDANT_PID_PATH: descendantPidPath,
+        FAKE_MODEL_EXITING_PATH: modelExiting,
+      },
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+    const stdout = new Response(runner.stdout).text();
+    const stderr = new Response(runner.stderr).text();
+    try {
+      await waitFor(modelExiting);
+      await waitForExit(Number(readFileSync(modelExiting, "utf8")));
+      const draining = await waitForSnapshot(
+        input.progressPath!,
+        (s) => s.phase === "workload-draining"
+      );
+      expect(draining.child?.running).toBe(false);
+      expect(draining.child?.exitCode).toBe(0);
+      expect(draining.child?.drained).toBe(false);
+
+      const io = statusIO();
+      expect(
+        await main(
+          ["status", "--progress", input.progressPath!, "--receipt", input.receiptPath],
+          0,
+          io.io
+        )
+      ).toBe(0);
+      expect(io.out).toContain("workload-draining");
+      expect(io.out).toContain("pipe open");
+
+      runner.kill("SIGTERM");
+      expect(await exitWithin(runner, 5_000)).toBe(130);
+      await Promise.all([stdout, stderr]);
+      const final = readSnapshot(input.progressPath!);
+      expect(final.cancellation.requested?.signal).toBe("SIGTERM");
+      expect(final.childSettled).toMatchObject({
+        outcome: "already-exited",
+        cause: "cancel",
+      });
+      expect(final.terminal?.receiptWritten).toBe(true);
+      expect(receipt(input.receiptPath)).toMatchObject({
+        status: "cancelled",
+        signal: null,
+      });
+    } finally {
+      runner.kill("SIGKILL");
+      if (existsSync(descendantPidPath)) {
+        const descendantPid = Number(readFileSync(descendantPidPath, "utf8"));
+        if (processIsAlive(descendantPid)) process.kill(descendantPid, "SIGKILL");
+      }
+    }
+  });
+
+  it("records cancellation requested then confirmed while the workload runs", async () => {
+    const started = join(scratch, "cancel-workload.started");
+    const terminated = join(scratch, "cancel-workload.terminated");
+    const input = progressOptions("codex", "cancel-workload");
+    const runner = Bun.spawn([process.execPath, ...runnerArgs(input)], {
+      cwd: scratch,
+      env: {
+        ...process.env,
+        FAKE_CANCEL: "1",
+        FAKE_STARTED_PATH: started,
+        FAKE_TERMINATED_PATH: terminated,
+      },
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+    const stdout = new Response(runner.stdout).text();
+    const stderr = new Response(runner.stderr).text();
+    await waitForSnapshot(input.progressPath!, (s) => s.phase === "workload-running");
+    await waitFor(started);
+    runner.kill("SIGTERM");
+    expect(await exitWithin(runner, 5_000)).toBe(130);
+    await Promise.all([stdout, stderr]);
+    expect(readFileSync(terminated, "utf8")).toBe("SIGTERM");
+
+    const final = readSnapshot(input.progressPath!);
+    expect(final.cancellation.requested?.signal).toBe("SIGTERM");
+    expect(final.childSettled).toMatchObject({
+      outcome: "signalled-and-exited",
+      cause: "cancel",
+    });
+    expect(final.terminal?.receiptWritten).toBe(true);
+
+    const io = statusIO();
+    expect(
+      await main(
+        ["status", "--progress", input.progressPath!, "--receipt", input.receiptPath],
+        0,
+        io.io
+      )
+    ).toBe(0);
+    expect(io.out).toContain("terminal cancelled");
+    expect(io.out).toContain("cancellation confirmed, direct child settled");
+    expect(io.out).toContain("descendants not verified");
+  });
+
+  it("reports a killed launcher as interrupted, never active", async () => {
+    const input = progressOptions("codex", "crashed-launcher");
+    const runner = Bun.spawn([process.execPath, ...runnerArgs(input)], {
+      cwd: scratch,
+      env: { ...process.env, FAKE_MODEL_DELAY_MS: "3000" },
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+    const stdout = new Response(runner.stdout).text();
+    const stderr = new Response(runner.stderr).text();
+    await waitForSnapshot(input.progressPath!, (s) => s.phase === "workload-running");
+    runner.kill("SIGKILL");
+    await exitWithin(runner, 5_000);
+    await Promise.all([stdout, stderr]);
+
+    expect(readFileSync(input.receiptPath, "utf8")).toBe("");
+    const snapshot = readSnapshot(input.progressPath!);
+    expect(snapshot.terminal).toBeNull();
+
+    const io = statusIO();
+    expect(
+      await main(
+        ["status", "--progress", input.progressPath!, "--receipt", input.receiptPath],
+        0,
+        io.io
+      )
+    ).toBe(0);
+    expect(io.out).toMatch(/interrupted: launcher gone|runner unverified/);
+    expect(io.out).not.toContain("runner present");
+    expect(io.out).not.toContain("terminal");
+  });
+
+  it("keeps terminal receipts identical with and without progress", async () => {
+    const cases: {
+      name: string;
+      provider: Provider;
+      env: Record<string, string>;
+      status: ReceiptStatus;
+    }[] = [
+      {
+        name: "complete",
+        provider: "claude",
+        env: {},
+        status: "complete",
+      },
+      {
+        name: "nonzero",
+        provider: "codex",
+        env: { FAKE_MODEL_EXIT: "3" },
+        status: "child-failed",
+      },
+      {
+        name: "malformed",
+        provider: "codex",
+        env: { FAKE_CODEX_STDOUT: "not json at all" },
+        status: "malformed-output",
+      },
+      {
+        name: "provenance",
+        provider: "claude",
+        env: { FAKE_CLAUDE_REPORTED_MODEL: "claude-sonnet-9-9" },
+        status: "malformed-output",
+      },
+    ];
+    for (const { name, provider, env, status } of cases) {
+      for (const [key, value] of Object.entries(env)) process.env[key] = value;
+      const plain = options(provider, `parity-${name}-plain`);
+      const withProgress = progressOptions(provider, `parity-${name}-progress`);
+      const plainResult = await runLane(plain);
+      for (const key of Object.keys(env)) delete process.env[key];
+      for (const [key, value] of Object.entries(env)) process.env[key] = value;
+      const progressResult = await runLane(withProgress);
+      for (const key of Object.keys(env)) delete process.env[key];
+      expect(plainResult.receipt.status).toBe(status);
+      expect(progressResult.receipt.status).toBe(status);
+      expect(stripVolatile(progressResult.receipt)).toEqual(
+        stripVolatile(plainResult.receipt)
+      );
+      expect(readSnapshot(withProgress.progressPath!).terminal?.receiptWritten).toBe(true);
+    }
+  });
+
+  it("rejects aliased or preexisting progress paths before any child runs", async () => {
+    const modelStarted = join(scratch, "alias-model.started");
+    const env = { ...process.env, FAKE_MODEL_STARTED_PATH: modelStarted };
+
+    const sameAsReceipt = progressOptions("codex", "alias-receipt");
+    const collided = Bun.spawn(
+      [
+        process.execPath,
+        ...runnerArgs(sameAsReceipt).slice(0, -2),
+        "--progress",
+        sameAsReceipt.receiptPath,
+      ],
+      { cwd: scratch, env, stdout: "pipe", stderr: "pipe" }
+    );
+    expect(await collided.exited).toBe(64);
+    expect(existsSync(sameAsReceipt.receiptPath)).toBe(false);
+    expect(existsSync(sameAsReceipt.outputPath)).toBe(false);
+
+    const sidecar = progressOptions("devin", "alias-sidecar");
+    const sidecarRun = Bun.spawn(
+      [
+        process.execPath,
+        ...runnerArgs(sidecar).slice(0, -2),
+        "--progress",
+        `${sidecar.receiptPath}.devin-export`,
+      ],
+      { cwd: scratch, env, stdout: "pipe", stderr: "pipe" }
+    );
+    expect(await sidecarRun.exited).toBe(64);
+    expect(existsSync(sidecar.receiptPath)).toBe(false);
+
+    const occupied = progressOptions("codex", "alias-occupied");
+    writeFileSync(occupied.progressPath!, "already here");
+    const occupiedRun = Bun.spawn([process.execPath, ...runnerArgs(occupied)], {
+      cwd: scratch,
+      env,
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+    expect(await occupiedRun.exited).toBe(64);
+    expect(readFileSync(occupied.progressPath!, "utf8")).toBe("already here");
+    expect(existsSync(occupied.receiptPath)).toBe(false);
+    expect(existsSync(occupied.outputPath)).toBe(false);
+    expect(existsSync(modelStarted)).toBe(false);
+  });
+
+  it("keeps the run and receipt intact when progress writes start failing", async () => {
+    const progressDir = join(scratch, "progress-dir");
+    const input = {
+      ...options("codex", "failing-progress"),
+      progressPath: join(progressDir, "lane.progress.json"),
+    };
+    const runner = Bun.spawn([process.execPath, ...runnerArgs(input)], {
+      cwd: scratch,
+      env: { ...process.env, FAKE_MODEL_DELAY_MS: "1500" },
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+    const stdout = new Response(runner.stdout).text();
+    const stderr = new Response(runner.stderr).text();
+    try {
+      await waitForSnapshot(input.progressPath!, (s) => s.phase === "workload-running");
+      chmodSync(progressDir, 0o555);
+      expect(await exitWithin(runner, 5_000)).toBe(0);
+      await Promise.all([stdout, stderr]);
+      expect(receipt(input.receiptPath).status).toBe("complete");
+      expect(readFileSync(input.outputPath, "utf8")).toContain("CODEX_OK");
+    } finally {
+      chmodSync(progressDir, 0o755);
+    }
+  });
+
+  it("marks terminal without claiming success when a launcher error follows a spawn failure", async () => {
+    const input = progressOptions("codex", "spawn-failure-progress");
+    const modelStarted = join(scratch, "spawn-failure-progress-model.started");
+    const runner = Bun.spawn([process.execPath, ...runnerArgs(input)], {
+      cwd: scratch,
+      env: {
+        ...process.env,
+        FAKE_REMOVE_EXECUTABLE_AFTER_PREFLIGHT: "1",
+        FAKE_MODEL_STARTED_PATH: modelStarted,
+      },
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+    const stdout = new Response(runner.stdout).text();
+    const stderr = new Response(runner.stderr).text();
+    expect(await exitWithin(runner, 5_000)).toBe(70);
+    await Promise.all([stdout, stderr]);
+    expect(receipt(input.receiptPath)).toMatchObject({
+      status: "child-failed",
+      failurePhase: "invocation",
+      processStarted: true,
+    });
+    const snapshot = readSnapshot(input.progressPath!);
+    expect(snapshot.phase).toBe("terminal");
+    expect(snapshot.terminal?.receiptWritten).toBe(true);
+    expect(snapshot.child?.role).toBe("preflight");
   });
 });

@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { OutputValidationError, UsageError, type Effort, type RunnerOptions } from "./types.ts";
+import { renderWorkerPrompt } from "../worker-contract/worker-contract.ts";
 
 export function devinModel(model: string, effort: Effort): string {
   if (model === "swe-2" && ["medium", "high", "max"].includes(effort)) {
@@ -30,18 +31,28 @@ export function devinExportPath(options: RunnerOptions): string {
 }
 
 export function devinPromptPath(options: RunnerOptions): string {
-  return options.mode === "isolated-write"
-    ? `${devinExportDirectory(options)}/prompt.md`
-    : options.promptPath;
+  return `${devinExportDirectory(options)}/prompt.md`;
 }
 
-export function devinWriterPrompt(prompt: string): string {
+// Devin-specific tool guidance appended to the shared worker contract: the
+// common ownership and handoff instructions live in the worker-contract
+// module so native and external dispatch render the same contract.
+export function devinWriterPrompt(prompt: string, options: RunnerOptions): string {
   return "Execution constraints for this Devin worker:\n" +
     "You are running non-interactively in an isolated-write workspace. " +
     "Direct write and edit tools are disabled and terminate the run if attempted. " +
     "Use sandboxed exec for ALL file creation, modification, and testing, including the first file operation. " +
-    "Do not request permissions or use direct write/edit tools. " +
-    "Keep all changes inside the assigned working directory.\n\nAssigned task:\n" + prompt;
+    "Do not request permissions or use direct write/edit tools.\n\n" +
+    renderWorkerPrompt(
+      {
+        parent: options.parent,
+        provider: "devin",
+        route: "external",
+        access: options.mode,
+        contract: options.contract ?? "legacy",
+      },
+      prompt
+    );
 }
 
 export function readDevinExport(options: RunnerOptions): string {
