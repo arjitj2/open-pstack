@@ -399,6 +399,23 @@ else
   note "ok: codex logo path resolves"
 fi
 
+license_mirror_bad=""
+for rel in LICENSE NOTICE.md LICENSES/LICENSE-cursor-team-kit LICENSES/LICENSE-superpowers; do
+  packaged="$plugin/$rel"
+  if [ -L "$packaged" ] || [ ! -f "$packaged" ]; then
+    license_mirror_bad="${license_mirror_bad}packaged copy is absent or not a regular file: $packaged"$'\n'
+  elif ! cmp -s "$repo/$rel" "$packaged"; then
+    license_mirror_bad="${license_mirror_bad}packaged copy differs from canonical $rel"$'\n'
+  fi
+done
+if [ -n "$license_mirror_bad" ]; then
+  note "FAIL: packaged license and notice copies drifted from the canonical files:"
+  note "$license_mirror_bad"
+  fail=1
+else
+  note "ok: packaged LICENSE, NOTICE.md, and LICENSES files match the canonical sources"
+fi
+
 if [ "${PSTACK_STATIC_ONLY:-0}" = "1" ]; then
   exit "$fail"
 fi

@@ -4,6 +4,12 @@ This file records what each version of the Open Pstack package changed. Versions
 
 Entries describe package versions. Published release checkpoints have tag links; installation follows `main` unless pinned. Validation belongs to the linked pull requests. Older reports remain available through immutable links.
 
+## 1.9.1 packages license texts and credits the Open Pstack port
+
+Cursor baseline: [0.15.5](https://github.com/cursor/plugins/tree/12d587dfb20741cafc376c42c696c5f6e2a64487/pstack). [Issue #82](https://github.com/arjitj2/open-pstack/issues/82).
+
+The packaged plugin now ships full copies of `LICENSE`, `NOTICE.md`, and both `LICENSES/` texts alongside the skills, so an installed plugin carries the upstream licenses and attribution record instead of pointing back at the repository root. The included-sources table credits Eric Litman's Open Pstack port alongside the Cursor, Cursor Team Kit, and Superpowers sources, and `tests/skill-collision-repro.sh` fails if the packaged copies drift from the canonical files.
+
 ## 1.9.0 exposes external worker lifecycle progress
 
 Cursor baseline: [0.15.5](https://github.com/cursor/plugins/tree/12d587dfb20741cafc376c42c696c5f6e2a64487/pstack). [PR #71](https://github.com/arjitj2/open-pstack/pull/71).
