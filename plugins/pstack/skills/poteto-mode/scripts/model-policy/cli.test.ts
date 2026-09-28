@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { main } from "./cli.ts";
@@ -465,6 +465,76 @@ describe("model-policy broad-policy next command", () => {
   });
 });
 
+describe("recorded continuation history", () => {
+  it("rejects a third execution past max and a repeated unresolved correction", () => {
+    const root = realpathSync(scratch);
+    const identity = (index: number) => ({
+      id: `execution-${index}`, outputPath: join(root, `output-${index}`),
+      receiptPath: join(root, `receipt-${index}`), workspacePath: join(root, `workspace-${index}`),
+      descriptor: "grok:grok-4.7@xhigh", apiSpend: "deny", access: "read-only", contract: "legacy",
+    });
+    const event = (index: number, correction = `correction-${index}`) => ({
+      attemptIndex: 0, status: "permission-blocked", deniedCause: "permission",
+      processStarted: true, inspection: { state: "clear", evidenceRef: `inspection-${index}` },
+      execution: identity(index),
+      recovery: {
+        correction, blockageId: `block-${index}`, snapshotRef: `snapshot-${index}`,
+        snapshotDigest: "a".repeat(64), partialWorkRef: `partial-${index}`,
+        sideEffectsRef: `effects-${index}`, stoppedWritersRef: `stopped-${index}`,
+        nextExecution: identity(index + 1),
+      },
+    });
+    const sheet = join(scratch, "models.sheet");
+    const state = join(scratch, "state.json");
+    const run = (max: number, events: unknown[]) => {
+      writeFileSync(sheet, SHEET.replace("swarm workers:", `# continuation: {"on":["permission"],"max":${max}}\nswarm workers:`));
+      writeFileSync(state, JSON.stringify({ access: "read-only", events }));
+      const capture = io();
+      const code = main(["next", "--sheet", sheet, "--role", "swarm workers", "--parent", "codex", "--state", state], capture.capture);
+      return { code, error: capture.stderr.join("") };
+    };
+    expect(run(2, [event(0), event(1), event(2)]).code).toBe(64);
+    const repeat = run(3, [event(0), event(1, "correction-0"), event(2)]);
+    expect(repeat.code).toBe(64);
+    expect(repeat.error).toContain("recorded continuation");
+  });
+
+  it("rejects handoff history that changes access in either direction", () => {
+    const root = realpathSync(scratch);
+    const sheet = join(scratch, "models.sheet");
+    writeFileSync(sheet, SHEET.replace("swarm workers:", '# continuation: {"on":["handoff"],"max":2}\nswarm workers:'));
+    const state = join(scratch, "state.json");
+    for (const [recorded, requested] of [
+      ["read-only", "isolated-write"],
+      ["isolated-write", "read-only"],
+    ] as const) {
+      const identity = (index: number) => ({
+        id: `handoff-execution-${index}`, outputPath: join(root, `handoff-output-${index}`),
+        receiptPath: join(root, `handoff-receipt-${index}`),
+        workspacePath: join(root, `handoff-workspace-${index}`),
+        descriptor: "grok:grok-4.7@xhigh", apiSpend: "deny", access: recorded, contract: "legacy",
+      });
+      writeFileSync(state, JSON.stringify({ access: requested, events: [
+        {
+          attemptIndex: 0, status: "needs-parent-operation", processStarted: true,
+          inspection: { state: "clear", evidenceRef: "review" }, execution: identity(0),
+          handoff: { operation: "commit-checkpoint", taskId: "task", checkpointId: "cp" },
+          recovery: {
+            correction: "parent committed", blockageId: "cp", snapshotRef: "snapshot",
+            snapshotDigest: "a".repeat(64), partialWorkRef: "partial", sideEffectsRef: "effects",
+            stoppedWritersRef: "stopped", nextExecution: identity(1),
+          },
+        },
+        { attemptIndex: 0, status: "complete", parentOperation: { kind: "commit-checkpoint", taskId: "task", checkpointId: "cp" } },
+        { attemptIndex: 0, status: "complete", execution: identity(1) },
+      ] }));
+      const capture = io();
+      expect(main(["next", "--sheet", sheet, "--role", "swarm workers", "--parent", "codex", "--state", state], capture.capture)).toBe(64);
+      expect(capture.stderr.join("")).toContain("continuation");
+    }
+  });
+});
+
 describe("model-policy normalize command", () => {
   const BROAD_SHEET = SHEET.replace(
     "swarm workers:",
@@ -551,6 +621,23 @@ describe("model-policy normalize command", () => {
       expect(main(normalizeArgs(receipt(overrides)), capture.capture), JSON.stringify(overrides)).toBe(0);
       expect(JSON.parse(capture.stdout.join("")).event.status, JSON.stringify(overrides)).toBe(expected);
     }
+  });
+
+  it("normalizes a strict unsupported capability as a terminal stop", () => {
+    const receiptPath = join(scratch, "receipt.json");
+    const raw = receipt({
+      schemaVersion: 2, status: "unsupported-capability", contract: "strict",
+      executionId: "strict-1", receiptPath,
+      canonicalPaths: { cwd: scratch, output: join(scratch, "out"), receipt: receiptPath },
+      cwd: scratch, outputPath: join(scratch, "out"),
+      processStarted: false, failurePhase: "preflight", exitCode: null,
+    });
+    const capture = io();
+    expect(main(normalizeArgs(raw, ["--contract", "strict"]), capture.capture)).toBe(0);
+    expect(JSON.parse(capture.stdout.join("")).event.status).toBe("failed");
+    const mismatch = io();
+    expect(main(normalizeArgs(raw), mismatch.capture)).toBe(65);
+    expect(mismatch.stderr.join("")).toContain("contract");
   });
 
   it("rejects identity mismatches between receipt and authorized attempt", () => {

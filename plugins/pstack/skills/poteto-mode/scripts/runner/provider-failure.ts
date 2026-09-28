@@ -1,5 +1,5 @@
 import { parseOpenCodeTranscript } from "./opencode.ts";
-import type { Provider } from "./types.ts";
+import type { Provider, ToolDenial } from "./types.ts";
 import { assessCodexTranscript, codexTerminalEvent, type CodexTerminal } from "./codex.ts";
 import { antigravityEvents, antigravitySuccessfulResult } from "./antigravity.ts";
 
@@ -20,6 +20,57 @@ export class ProviderTerminalError extends Error {
     this.provider = provider;
     this.envelope = envelope;
   }
+}
+
+// A terminal provider error backed by the provider's own recorded tool
+// denial. `receiptStatus` preserves the status the lane would have reported
+// without denial evidence so normalization stays honest about what happened;
+// the denial itself is attached to the receipt additively.
+export class ProviderToolDeniedError extends ProviderTerminalError {
+  readonly denial: ToolDenial;
+  readonly receiptStatus: "child-failed" | "malformed-output";
+  constructor(
+    provider: Provider,
+    message: string,
+    envelope: unknown,
+    denial: ToolDenial,
+    receiptStatus: "child-failed" | "malformed-output"
+  ) {
+    super(provider, message, envelope);
+    this.name = "ProviderToolDeniedError";
+    this.denial = denial;
+    this.receiptStatus = receiptStatus;
+  }
+}
+
+// Devin's headless rejection frame is provider-owned evidence that a tool
+// call needed a confirmation nobody could give. It proves permission was
+// required without proving which operation was refused, so the tool and
+// requested action stay null rather than being guessed from worker prose.
+export const DEVIN_TOOL_DENIAL_RE =
+  /^warning: rejected a tool call that requires confirmation\./im;
+
+export function devinDenialEvidence(stderr: string): ToolDenial | null {
+  const match = DEVIN_TOOL_DENIAL_RE.exec(stderr);
+  if (match === null) return null;
+  return {
+    verified: true,
+    cause: "permission",
+    tool: null,
+    requestedAction: null,
+    evidence: match[0],
+  };
+}
+
+// Denial evidence visible in stderr without parsing the provider protocol.
+// Devin is the only implemented adapter; other providers either carry denial
+// evidence in their terminal envelope (handled where the envelope is parsed)
+// or have no proven denial channel and fail closed.
+export function providerDenialEvidence(
+  provider: Provider,
+  stderr: string
+): ToolDenial | null {
+  return provider === "devin" ? devinDenialEvidence(stderr) : null;
 }
 
 // Canonical Codex terminal quota diagnostics (normalized). Only the

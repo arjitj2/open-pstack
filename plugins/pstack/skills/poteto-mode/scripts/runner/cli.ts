@@ -6,6 +6,7 @@ import {
   EFFORTS,
   PARENTS,
   PROVIDERS,
+  WORKER_CONTRACT_MODES,
   type AccessMode,
   type ApiSpendMode,
   type Effort,
@@ -13,12 +14,13 @@ import {
   type Provider,
   type RunnerOptions,
   UsageError,
+  type WorkerContractMode,
 } from "./types.ts";
 
 const HELP = `Usage: pstack-runner --parent <claude|codex> --provider <claude|codex|grok|devin|cursor|antigravity|opencode> \\
   --model <slug> --effort <level> --mode <read-only|isolated-write> \\
   --prompt <file> --cwd <dir> --output <file> --receipt <file> [--timeout <seconds>]
-  [--api-spend <deny|approved>]
+  [--api-spend <deny|approved>] [--contract <legacy|strict>]
 
 Runs exactly one external model lane. A call on the parent's own provider is
 rejected when a shipped native lane covers that model and effort; other model
@@ -48,6 +50,12 @@ and additionally permits edits. Neither mode permits shell commands. OpenCode
 tool permissions are not an OS sandbox. The guard covers known ambient credential and routing
 takeover plus observable auth evidence only; provider-managed overage,
 on-demand credits, or account billing controls are not guaranteed locally.
+
+--contract selects the worker contract. legacy (the default) renders the
+shared ownership and handoff instructions only; nothing extra is enforced.
+strict requires a verified provider control surface and fails before dispatch
+with an explicit unsupported-capability receipt. No current native or external
+route has passed the required live boundary test, including Claude.
 `;
 
 interface Io {
@@ -99,8 +107,10 @@ export function parseArgs(argv: readonly string[]): RunnerOptions | null {
         cwd: { type: "string" },
         output: { type: "string" },
         receipt: { type: "string" },
+        "execution-id": { type: "string" },
         timeout: { type: "string" },
         "api-spend": { type: "string" },
+        contract: { type: "string" },
         help: { type: "boolean", short: "h", default: false },
       },
     });
@@ -125,6 +135,10 @@ export function parseArgs(argv: readonly string[]): RunnerOptions | null {
   const apiSpend = apiSpendValue === undefined
     ? null
     : (oneOf("api-spend", apiSpendValue, API_SPEND_MODES) as ApiSpendMode);
+  const contractValue = stringValue(parsed.values.contract);
+  const contract = contractValue === undefined
+    ? undefined
+    : (oneOf("contract", contractValue, WORKER_CONTRACT_MODES) as WorkerContractMode);
   return resolvedOptions({
     parent: oneOf("parent", stringValue(parsed.values.parent), PARENTS) as Parent,
     provider: oneOf("provider", stringValue(parsed.values.provider), PROVIDERS) as Provider,
@@ -135,8 +149,10 @@ export function parseArgs(argv: readonly string[]): RunnerOptions | null {
     cwd: required("cwd", stringValue(parsed.values.cwd)),
     outputPath: required("output", stringValue(parsed.values.output)),
     receiptPath: required("receipt", stringValue(parsed.values.receipt)),
+    executionId: stringValue(parsed.values["execution-id"]),
     timeoutMs: timeoutSeconds === null ? null : timeoutSeconds * 1_000,
     apiSpend,
+    contract,
   });
 }
 

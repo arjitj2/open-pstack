@@ -240,3 +240,14 @@ it("omits Claude preflight while retaining its invocation settings restriction",
   const approved = invocationCommand({ ...input, apiSpend: "approved" });
   expect(approved.args[approved.args.indexOf("--setting-sources") + 1]).toBe("project");
 });
+
+describe("strict worker contract argv", () => {
+  it("fails strict argv for every provider without a verified control", () => {
+    for (const provider of ["claude", "codex", "grok", "devin", "cursor", "antigravity", "opencode"] as const) {
+      expect(
+        () => invocationCommand(options({ provider, mode: "isolated-write", contract: "strict" })),
+        provider
+      ).toThrow(/strict worker contract is unsupported/);
+    }
+  });
+});

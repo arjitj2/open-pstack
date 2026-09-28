@@ -89,7 +89,9 @@ describe("Cursor external lanes", () => {
       expect(result.exitCode).toBe(0);
       expect(result.receipt).toMatchObject({status:"complete",provider:"cursor",model:"composer-2.5",effort:"default",modelVerified:false,reportedModel:null,modelEvidence:"pinned-argv",sessionId:"cursor-session"});
       expect(readFileSync(opts.outputPath, "utf8")).toBe("CURSOR_OK");
-      expect(observed("invoked.json")).toMatchObject({cwd:realpathSync(scratch),prompt:readFileSync(opts.promptPath, "utf8")});
+      expect(observed("invoked.json").cwd).toBe(realpathSync(scratch));
+      expect(observed("invoked.json").prompt).toContain("## Worker contract\n");
+      expect(observed("invoked.json").prompt).toContain(readFileSync(opts.promptPath, "utf8"));
       expect(observed("invoked.json").args).toEqual(["--print","--output-format","json","--trust","--model","composer-2.5","--workspace",scratch,"--sandbox","enabled","--mode","ask"]);
       const config = observed("observed.json");
       expect(config).toMatchObject({directory:cursorConfigDirectory(opts),directoryMode:0o700,configMode:0o600});

@@ -8,6 +8,7 @@ Run the parent skill's Launch and Doctor first. Use one fresh scratch store per 
 - [Model setup](setup.md): selected-provider checks, confirmation, persistence, native probes.
 - [Engineering workflows](workflows.md): invoking poteto-mode and direct focused skills.
 - [Routing policy](routing.md): inspecting a saved role through the CLI and observing parent-owned dispatch.
+- [Worker ownership and continuation](worker-contract.md): enforced capabilities, parent Git operations, handoffs and bounded recovery.
 - [Orchestration bookkeeping](orchestration.md): persistent work-unit state and inbox consumption through the real CLI.
 - [Upstream maintenance](maintenance.md): documentation inventory, ledger proposals, and candidate validation.
 
