@@ -301,9 +301,48 @@ export const psProbe: ProcessProbe = (pid) => {
   }
 };
 
-export function captureStartToken(pid: number): string | null {
-  const result = psProbe(pid);
-  return result.kind === "token" ? result.token : null;
+function observeStartToken(pid: number, observed: (token: string) => void): () => void {
+  let stopped = false;
+  let child: Bun.Subprocess<"ignore", "pipe", "ignore"> | null = null;
+  let reader: ReadableStreamDefaultReader<Uint8Array> | null = null;
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  const stop = (): void => {
+    stopped = true;
+    clearImmediate(scheduled);
+    if (timer !== null) clearTimeout(timer);
+    try { if (child !== null && child.exitCode === null) child.kill("SIGKILL"); } catch {}
+    void reader?.cancel().catch(() => {});
+  };
+  const scheduled = setImmediate(() => {
+    if (stopped) return;
+    void (async () => {
+      try {
+        child = Bun.spawn(["ps", "-p", String(pid), "-o", "lstart="], {
+          stdin: "ignore", stdout: "pipe", stderr: "ignore",
+          env: { ...process.env, LC_ALL: "C", TZ: "UTC" },
+        });
+        child.unref();
+        timer = setTimeout(stop, 1_000);
+        timer.unref();
+        reader = child.stdout.getReader();
+        let bytes = Buffer.alloc(0);
+        while (!stopped) {
+          const chunk = await reader.read();
+          if (chunk.done) break;
+          if (bytes.length + chunk.value.byteLength > 256) return;
+          bytes = Buffer.concat([bytes, chunk.value]);
+        }
+        const exitCode = await child.exited;
+        const token = bytes.toString("utf8").trim();
+        if (!stopped && exitCode === 0 && token.length > 0 && isToken(token)) observed(token);
+      } catch {
+      } finally {
+        stop();
+      }
+    })();
+  });
+  scheduled.unref();
+  return stop;
 }
 
 export type IdentityVerdict = "live" | "absent" | "reused" | "unverified";
@@ -379,7 +418,7 @@ function createReporter(
     runner: {
       pid: process.pid,
       startedAt: new Date(init.startedAt).toISOString(),
-      startToken: captureStartToken(process.pid),
+      startToken: null,
     },
     child: null,
     retryWait: false,
@@ -396,6 +435,8 @@ function createReporter(
   let disabled = owned === null;
   let closed = false;
   let timer: ReturnType<typeof setTimeout> | null = null;
+  let stopRunnerProbe = (): void => {};
+  let stopChildProbe = (): void => {};
 
   const clearPendingTimer = (): void => {
     if (timer !== null) {
@@ -469,6 +510,17 @@ function createReporter(
       if (disabled || closed) return;
       try {
         state = reduce(state, event, now());
+        if (event.t === "spawned") {
+          stopChildProbe();
+          stopChildProbe = observeStartToken(event.pid, (token) => {
+            if (disabled || closed || state.terminal !== null || state.child?.pid !== event.pid || !state.child.running) return;
+            state = { ...state, child: { ...state.child, startToken: token } };
+            flush();
+          });
+        } else if (event.t === "exited" || event.t === "terminal") {
+          stopChildProbe();
+          if (event.t === "terminal") stopRunnerProbe();
+        }
         if (event.t === "bytes") {
           pendingActivity = true;
           if (now() - lastWriteAt >= flushMs) flush();
@@ -484,12 +536,21 @@ function createReporter(
     },
     close(): void {
       if (closed) return;
+      stopRunnerProbe();
+      stopChildProbe();
       clearPendingTimer();
       if (pendingActivity) flush();
       closed = true;
     },
   };
   flush();
+  if (!disabled) {
+    stopRunnerProbe = observeStartToken(process.pid, (token) => {
+      if (disabled || closed || state.terminal !== null) return;
+      state = { ...state, runner: { ...state.runner, startToken: token } };
+      flush();
+    });
+  }
   return reporter;
 }
 

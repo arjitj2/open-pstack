@@ -13,7 +13,6 @@ import {
 import { basename, dirname, join, resolve } from "node:path";
 import {
   NO_PROGRESS,
-  captureStartToken,
   openReporter,
   type ChildRole,
   type ProgressReporter,
@@ -312,7 +311,7 @@ async function runProcess(
     t: "spawned",
     role: observer.role,
     pid: child.pid,
-    startToken: captureStartToken(child.pid),
+    startToken: null,
   });
   const stdoutCapture = captureStream(child.stdout, (n) =>
     observer?.reporter.record({ t: "bytes", stream: "stdout", n })

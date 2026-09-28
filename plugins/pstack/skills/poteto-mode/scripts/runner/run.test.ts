@@ -2529,6 +2529,17 @@ describe("worker progress", () => {
     expect(existsSync(probeLog)).toBe(false);
   });
 
+  it("keeps a stalled identity probe out of prompt delivery and execution deadlines", async () => {
+    writeFileSync(join(bin, "ps"), "#!/bin/sh\nexec /bin/sleep 30\n", { mode: 0o700 });
+    for (const timeoutMs of [null, 1_500]) {
+      const input = { ...progressOptions("claude", `slow-probe-${timeoutMs}`), timeoutMs };
+      const result = await runLane(input);
+      expect(result.receipt.status).toBe("complete");
+      expect(result.exitCode).toBe(0);
+      expect(readSnapshot(input.progressPath!).terminal?.receiptWritten).toBe(true);
+    }
+  });
+
   const PROGRESS_CANARY = "PROGRESS_CANARY_PROMPT_OR_STREAM_TEXT";
 
   function progressOptions(provider: Provider, suffix: string): RunnerOptions {
