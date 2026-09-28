@@ -550,7 +550,7 @@ describe("provider-owned tool denial evidence", () => {
       const denied = error as InstanceType<typeof ProviderToolDeniedError>;
       expect(denied.denial.verified).toBe(true);
       expect(denied.denial.cause).toBe("unknown");
-      expect(denied.denial.evidence).toContain("run_command");
+      expect(denied.denial.evidence).toBe("antigravity_denied_actions_present");
       expect(denied.receiptStatus).toBe("child-failed");
     }
   });

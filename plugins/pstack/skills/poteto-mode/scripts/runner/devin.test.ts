@@ -206,7 +206,10 @@ describe("Devin external provider", () => {
     const result = await runLane(options);
     expect(result.receipt.status).toBe("child-failed");
     expect(result.receipt.failurePhase).toBe("invocation");
-    expect(result.receipt.error?.evidence).toContain("Upgrade to Pro to access this model");
+    expect(result.receipt.error?.evidence).not.toContain(
+      "Upgrade to Pro to access this model"
+    );
+    expect(result.receipt.error?.evidence).toContain("stderr:");
     expect(existsSync(options.outputPath)).toBe(false);
     expect(existsSync(devinConfigPath(options))).toBe(false);
     expect(existsSync(devinExportDirectory(options))).toBe(false);

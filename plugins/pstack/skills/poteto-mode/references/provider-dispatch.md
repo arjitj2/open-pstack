@@ -229,6 +229,10 @@ This validates exact task/checkpoint scope, the expected HEAD, canonical Git met
 
 Reserve the operation with `pstack-worker-contract op-record --ledger <file> --id <unique-id> --task <task> --checkpoint <checkpoint> --kind <commit-checkpoint|run-checks> --state pending --expected <json>`. Only after the pending record is durable and the parent has revalidated preconditions may it perform its fixed operation and record `--state complete --result <json>` or `--state rejected`. `op-status --ledger <file>` exposes pending records. A pending record after a crash is ambiguous and requires reconciliation; do not mark it rejected merely to replay the operation. Rejected operations retain their task/checkpoint/kind identity; a new operation needs a separately reviewed checkpoint identity. The ledger serializes concurrent CLI writes and atomically replaces its file. Recording an operation is not authorization to execute it.
 
+## Failure receipt diagnostics
+
+Failure receipts retain launcher-authored diagnostics, canonical quota codes, selected terminal fields, and structural line and JSON-event counts. The runner uses full captures transiently for parsing, quota classification, and terminal-success assessment. Preflight captures and stderr contribute counts only. Postprocessing retains terminal detail only from a typed provider error; invocation failures project the final candidate envelope, using OpenCode's shared parser to select its error. Provider denial records retain a fixed code rather than denied tool arguments. Each retained text field and error message is capped at 500 characters, and each rendered evidence block at 4,000. Intermediate prompts, reasoning, tool input/output, narration, unknown envelope fields, and malformed lines are omitted. Selected terminal result/error text can itself quote task content; this boundary does not redact that text.
+
 ## Saved fallback and backend recovery
 
 The runner and native tool envelopes classify failures; the helper owns every routing decision. A sheet may declare one saved recovery policy:

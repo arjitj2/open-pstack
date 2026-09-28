@@ -161,3 +161,10 @@ export interface RunnerReceipt {
 }
 
 export class UsageError extends Error {}
+
+export class OutputValidationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "OutputValidationError";
+  }
+}

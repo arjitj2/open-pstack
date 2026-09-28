@@ -13,6 +13,7 @@ import {
   ProviderToolDeniedError,
   devinDenialEvidence,
 } from "./provider-failure.ts";
+import { OutputValidationError } from "./types.ts";
 import { assessCodexTranscript } from "./codex.ts";
 import { antigravityEvents, antigravitySuccessfulResult } from "./antigravity.ts";
 
@@ -100,22 +101,22 @@ function parseClaude(stdout: string): ParsedOutput {
     }
   }
   if (result === null) {
-    throw new Error("claude stream did not contain a terminal result");
+    throw new OutputValidationError("claude stream did not contain a terminal result");
   }
   if (result.is_error === true) {
     throw new ProviderTerminalError("claude", "claude reported an error result", result);
   }
-  if (malformed) throw new Error("claude emitted a malformed stream event");
+  if (malformed) throw new OutputValidationError("claude emitted a malformed stream event");
   if (results !== 1 || events.at(-1) !== result) {
-    throw new Error("claude stream did not end with exactly one result");
+    throw new OutputValidationError("claude stream did not end with exactly one result");
   }
   if (result.subtype !== "success" || result.is_error !== false) {
-    throw new Error("claude result was not an explicit success");
+    throw new OutputValidationError("claude result was not an explicit success");
   }
   const text = nullableString(result.result);
-  if (text === null) throw new Error("claude result did not contain final text");
+  if (text === null) throw new OutputValidationError("claude result did not contain final text");
   const sessionId = nullableString(result.session_id);
-  if (sessionId === null) throw new Error("claude result did not identify its session");
+  if (sessionId === null) throw new OutputValidationError("claude result did not identify its session");
 
   const primary = new Set<string>();
   for (const event of events) {
@@ -123,26 +124,26 @@ function parseClaude(stdout: string): ParsedOutput {
     const owner = event.parent_tool_use_id;
     if (typeof owner === "string" && owner.length > 0) continue;
     if (owner !== null) {
-      throw new Error("claude assistant event did not declare its owner");
+      throw new OutputValidationError("claude assistant event did not declare its owner");
     }
     if (event.session_id !== sessionId) {
-      throw new Error("claude assistant event belongs to another session");
+      throw new OutputValidationError("claude assistant event belongs to another session");
     }
     const message = object(event.message);
     if (message?.role !== "assistant") {
-      throw new Error("claude assistant event carried a non-assistant message");
+      throw new OutputValidationError("claude assistant event carried a non-assistant message");
     }
     const model = nullableString(message.model);
     if (model === null) {
-      throw new Error("claude primary assistant event did not report a model");
+      throw new OutputValidationError("claude primary assistant event did not report a model");
     }
     primary.add(model);
   }
   if (primary.size === 0) {
-    throw new Error("claude did not report a primary assistant model");
+    throw new OutputValidationError("claude did not report a primary assistant model");
   }
   if (primary.size > 1) {
-    throw new Error(`claude reported multiple primary models: ${[...primary].join(", ")}`);
+    throw new OutputValidationError("claude reported multiple primary models");
   }
 
   return {
@@ -162,18 +163,18 @@ function parseGrok(stdout: string, requestedModel: string): ParsedOutput {
     try {
       raw = JSON.parse(line);
     } catch {
-      throw new Error("grok emitted a non-JSON event");
+      throw new OutputValidationError("grok emitted a non-JSON event");
     }
     const event = object(raw);
     if (event?.type === "result") result = event;
   }
 
-  if (result === null) throw new Error("grok result did not contain a terminal event");
+  if (result === null) throw new OutputValidationError("grok result did not contain a terminal event");
   if (result.is_error === true || result.subtype !== "success") {
     throw new ProviderTerminalError("grok", "grok reported an error result", result);
   }
   const text = nullableString(result.result);
-  if (text === null) throw new Error("grok result did not contain final text");
+  if (text === null) throw new OutputValidationError("grok result did not contain final text");
 
   return {
     text,
@@ -194,7 +195,7 @@ function parseCodex(stdout: string): ParsedOutput {
     );
   }
   if (assessment.kind === "rejected") {
-    throw new Error(assessment.reason);
+    throw new OutputValidationError(assessment.reason);
   }
   return {
     text: assessment.text,
@@ -210,17 +211,17 @@ function parseCursor(stdout: string): ParsedOutput {
   try {
     raw = JSON.parse(stdout);
   } catch {
-    throw new Error("cursor did not emit valid JSON");
+    throw new OutputValidationError("cursor did not emit valid JSON");
   }
   const value = object(raw);
   if (value === null || value.type !== "result") {
-    throw new Error("cursor did not emit a terminal result envelope");
+    throw new OutputValidationError("cursor did not emit a terminal result envelope");
   }
   if (value.subtype !== "success" || value.is_error !== false) {
     throw new ProviderTerminalError("cursor", "cursor did not report a successful result", value);
   }
   const text = nullableString(value.result);
-  if (text === null || text.trim().length === 0) throw new Error("cursor result did not contain final text");
+  if (text === null || text.trim().length === 0) throw new OutputValidationError("cursor result did not contain final text");
   const usage = object(value.usage);
   return {
     text,
@@ -243,17 +244,17 @@ function parseAntigravity(stdout: string): ParsedOutput {
   const init = first?.event === "init" ? object(first.init) : null;
   const result = last?.event === "result" ? object(last.result) : null;
   if (init === null || nullableString(first?.conversation_id) === null) {
-    throw new Error("antigravity stream did not begin with init");
+    throw new OutputValidationError("antigravity stream did not begin with init");
   }
   if (events.filter((event) => event.event === "init").length !== 1 ||
       events.filter((event) => event.event === "result").length !== 1 || result === null) {
-    throw new Error("antigravity stream did not end with one result");
+    throw new OutputValidationError("antigravity stream did not end with one result");
   }
   if (events.some((event) => event.event === "error") || result.num_turns !== 1) {
-    throw new Error("antigravity stream did not contain one completed turn");
+    throw new OutputValidationError("antigravity stream did not contain one completed turn");
   }
   if (result.conversation_id !== first?.conversation_id) {
-    throw new Error("antigravity conversation id changed");
+    throw new OutputValidationError("antigravity conversation id changed");
   }
   if (Object.hasOwn(result, "denied_actions")) {
     if (!Array.isArray(result.denied_actions) || result.denied_actions.length === 0 ||
@@ -269,7 +270,7 @@ function parseAntigravity(stdout: string): ParsedOutput {
         cause: "unknown",
         tool: null,
         requestedAction: null,
-        evidence: JSON.stringify(result.denied_actions).slice(0, 2_000),
+        evidence: "antigravity_denied_actions_present",
       },
       "child-failed"
     );
@@ -307,7 +308,7 @@ export function parseProviderOutput(
     case "opencode": {
       const terminal = parseOpenCodeTranscript(stdout);
       if (terminal.kind === "error") throw new ProviderTerminalError("opencode", "OpenCode reported a failed session", terminal.envelope);
-      if (terminal.kind === "incomplete") throw new Error(terminal.reason);
+      if (terminal.kind === "incomplete") throw new OutputValidationError(terminal.reason);
       return terminal.output;
     }
     case "devin": {
@@ -325,17 +326,17 @@ export function parseProviderOutput(
       try {
         exported = object(JSON.parse(stdout));
       } catch {
-        throw new Error("devin export is not valid JSON");
+        throw new OutputValidationError("devin export is not valid JSON");
       }
       if (exported?.schema_version !== "ATIF-v1.7" || !Array.isArray(exported.steps)) {
-        throw new Error("devin export has an unsupported schema");
+        throw new OutputValidationError("devin export has an unsupported schema");
       }
       const last = object(exported.steps.at(-1));
       const calls = last?.tool_calls;
       if (last?.source !== "agent" ||
           (calls !== undefined && (!Array.isArray(calls) || calls.length !== 0)) ||
           typeof last.message !== "string" || last.message.trim().length === 0) {
-        throw new Error("devin export did not end with a final agent response");
+        throw new OutputValidationError("devin export did not end with a final agent response");
       }
       const text = last.message.trim();
       return { text, reportedModel: null, sessionId: null, usage: null, costUsd: null };
