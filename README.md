@@ -245,4 +245,4 @@ Read [CONTRIBUTING.md](CONTRIBUTING.md) and [UPSTREAM.md](UPSTREAM.md) before ch
 
 ## License
 
-MIT. pstack was created by Lauren Tan. Open Pstack builds on Michael Denyer's [pstack-claude](https://github.com/michael-denyer/pstack-claude) port and includes attributed MIT-licensed work from Cursor Team Kit and Superpowers. See [NOTICE.md](NOTICE.md) for attribution and [LICENSES/](LICENSES/) for the Cursor Team Kit and Superpowers license texts.
+MIT. pstack was created by Lauren Tan. This distribution builds on Michael Denyer's [pstack-claude](https://github.com/michael-denyer/pstack-claude) port and Eric Litman's [Open Pstack](https://github.com/ericlitman/open-pstack) adaptations for Claude Code and Codex. It also includes attributed MIT-licensed work from Cursor Team Kit and Superpowers. See [NOTICE.md](NOTICE.md) for attribution and [LICENSES/](LICENSES/) for the Cursor Team Kit and Superpowers license texts.
