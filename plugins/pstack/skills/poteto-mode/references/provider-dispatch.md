@@ -161,6 +161,7 @@ pstack-runner \
   --receipt <unique receipt file> \
   [--execution-id <parent-assigned id>] \
   [--contract <legacy|strict>] \
+  [--progress <unique progress file>] \
   [--api-spend <deny|approved>] \
   [--timeout <seconds>]
 ```
@@ -182,6 +183,24 @@ The parent invocation must itself be resumable background work:
 
 Start the background process, continue launching the other lanes, then drain their handles. Native and external lanes belong in the same fan-out phase.
 
+### Worker lifecycle status
+
+Pass a unique `--progress` path per external lane when the parent wants lifecycle visibility before the terminal receipt exists. The launcher reserves it exclusively alongside output and receipt, writes a bounded private snapshot (schema version, derived phase, last-observed direct-child state, byte counts and the timestamp of last observed output, cancellation facts, and a terminal marker), and replaces it atomically. Keep the parent-owned artifact paths unchanged until the lane exits. An observed replacement disables further progress writes; the identity check and rename are not a lock against external path replacement. Progress writes are telemetry only: a write failure disables them silently and never changes the lane's outcome.
+
+Read lanes with the runner's own reader:
+
+```text
+pstack-runner status --progress <progress file> --receipt <receipt file> \
+  [--progress <progress file> --receipt <receipt file> ...] [--json]
+```
+
+- Claude Code: a short foreground `Bash` call while the launcher's `run_in_background` task handles stay retained.
+- Codex: a short `exec` between polls of the retained exec session handles.
+
+Process-identity probes run asynchronously beside the worker; pending or unavailable identity remains unknown. They never delay prompt delivery or determine the worker deadline. `status` is read-only. JSON includes `updatedAt` and `seq` so callers can identify an old observation without treating its age as failure. It merges the explicit progress path, the explicit receipt path, and a process-start probe (`ps -o lstart`, with the platform’s timestamp precision), never a path stored inside the snapshot. A lane is `terminal` only when the receipt itself parses to a known status — a finished progress marker without a valid receipt reads as `unknown`, never `active`. `interrupted` means the recorded launcher pid is absent or was reused; it is explicitly not a failure verdict. `launcher identity unverified` means the platform gave no usable process-start token (the local probe is bounded to one second, independently of the worker); read it as unknown, never alive or dead. Cancellation renders as requested, then as confirmed only after the direct child settles and the cancelled receipt lands; nothing claims provider descendants stopped. Output activity is byte counts and a timestamp only: a quiet worker can be healthy, busy output does not prove useful backend work, and neither authorizes retry or fallback.
+
+Surface a lane update to the user only when its rendered `changeKey` differs from the value last reported for that lane; `changeKey` covers phase, child state, cancellation, launcher verdict, and terminal fields, and deliberately excludes elapsed time and byte counts. There is no periodic unchanged-state reporting and no per-event message. Cancellation still goes through the retained task handle, and policy decisions still read only the receipt through `normalize`.
+
 The runner and its preflight have no implicit timeout. Do not invent a duration from role, mode, or a convenient round number; real implementation lanes can run for 90 minutes or much longer. Pass `--timeout` only when the user, an external service deadline, or a measured task contract supplies a real bound. That value starts at wrapper entry, before module loading and argument parsing, and remains one absolute deadline across setup, preflight, model execution, and output capture. It is never a fresh allowance per child, and long waits are armed in runtime-safe chunks without shortening the supplied deadline. Otherwise supervise liveness through the retained background task/session handle and cancel manually only on evidence that the run is dead. Cancel through that retained handle so the runner receives SIGINT or SIGTERM, sends it to an active child when one remains, stops waiting on inherited output pipes, removes the empty output reservation, and writes a `cancelled` receipt. Preserve that receipt; a retry is a new attempt with new unique output and receipt paths. Unchanged running state is not a dropout, and Claude's ten-minute foreground ceiling is never a reason to terminate a healthy lane.
 
 Read-only mode maps to Claude plan mode with project-only settings and an explicit tool list, Codex's read-only sandbox, and Grok plan mode plus its `read-only` sandbox and read-oriented tool list. Grok's built-in read-only profile deliberately keeps its own state and system temporary directories writable, so point a read-only Grok lane at the actual checkout rather than a worktree under `/tmp`, `/var/tmp`, or the host's temporary directory. `isolated-write` maps to Claude `acceptEdits` with project-only settings, Codex `workspace-write`, and Grok `acceptEdits` plus its `workspace` sandbox and write-capable tool list. Give every writer only a dedicated worktree or output directory. Never route a writer into the primary checkout.
@@ -196,7 +215,7 @@ Antigravity preflights with `agy models`; a listed slug proves discovery, while 
 
 Under `apiSpend: deny`, Antigravity blocks known environment billing routes (`GEMINI_API_KEY`, `GOOGLE_GEMINI_BASE_URL`, `AGY_ADC_AUTH`, and set `AGY_GATEWAY_*` keys), an unreadable or malformed `~/.gemini/antigravity-cli/settings.json`, and settings containing `modelProvider` or `modelConfigOverrides`. Only key names appear in receipts. This is a route guard, not a claim that provider account overage cannot occur. `apiSpend: approved` permits the selected account route.
 
-Every concurrent external lane needs distinct prompt, output, and receipt paths. The launcher reserves output and receipt paths exclusively and refuses to overwrite them.
+Every concurrent external lane needs distinct prompt, output, receipt, and progress paths. The launcher reserves output, receipt, and progress paths exclusively, rejects progress paths that alias the prompt, working directory, output, receipt, or provider sidecar files, and refuses to overwrite any of them.
 
 ## Completion and dropouts
 

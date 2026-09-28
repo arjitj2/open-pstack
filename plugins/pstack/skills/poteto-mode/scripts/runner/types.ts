@@ -22,6 +22,7 @@ export interface RunnerOptions {
   readonly receiptPath: string;
   readonly executionId?: string;
   readonly canonicalCwd?: string;
+  readonly progressPath?: string | null;
   readonly timeoutMs: number | null;
   readonly apiSpend: ApiSpendMode | null;
   // The worker contract requested for the lane. Absent means the legacy

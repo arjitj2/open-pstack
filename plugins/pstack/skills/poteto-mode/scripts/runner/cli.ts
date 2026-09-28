@@ -1,4 +1,5 @@
 import { parseArgs as parseNodeArgs } from "node:util";
+import { statusMain } from "./progress.ts";
 import { resolvedOptions, runLane } from "./run.ts";
 import {
   ACCESS_MODES,
@@ -20,7 +21,9 @@ import {
 const HELP = `Usage: pstack-runner --parent <claude|codex> --provider <claude|codex|grok|devin|cursor|antigravity|opencode> \\
   --model <slug> --effort <level> --mode <read-only|isolated-write> \\
   --prompt <file> --cwd <dir> --output <file> --receipt <file> [--timeout <seconds>]
-  [--api-spend <deny|approved>] [--contract <legacy|strict>]
+  [--api-spend <deny|approved>] [--contract <legacy|strict>] [--progress <file>]
+
+       pstack-runner status --progress <file> --receipt <file> [--progress <file> --receipt <file> ...] [--json]
 
 Runs exactly one external model lane. A call on the parent's own provider is
 rejected when a shipped native lane covers that model and effort; other model
@@ -56,6 +59,13 @@ shared ownership and handoff instructions only; nothing extra is enforced.
 strict requires a verified provider control surface and fails before dispatch
 with an explicit unsupported-capability receipt. No current native or external
 route has passed the required live boundary test, including Claude.
+--progress reserves an additional exclusive private path where the launcher
+publishes a bounded lifecycle snapshot (phase, direct-child state, byte counts,
+cancellation facts). It never changes the receipt or enables recovery. The
+status subcommand reads explicit progress/receipt pairs and prints one
+coalesced line per lane; it is read-only and never treats progress as a
+receipt. A lane with no terminal receipt and a dead or reused launcher pid is
+reported as interrupted, never as still running.
 `;
 
 interface Io {
@@ -108,6 +118,7 @@ export function parseArgs(argv: readonly string[]): RunnerOptions | null {
         output: { type: "string" },
         receipt: { type: "string" },
         "execution-id": { type: "string" },
+        progress: { type: "string" },
         timeout: { type: "string" },
         "api-spend": { type: "string" },
         contract: { type: "string" },
@@ -150,6 +161,7 @@ export function parseArgs(argv: readonly string[]): RunnerOptions | null {
     outputPath: required("output", stringValue(parsed.values.output)),
     receiptPath: required("receipt", stringValue(parsed.values.receipt)),
     executionId: stringValue(parsed.values["execution-id"]),
+    progressPath: stringValue(parsed.values.progress) ?? null,
     timeoutMs: timeoutSeconds === null ? null : timeoutSeconds * 1_000,
     apiSpend,
     contract,
@@ -162,6 +174,9 @@ export async function main(
   io: Io = defaultIo
 ): Promise<number> {
   try {
+    if (argv[0] === "status") {
+      return statusMain(argv.slice(1), io);
+    }
     const options = parseArgs(argv);
     if (options === null) {
       io.stdout(HELP);
