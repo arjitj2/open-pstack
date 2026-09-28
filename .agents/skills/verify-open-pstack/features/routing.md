@@ -18,12 +18,13 @@ Run the shipped `pstack-model-policy resolve` CLI for a named role, or invoke a 
 
 ## Driving it with the Bun CLI and parent apps
 
-Preconditions: Launch and Doctor passed. The checkout's `AGENTS.md` contains the model sheet; if it does not, report the missing fixture instead of inventing a configuration. Read `plugins/pstack/skills/poteto-mode/references/provider-dispatch.md` before any live dispatch.
+Preconditions: Launch and Doctor passed. Set `VERIFY_MODEL_SHEET` to the approved frozen sheet for this run. Use the parent-supplied copy, or freeze the saved sheet from the location documented in [setup-pstack](../../../../plugins/pstack/skills/setup-pstack/SKILL.md) into the evidence directory. Do not assume the checkout's `AGENTS.md` contains model rows, invent assignments, or rewrite personal configuration. If no approved sheet is available, report the missing fixture. Read `plugins/pstack/skills/poteto-mode/references/provider-dispatch.md` before any live dispatch.
 
 ```bash
-capture routing-sheet-before shasum -a 256 "$VERIFY_REPO/AGENTS.md"
-capture routing-resolve "$VERIFY_TOOLS/model-policy/pstack-model-policy" resolve --sheet "$VERIFY_REPO/AGENTS.md" --role 'how explorer' --parent codex
-capture routing-sheet-after shasum -a 256 "$VERIFY_REPO/AGENTS.md"
+: "${VERIFY_MODEL_SHEET:?set the approved frozen model-sheet path}"
+capture routing-sheet-before shasum -a 256 "$VERIFY_MODEL_SHEET"
+capture routing-resolve "$VERIFY_TOOLS/model-policy/pstack-model-policy" resolve --sheet "$VERIFY_MODEL_SHEET" --role 'how explorer' --parent codex
+capture routing-sheet-after shasum -a 256 "$VERIFY_MODEL_SHEET"
 capture routing-unchanged diff -u "$VERIFY_EVIDENCE/routing-sheet-before.stdout" "$VERIFY_EVIDENCE/routing-sheet-after.stdout"
 ```
 
