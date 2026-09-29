@@ -6,13 +6,13 @@ Entries describe package versions. Published release checkpoints have tag links;
 
 ## 1.10.1 fixes the documented receipt-normalization command
 
-Cursor baseline: [0.15.5](https://github.com/cursor/plugins/tree/12d587dfb20741cafc376c42c696c5f6e2a64487/pstack). [Issue #99](https://github.com/arjitj2/open-pstack/issues/99).
+Cursor baseline: [0.15.5](https://github.com/cursor/plugins/tree/12d587dfb20741cafc376c42c696c5f6e2a64487/pstack). [Issue #99](https://github.com/arjitj2/open-pstack/issues/99). [PR #100](https://github.com/arjitj2/open-pstack/pull/100). Tag [v1.10.1](https://github.com/arjitj2/open-pstack/releases/tag/v1.10.1).
 
 Provider-dispatch instructions invoke the executable policy wrapper so normalization returns a receipt event or rejects invalid input. Regression tests execute the documented command and check its output and rejection behavior.
 
 ## 1.10.0 adds opt-in Codex startup routing
 
-Cursor baseline: [0.15.5](https://github.com/cursor/plugins/tree/12d587dfb20741cafc376c42c696c5f6e2a64487/pstack). [Issue #88](https://github.com/arjitj2/open-pstack/issues/88).
+Cursor baseline: [0.15.5](https://github.com/cursor/plugins/tree/12d587dfb20741cafc376c42c696c5f6e2a64487/pstack). [Issue #88](https://github.com/arjitj2/open-pstack/issues/88). [PR #92](https://github.com/arjitj2/open-pstack/pull/92). Tag [v1.10.0](https://github.com/arjitj2/open-pstack/releases/tag/v1.10.0).
 
 Codex can route engineering requests into Pstack through an optional plugin hook, enabled through its native `/hooks` trust controls. Startup, resume, clear, and compaction reuse the shared routing instruction. A routing-only setup request leaves model assignments and spending permissions unchanged.
 
