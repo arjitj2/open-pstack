@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
-import { mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { main } from "./cli.ts";
@@ -806,6 +806,71 @@ swarm workers: claude:haiku@low -> grok:grok-4.7@xhigh
         "--lane", lane, "--attempt", attempt, "--receipt", receiptPath, "--mode", "read-only",
       ], capture.capture), `${lane}/${attempt}`).toBe(64);
     }
+  });
+
+  describe("documented normalize invocation", () => {
+    const SKILL_ROOT = join(import.meta.dir, "../..");
+
+    function documentedNormalize(args: string[]): { argv: string[]; cwd: string } {
+      const dispatch = readFileSync(
+        join(SKILL_ROOT, "references", "provider-dispatch.md"),
+        "utf8"
+      );
+      const match = dispatch.match(
+        /`bun\s+(scripts\/model-policy\/[^\s`]+)\s+normalize\b/
+      );
+      if (match === null) {
+        throw new Error(
+          "provider-dispatch.md does not document a bun normalize invocation"
+        );
+      }
+      return { argv: [process.execPath, match[1], ...args], cwd: SKILL_ROOT };
+    }
+
+    async function runDocumented(
+      args: string[]
+    ): Promise<{ code: number; stdout: string; stderr: string }> {
+      const { argv, cwd } = documentedNormalize(args);
+      const child = Bun.spawn(argv, { cwd, stdout: "pipe", stderr: "pipe" });
+      const [stdout, stderr, code] = await Promise.all([
+        new Response(child.stdout).text(),
+        new Response(child.stderr).text(),
+        child.exited,
+      ]);
+      return { code, stdout, stderr };
+    }
+
+    it("spawns the documented normalize executable on a terminal receipt", async () => {
+      const result = await runDocumented(normalizeArgs(receipt()));
+      expect(result.code, result.stderr).toBe(0);
+      expect(JSON.parse(result.stdout)).toMatchObject({
+        status: "event",
+        attempt: "grok:grok-4.7@xhigh",
+        event: {
+          attemptIndex: 0,
+          status: "terminal-failure",
+          processStarted: true,
+          receiptPath: join(scratch, "receipt.json"),
+        },
+      });
+      expect(result.stderr).toBe("");
+    });
+
+    it("rejects invalid evidence through the documented normalize executable", async () => {
+      const identity = await runDocumented(
+        normalizeArgs(
+          receipt({ provider: "devin", model: "swe-2", effort: "high" })
+        )
+      );
+      expect(identity.code).toBe(65);
+      expect(identity.stdout).toBe("");
+      expect(identity.stderr).toContain("identity mismatch");
+
+      const malformed = await runDocumented(normalizeArgs("not json"));
+      expect(malformed.code).toBe(64);
+      expect(malformed.stdout).toBe("");
+      expect(malformed.stderr).toContain("error:");
+    });
   });
 });
 
