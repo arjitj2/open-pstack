@@ -4,6 +4,12 @@ This file records what each version of the Open Pstack package changed. Versions
 
 Entries describe package versions. Published release checkpoints have tag links; installation follows `main` unless pinned. Validation belongs to the linked pull requests. Older reports remain available through immutable links.
 
+## 1.10.1 fixes the documented receipt-normalization command
+
+Cursor baseline: [0.15.5](https://github.com/cursor/plugins/tree/12d587dfb20741cafc376c42c696c5f6e2a64487/pstack). [Issue #99](https://github.com/arjitj2/open-pstack/issues/99).
+
+Provider-dispatch instructions invoke the executable policy wrapper so normalization returns a receipt event or rejects invalid input. Regression tests execute the documented command and check its output and rejection behavior.
+
 ## 1.10.0 adds opt-in Codex startup routing
 
 Cursor baseline: [0.15.5](https://github.com/cursor/plugins/tree/12d587dfb20741cafc376c42c696c5f6e2a64487/pstack). [Issue #88](https://github.com/arjitj2/open-pstack/issues/88).

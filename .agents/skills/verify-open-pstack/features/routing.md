@@ -5,6 +5,7 @@ Users inspect how a saved role resolves, while the parent owns execution and any
 ## Sub-features
 
 - `routing-resolve`: read the configured lane chains without dispatch.
+- `receipt-normalize`: execute the documented command and check accepted and rejected receipts.
 - `claude-primary-model`: verify the main Claude assistant model independently of helper usage.
 - `codex-completion`: require completed final-turn output while preserving protocol success as a replay veto.
 - `devin-refusal-fallback`: exclude inherited provider-side fallback from an assigned Devin lane.
@@ -31,6 +32,14 @@ capture routing-unchanged diff -u "$VERIFY_EVIDENCE/routing-sheet-before.stdout"
 - **Inspect:** expect exit zero and JSON `status: resolved` with lane descriptors matching the saved `how explorer` row. Inspect authorization and route fields; successful parsing alone does not mean an executable route. `unconfigured` is an unmet precondition for this recipe.
 - **Live dispatch:** run the direct How entry in [workflows](workflows.md). Compare actual native launch metadata or external runner receipt with the resolved descriptor, parent, model, effort, access mode, and saved API-spend fact. Retain the final terminal outcome and output.
 - **Recovery:** follow the saved fallback-chain scenario in `tests/setup-selected-providers.md`. Require authentic terminal evidence, a visible failure/substitution notice, and any required writer inspection before the exact saved next attempt. A synthetic event passed to the `next` CLI proves a decision only, not a provider failure or parent recovery.
+
+### Documented receipt normalization
+
+For changes to the documented normalization command, run `bun test model-policy/cli.test.ts -t 'documented normalize'` from the installed candidate's `skills/poteto-mode/scripts` directory. The tests extract the executable from `references/provider-dispatch.md`, then check the resulting JSON event and rejection diagnostics using synthetic receipt inputs.
+
+From a fresh installed session in each parent, invoke `pstack:poteto-mode` and ask the parent to use the normalization command in its loaded provider-dispatch reference. Supply a preserved real runner receipt and its matching frozen sheet, role, lane, attempt, parent, and access mode. The `--parent` value must match the receipt's originating parent, even when the test session runs in the other app. Keep that distinction in the evidence. Expect a nonempty JSON event with the matching attempt, terminal status, and receipt path.
+
+Repeat with a copy whose model differs from the frozen assignment. Expect nonzero exit, an identity-mismatch diagnostic, and no policy event. This altered copy is a synthetic negative fixture. Retain both commands, stdout, stderr, exit codes, skill invocation, loaded reference path, and installed-tree comparison. Replaying a saved receipt proves normalization from the parent workflow, not a new provider execution. An empty successful exit does not prove normalization or authorize dispatch.
 
 ### Claude primary-model evidence
 
