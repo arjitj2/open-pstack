@@ -1,4 +1,4 @@
-# Open Pstack - cross-provider agents with configurable failover.
+# Open Pstack with cross-provider support
 
 **Stop bad code before your agents ship it.**
 
