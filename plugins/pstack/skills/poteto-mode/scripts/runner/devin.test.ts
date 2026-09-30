@@ -185,7 +185,7 @@ describe("Devin external provider", () => {
     });
   }
 
-  it("adds writer tool constraints without modifying the assigned prompt", async () => {
+  it("renders one contract prompt with exec guidance without modifying the assigned prompt", async () => {
     const original = "Create a file.\nThen run its test.\n";
     writeFileSync(options.promptPath, original);
     fakeDevin("DONE");
@@ -193,12 +193,28 @@ describe("Devin external provider", () => {
     const result = await runLane(input);
     expect(result.exitCode).toBe(0);
     const sent = readFileSync(join(scratch, "captured-prompt.txt"), "utf8");
-    expect(sent).toContain("Use sandboxed exec for ALL file creation, modification, and testing");
+    expect(sent).toContain("## Worker contract");
+    expect(sent).toContain("sandboxed `exec` for every file creation, modification, and check");
+    expect(sent).toContain("Direct `edit` and `write` tools are disabled");
+    expect(sent).toContain("Local checks:");
+    expect(sent).not.toContain("Execution constraints for this Devin worker");
     expect(sent.endsWith(original)).toBe(true);
     expect(readFileSync(options.promptPath, "utf8")).toBe(original);
     expect(result.receipt.promptPath).toBe(options.promptPath);
     expect(result.receipt.argv).toContain(devinPromptPath(input));
     expect(existsSync(devinExportDirectory(input))).toBe(false);
+  });
+
+  it("guides read-only lanes without exec", async () => {
+    fakeDevin("DONE");
+    const input = { ...options, mode: "read-only" as const };
+    const result = await runLane(input);
+    expect(result.exitCode).toBe(0);
+    const sent = readFileSync(join(scratch, "captured-prompt.txt"), "utf8");
+    expect(sent).toContain("## Worker contract");
+    expect(sent).toContain("`exec` is disabled");
+    expect(sent).not.toContain("sandboxed `exec` for every file creation");
+    expect(sent).not.toContain("Local checks:");
   });
 
   it("keeps unproven account-restriction wording as an ordinary child failure", async () => {

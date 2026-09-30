@@ -1,5 +1,11 @@
 import { describe, expect, it } from "bun:test";
-import { invocationCommand, preflightCommand } from "./commands.ts";
+import {
+  CLAUDE_WRITER_MINIMUM_VERSION,
+  CLAUDE_WRITER_SETTINGS,
+  claudeWriterVersionError,
+  invocationCommand,
+  preflightCommand,
+} from "./commands.ts";
 import type { RunnerOptions } from "./types.ts";
 
 function options(overrides: Partial<RunnerOptions> = {}): RunnerOptions {
@@ -232,13 +238,102 @@ describe("invocationCommand", () => {
   });
 });
 
-it("omits Claude preflight while retaining its invocation settings restriction", () => {
-  expect(preflightCommand("claude")).toBeNull();
-  const input = options({ provider: "claude", model: "opus", apiSpend: "deny" });
-  const denied = invocationCommand(input);
-  expect(denied.args[denied.args.indexOf("--setting-sources") + 1]).toBe("");
-  const approved = invocationCommand({ ...input, apiSpend: "approved" });
-  expect(approved.args[approved.args.indexOf("--setting-sources") + 1]).toBe("project");
+describe("Claude writer sandbox profile", () => {
+  it("probes claude --version before writer workloads and skips read-only preflight", () => {
+    expect(preflightCommand("claude", "isolated-write")).toEqual({
+      command: "claude",
+      args: ["--version"],
+      stdin: "none",
+    });
+    expect(preflightCommand("claude", "read-only")).toBeNull();
+  });
+
+  it("accepts the minimum or newer stable versions and rejects older or malformed output", () => {
+    for (const version of [CLAUDE_WRITER_MINIMUM_VERSION, "2.1.285 (Claude Code)", "2.1.286", "2.10.0", "3.0.0"]) {
+      expect(claudeWriterVersionError(`${version}\n`), version).toBeNull();
+    }
+    for (const version of ["2.1.284", "2.1.284 (Claude Code)", "2.0.0", "1.99.0", "2.1.285-beta.1", "2.1.285 (unexpected)", "v2.1.285", "2.1", "", "unstable"]) {
+      expect(claudeWriterVersionError(version), version).not.toBeNull();
+    }
+  });
+
+  it("passes the exact measured sandbox profile inline for writers only", () => {
+    const writer = invocationCommand(
+      options({ provider: "claude", model: "opus", mode: "isolated-write" })
+    );
+    const settingsIndex = writer.args.indexOf("--settings");
+    expect(settingsIndex).toBeGreaterThanOrEqual(0);
+    expect(writer.args[settingsIndex + 1]).toBe(CLAUDE_WRITER_SETTINGS);
+    expect(JSON.parse(writer.args[settingsIndex + 1])).toEqual({
+      sandbox: {
+        enabled: true,
+        autoAllowBashIfSandboxed: true,
+        allowUnsandboxedCommands: false,
+        failIfUnavailable: true,
+        excludedCommands: [],
+        filesystem: { disabled: false },
+        network: { allowedDomains: [] },
+      },
+    });
+    const readOnly = invocationCommand(
+      options({ provider: "claude", model: "opus", mode: "read-only" })
+    );
+    expect(readOnly.args).not.toContain("--settings");
+  });
+
+  it("excludes project settings on writer lanes for every apiSpend value", () => {
+    for (const apiSpend of ["deny", "approved", null] as const) {
+      const spec = invocationCommand(
+        options({ provider: "claude", model: "opus", mode: "isolated-write", apiSpend })
+      );
+      const sources = spec.args[spec.args.indexOf("--setting-sources") + 1];
+      expect(sources, String(apiSpend)).toBe("");
+    }
+  });
+
+  it("omits Claude auth preflight while retaining read-only settings restrictions", () => {
+    const input = options({ provider: "claude", model: "opus", apiSpend: "deny" });
+    const denied = invocationCommand(input);
+    expect(denied.args[denied.args.indexOf("--setting-sources") + 1]).toBe("");
+    const approved = invocationCommand({ ...input, apiSpend: "approved" });
+    expect(approved.args[approved.args.indexOf("--setting-sources") + 1]).toBe("project");
+  });
+});
+
+describe("worker guidance paired with invocation flags", () => {
+  it("returns corresponding guidance for every provider and access mode", () => {
+    for (const mode of ["read-only", "isolated-write"] as const) {
+      for (const provider of ["claude", "codex", "grok", "devin", "cursor", "antigravity", "opencode"] as const) {
+        const spec = invocationCommand(
+          options({ provider, model: "any-model", effort: "default", mode })
+        );
+        expect(spec.workerGuidance.trim().length, `${provider} ${mode}`).toBeGreaterThan(0);
+        expect(spec.workerGuidance, `${provider} ${mode}`).toContain("Provider tools:");
+      }
+    }
+  });
+
+  it("guides Devin writers through sandboxed exec and readers without exec", () => {
+    const writer = invocationCommand(
+      options({ provider: "devin", model: "swe-2", mode: "isolated-write" })
+    );
+    expect(writer.workerGuidance).toContain("sandboxed `exec`");
+    const reader = invocationCommand(
+      options({ provider: "devin", model: "swe-2", mode: "read-only" })
+    );
+    expect(reader.workerGuidance).toContain("`exec` is disabled");
+    expect(reader.workerGuidance).not.toContain("sandboxed `exec`");
+  });
+
+  it("directs file-only writers to the run-checks handoff", () => {
+    for (const provider of ["antigravity", "opencode"] as const) {
+      const spec = invocationCommand(
+        options({ provider, model: "any-model", effort: "default", mode: "isolated-write" })
+      );
+      expect(spec.workerGuidance, provider).toContain("run-checks");
+      expect(spec.workerGuidance, provider).toContain("command execution is unavailable");
+    }
+  });
 });
 
 describe("strict worker contract argv", () => {

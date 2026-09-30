@@ -17,7 +17,7 @@ import {
   type ChildRole,
   type ProgressReporter,
 } from "./progress.ts";
-import { invocationCommand, preflightCommand, type CommandSpec } from "./commands.ts";
+import { CLAUDE_WRITER_MINIMUM_VERSION, claudeWriterVersionError, invocationCommand, preflightCommand, type CommandSpec } from "./commands.ts";
 import { nativeLane } from "./native-route.ts";
 import { openCodeConfig, openCodeDirectory, openCodeEnvironment, openCodePreflightPassed, openCodeVersionError, OPENCODE_MINIMUM_VERSION, validateOpenCodeModel } from "./opencode.ts";
 import { cursorConfigDirectory, cursorConfig, cursorHasApiKey, cursorUserConfigPath, validateCursorModel } from "./cursor.ts";
@@ -49,7 +49,7 @@ import type {
   RunnerReceipt,
 } from "./types.ts";
 import { OutputValidationError, UsageError } from "./types.ts";
-import { devinConfig, devinConfigPath, devinExportDirectory, devinExportPath, devinModel, devinPromptPath, devinWriterPrompt, readDevinExport } from "./devin.ts";
+import { devinConfig, devinConfigPath, devinExportDirectory, devinExportPath, devinModel, devinPromptPath, readDevinExport } from "./devin.ts";
 
 const ERROR_EVIDENCE_LIMIT = 4_000;
 const GROK_PREFLIGHT_RETRY_DELAY_MS = 5_000;
@@ -91,10 +91,6 @@ function removeIfExists(path: string): void {
 // file instead of stdin.
 function contractPromptPath(options: RunnerOptions): string {
   return `${options.receiptPath}.contract-prompt.md`;
-}
-
-function filePromptProvider(provider: Provider): boolean {
-  return provider === "devin" || provider === "grok";
 }
 
 function reserve(path: string): void {
@@ -719,22 +715,10 @@ async function executeLane(
   preflight: CommandSpec | null,
   progress: LaneProgress,
   antigravityCreated: AntigravityCreatedFiles | null,
-  reporter: ProgressReporter
+  reporter: ProgressReporter,
+  prompt: string
 ): Promise<RunResult> {
   const startedAt = new Date(started).toISOString();
-  const rawPrompt = readFileSync(options.promptPath, "utf8");
-  const prompt = !filePromptProvider(options.provider)
-    ? renderWorkerPrompt(
-        {
-          parent: options.parent,
-          provider: options.provider,
-          route: "external",
-          access: options.mode,
-          contract: options.contract ?? "legacy",
-        },
-        rawPrompt
-      )
-    : rawPrompt;
   const inherited = childEnvironment(options.provider);
   const env = options.provider === "opencode" ? openCodeEnvironment(options, inherited) : inherited;
   const apiKeyAuth = options.provider === "cursor" && cursorHasApiKey(env);
@@ -892,13 +876,19 @@ async function executeLane(
         progress.preflight = { ...progress.preflight, argv: [preflightExecutable, ...activePreflight.args] };
         preflightResult = await runProcess(preflightExecutable, activePreflight, options.cwd, env, "", deadlineAt, cancellation, { reporter, role: "preflight" });
       }
+    } else if (options.provider === "claude") {
+      versionError = preflightResult.exitCode === 0
+        ? claudeWriterVersionError(preflightResult.stdout)
+        : `Claude Code version check failed. Install Claude Code ${CLAUDE_WRITER_MINIMUM_VERSION} or newer and check claude --version.`;
     }
     let rawPreflightEvidence = versionError ?? (options.provider === "opencode"
       ? "OpenCode effective agent preflight failed; configuration output withheld"
       : evidence(`${preflightResult.stdout}\n${preflightResult.stderr}`));
     let passed = options.provider === "opencode"
       ? versionError === null && preflightResult.exitCode === 0 && openCodePreflightPassed(preflightResult.stdout, options, env)
-      : preflightPassed(options.provider, options.model, preflightResult, apiKeyAuth);
+      : options.provider === "claude"
+        ? versionError === null && preflightResult.exitCode === 0
+        : preflightPassed(options.provider, options.model, preflightResult, apiKeyAuth);
     const renderPreflightDetail = (): string => failureDiagnostic(options.provider, {
       phase: "preflight",
       stdout: preflightResult.stdout,
@@ -908,7 +898,11 @@ async function executeLane(
         : undefined),
     });
     let preflightEvidence = passed
-      ? options.provider === "opencode" ? "effective agent model and tool policy verified; authentication deferred to execution" : successfulPreflightEvidence(options.provider, options.model, apiKeyAuth)
+      ? options.provider === "opencode"
+        ? "effective agent model and tool policy verified; authentication deferred to execution"
+        : options.provider === "claude"
+          ? `Claude Code ${preflightResult.stdout.trim()} satisfies the writer minimum; authentication deferred to invocation`
+          : successfulPreflightEvidence(options.provider, options.model, apiKeyAuth)
       : renderPreflightDetail();
 
     if (
@@ -1299,7 +1293,7 @@ export async function runLane(
       ? contractPromptPath(options)
       : options.promptPath;
   const invocation = invocationCommand(options, effectivePromptPath);
-  const preflight = preflightCommand(options.provider);
+  const preflight = preflightCommand(options.provider, options.mode);
   const progress: LaneProgress = {
     executable: null,
     preflight: {
@@ -1336,6 +1330,17 @@ export async function runLane(
       });
     }
     try {
+      const prompt = renderWorkerPrompt(
+        {
+          parent: options.parent,
+          provider: options.provider,
+          route: "external",
+          access: options.mode,
+          contract: options.contract ?? "legacy",
+        },
+        readFileSync(options.promptPath, "utf8"),
+        invocation.workerGuidance
+      );
       if (options.provider === "devin") {
         writeFileSync(devinConfigPath(options), JSON.stringify(devinConfig(options)), {
           encoding: "utf8", mode: 0o600, flag: "wx",
@@ -1344,21 +1349,12 @@ export async function runLane(
         mkdirSync(devinExportDirectory(options), { mode: 0o700 });
         devinExportCreated = true;
         reserve(devinExportPath(options));
-        writeFileSync(devinPromptPath(options), devinWriterPrompt(readFileSync(options.promptPath, "utf8"), options), {
+        writeFileSync(devinPromptPath(options), prompt, {
           encoding: "utf8", mode: 0o600, flag: "wx",
         });
       }
       if (options.provider === "grok") {
-        writeFileSync(contractPromptPath(options), renderWorkerPrompt(
-          {
-            parent: options.parent,
-            provider: "grok",
-            route: "external",
-            access: options.mode,
-            contract: options.contract ?? "legacy",
-          },
-          readFileSync(options.promptPath, "utf8")
-        ), {
+        writeFileSync(contractPromptPath(options), prompt, {
           encoding: "utf8", mode: 0o600, flag: "wx",
         });
         contractPromptCreated = true;
@@ -1387,7 +1383,8 @@ export async function runLane(
         preflight,
         progress,
         antigravityCreated,
-        reporter
+        reporter,
+        prompt
       );
       return outcome;
     } catch (error) {

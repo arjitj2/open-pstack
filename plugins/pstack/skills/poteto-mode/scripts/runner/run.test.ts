@@ -28,7 +28,7 @@ import { appendFileSync, existsSync, unlinkSync, writeFileSync } from "node:fs";
 const args = process.argv.slice(2);
 const name = process.argv[1].split("/").at(-1);
 const isPreflight =
-  (name === "claude" && args.includes("auth")) ||
+  (name === "claude" && (args.includes("auth") || args.includes("--version"))) ||
   (name === "codex" && args[0] === "login") ||
   (name === "grok" && args[0] === "models") ||
   (name === "devin" && args[0] === "auth") ||
@@ -54,6 +54,12 @@ if (args.includes("--help")) {
 if (process.env.FAKE_STDIN_CAPTURE_PATH && !isPreflight) {
   const stdinText = await new Response(process.stdin).text();
   writeFileSync(process.env.FAKE_STDIN_CAPTURE_PATH, stdinText);
+}
+if (process.env.FAKE_PROMPT_FILE_CAPTURE_PATH && args.includes("--prompt-file")) {
+  writeFileSync(
+    process.env.FAKE_PROMPT_FILE_CAPTURE_PATH,
+    await Bun.file(args[args.indexOf("--prompt-file") + 1]).text()
+  );
 }
 const startedPath = isPreflight
   ? process.env.FAKE_PREFLIGHT_STARTED_PATH
@@ -97,6 +103,10 @@ if (isPreflight && process.env.FAKE_REMOVE_EXECUTABLE_AFTER_PREFLIGHT === "1") {
 }
 if (name === "claude" && args.includes("auth")) {
   throw new Error("Unexpected Claude auth probe");
+}
+if (name === "claude" && args.includes("--version")) {
+  console.log(process.env.FAKE_CLAUDE_VERSION ?? "2.1.285");
+  process.exit(Number(process.env.FAKE_CLAUDE_VERSION_EXIT ?? "0"));
 }
 if (name === "codex" && args[0] === "login") {
   console.log(process.env.FAKE_CODEX_LOGIN_STATUS ?? "Logged in using ChatGPT");
@@ -373,6 +383,9 @@ beforeEach(() => {
   delete process.env.FAKE_GROK_TRANSIENT_UNAUTH_PATH;
   delete process.env.FAKE_HELP_TEXT;
   delete process.env.FAKE_STDIN_CAPTURE_PATH;
+  delete process.env.FAKE_PROMPT_FILE_CAPTURE_PATH;
+  delete process.env.FAKE_CLAUDE_VERSION;
+  delete process.env.FAKE_CLAUDE_VERSION_EXIT;
   delete process.env.FAKE_GROK_PREFLIGHT_LOG_PATH;
   delete process.env.FAKE_GROK_MISSING_MODEL;
   delete process.env.FAKE_DESCENDANT_HOLDS_PIPES_MS;
@@ -445,6 +458,9 @@ afterEach(() => {
   delete process.env.FAKE_GROK_TRANSIENT_UNAUTH_PATH;
   delete process.env.FAKE_HELP_TEXT;
   delete process.env.FAKE_STDIN_CAPTURE_PATH;
+  delete process.env.FAKE_PROMPT_FILE_CAPTURE_PATH;
+  delete process.env.FAKE_CLAUDE_VERSION;
+  delete process.env.FAKE_CLAUDE_VERSION_EXIT;
   delete process.env.FAKE_GROK_PREFLIGHT_LOG_PATH;
   delete process.env.FAKE_GROK_MISSING_MODEL;
   delete process.env.FAKE_DESCENDANT_HOLDS_PIPES_MS;
@@ -2105,7 +2121,36 @@ describe("worker contract dispatch", () => {
     const sent = readFileSync(stdinPath, "utf8");
     expect(sent).toContain("## Worker contract");
     expect(sent).toContain("Never stage, commit, reset, rebase");
+    expect(sent).toContain("Provider tools:");
+    expect(sent).toContain("workspace-write");
+    expect(sent).toContain("Local checks:");
     expect(sent.endsWith("Assigned task:\nReturn the marker.")).toBe(true);
+  });
+
+  it("sends the same rendered bytes through a file transport", async () => {
+    const filePath = join(scratch, "grok-prompt.txt");
+    process.env.FAKE_PROMPT_FILE_CAPTURE_PATH = filePath;
+    const input: RunnerOptions = { ...options("grok", "grok-writer"), mode: "isolated-write" };
+    const result = await runLane(input);
+    expect(result.receipt.status).toBe("complete");
+    const sent = readFileSync(filePath, "utf8");
+    expect(sent).toContain("## Worker contract");
+    expect(sent).toContain("Provider tools:");
+    expect(sent).toContain("search_replace");
+    expect(sent).toContain("run_terminal_cmd");
+    expect(sent).toContain("Local checks:");
+    expect(sent.endsWith("Assigned task:\nReturn the marker.")).toBe(true);
+  });
+
+  it("keeps read-only lanes free of the writer check obligation", async () => {
+    const stdinPath = join(scratch, "ro-stdin-guidance.txt");
+    process.env.FAKE_STDIN_CAPTURE_PATH = stdinPath;
+    const readOnly = options("codex", "ro-guidance");
+    await runLane(readOnly);
+    const sent = readFileSync(stdinPath, "utf8");
+    expect(sent).toContain("Provider tools:");
+    expect(sent).toContain("read-only");
+    expect(sent).not.toContain("Local checks:");
   });
 
   it("prepends the shared contract to read-only external lanes", async () => {
@@ -2177,6 +2222,92 @@ describe("worker contract dispatch", () => {
         apiSpend: "unset",
       }).status
     ).toBe("failed");
+  });
+});
+
+describe("claude writer lanes", () => {
+  const writerOptions = (suffix: string, overrides: Partial<RunnerOptions> = {}): RunnerOptions => ({
+    ...options("claude", suffix),
+    mode: "isolated-write",
+    apiSpend: "deny",
+    ...overrides,
+  });
+
+  it("runs the version gate and sends the contract prompt with sandbox argv", async () => {
+    const stdinPath = join(scratch, "claude-writer-stdin.txt");
+    process.env.FAKE_STDIN_CAPTURE_PATH = stdinPath;
+    process.env.FAKE_PREFLIGHT_STARTED_PATH = join(scratch, "version-started");
+    const input = writerOptions("claude-writer");
+    const result = await runLane(input);
+    expect(result.receipt.status).toBe("complete");
+    expect(result.receipt.preflight.status).toBe("passed");
+    expect(result.receipt.preflight.argv).toContain("--version");
+    expect(existsSync(join(scratch, "version-started"))).toBe(true);
+    expect(result.receipt.argv).toContain("--settings");
+    const settings = result.receipt.argv[result.receipt.argv.indexOf("--settings") + 1];
+    expect(JSON.parse(settings)).toEqual({
+      sandbox: {
+        enabled: true,
+        autoAllowBashIfSandboxed: true,
+        allowUnsandboxedCommands: false,
+        failIfUnavailable: true,
+        excludedCommands: [],
+        filesystem: { disabled: false },
+        network: { allowedDomains: [] },
+      },
+    });
+    expect(result.receipt.argv[result.receipt.argv.indexOf("--setting-sources") + 1]).toBe("");
+    const sent = readFileSync(stdinPath, "utf8");
+    expect(sent).toContain("## Worker contract");
+    expect(sent).toContain("Local checks:");
+    expect(sent).toContain("`Bash` for suitable checks");
+    expect(sent.endsWith("Assigned task:\nReturn the marker.")).toBe(true);
+  });
+
+  it("keeps project settings excluded for approved and unset apiSpend", async () => {
+    for (const [label, apiSpend] of [["approved", "approved"], ["unset", null]] as const) {
+      const input = writerOptions(`claude-writer-${label}`, { apiSpend });
+      const result = await runLane(input);
+      expect(result.receipt.status, label).toBe("complete");
+      expect(result.receipt.argv[result.receipt.argv.indexOf("--setting-sources") + 1], label).toBe("");
+    }
+  });
+
+  for (const [name, version] of [["an old", "2.1.284"], ["a malformed", "not-a-version"]] as const) {
+    it(`fails ${name} CLI version before any model execution`, async () => {
+      process.env.FAKE_CLAUDE_VERSION = version;
+      process.env.FAKE_MODEL_STARTED_PATH = join(scratch, `model-started-${name}`);
+      const input = writerOptions(`claude-writer-${name}-version`);
+      const result = await runLane(input);
+      expect(result.receipt.status).toBe("unavailable-cli");
+      expect(result.exitCode).toBe(69);
+      expect(result.receipt.processStarted).toBe(false);
+      expect(result.receipt.failurePhase).toBe("preflight");
+      expect(result.receipt.preflight.status).toBe("failed");
+      expect(existsSync(join(scratch, `model-started-${name}`))).toBe(false);
+      expect(existsSync(input.outputPath)).toBe(false);
+    });
+  }
+
+  it("fails a missing version command before model execution", async () => {
+    process.env.FAKE_CLAUDE_VERSION = "";
+    process.env.FAKE_CLAUDE_VERSION_EXIT = "1";
+    process.env.FAKE_MODEL_STARTED_PATH = join(scratch, "model-started-exit");
+    const input = writerOptions("claude-writer-version-exit");
+    const result = await runLane(input);
+    expect(result.receipt.status).toBe("unavailable-cli");
+    expect(result.receipt.processStarted).toBe(false);
+    expect(existsSync(join(scratch, "model-started-exit"))).toBe(false);
+  });
+
+  it("keeps read-only lanes on the existing no-version invocation", async () => {
+    const input = options("claude", "claude-reader");
+    const result = await runLane(input);
+    expect(result.receipt.status).toBe("complete");
+    expect(result.receipt.preflight.status).toBe("not-run");
+    expect(result.receipt.argv).not.toContain("--settings");
+    expect(result.receipt.argv).not.toContain("--version");
+    expect(result.receipt.argv[result.receipt.argv.indexOf("--setting-sources") + 1]).toBe("project");
   });
 });
 

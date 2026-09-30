@@ -152,14 +152,38 @@ export function renderWorkerContractBlock(
   ];
   const guidance = capabilityGuidance(request);
   if (guidance.length > 0) lines.push(guidance.trimEnd());
+  if (request.route === "native") {
+    lines.push(
+      "- Your tools are inherited from the host session. This contract does not " +
+        "grant, restrict, or attest any tool surface, and it is not an " +
+        "enforcement boundary."
+    );
+  }
   if (providerGuidance !== null && providerGuidance.trim().length > 0) {
     lines.push(providerGuidance.trimEnd());
   }
+  if (request.access === "isolated-write" && request.contract === "legacy") {
+    lines.push(
+      "Local checks:",
+      "- Run the checks suited to your assigned changes through the command or " +
+        "test tools your provider surface actually offers. Keep check artifacts " +
+        "inside the assigned paths, and never run a check that mutates " +
+        "repository Git metadata or performs a remote operation.",
+      "- Repair failures your edits caused and rerun the affected checks. A " +
+        "failing check is ordinary work, not a denial.",
+      "- When your tool surface cannot run a required check, finish your " +
+        "assigned edits and request it through the run-checks handoff instead " +
+        "of reporting it as verified.",
+      "- Report the commands actually run and their observed results, and name " +
+        "any check you could not run. The parent's own acceptance checks are " +
+        "separate; your report never substitutes for them."
+    );
+  }
   lines.push(
     "Finishing:",
-    "- Complete the assigned work and end with an ordinary final response describing " +
-      "what changed and what you verified. A final response without a handoff block " +
-      "closes the task.",
+    "- Complete the available assigned work and end with an ordinary final " +
+      "response describing what changed and what you verified. A final response " +
+      "without a handoff block closes the task.",
     "- If required work remains blocked on a parent-only operation, end the response " +
       "with exactly one fenced block requesting it:",
     "  ```pstack-handoff",
@@ -173,8 +197,9 @@ export function renderWorkerContractBlock(
       "own arguments. Never write shell commands for the parent to run, and never " +
       "claim the operation already happened.",
     "- If a tool you need is denied, stop there, describe the denied operation in " +
-      "your final response, and do not retry it, work around it, or escalate. The " +
-      "parent inspects preserved work before anything continues."
+      "your final response, and do not retry it, work around it, escalate, or " +
+      "substitute a fallback route. The parent inspects preserved work before " +
+      "anything continues."
   );
   return lines.join("\n");
 }
