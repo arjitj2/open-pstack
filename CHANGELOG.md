@@ -6,7 +6,7 @@ Entries describe package versions. Published release checkpoints have tag links;
 
 ## 1.10.2 enables worker local checks
 
-Cursor baseline: [0.15.5](https://github.com/cursor/plugins/tree/12d587dfb20741cafc376c42c696c5f6e2a64487/pstack). [Issue #103](https://github.com/arjitj2/open-pstack/issues/103).
+Cursor baseline: [0.15.5](https://github.com/cursor/plugins/tree/12d587dfb20741cafc376c42c696c5f6e2a64487/pstack). [Issue #103](https://github.com/arjitj2/open-pstack/issues/103). [PR #104](https://github.com/arjitj2/open-pstack/pull/104).
 
 Writers receive tool-specific guidance and check their changes before returning. External Claude writers use sandboxed Bash for local checks, with no unsandboxed retry. File-only providers retain parent check handoffs. Parent acceptance and Git ownership remain separate from worker reports.
 
