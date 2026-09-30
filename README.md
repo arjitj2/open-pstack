@@ -1,10 +1,10 @@
-# Open Pstack, maintained by Arjit
+# Open Pstack - cross-provider agents with configurable failover.
 
 **Stop bad code before your agents ship it.**
 
 Pstack helps you build a repo where agents follow the engineering practices you’d expect from a human teammate: understand the codebase, investigate problems, make deliberate design choices, review changes, and verify that they work. `poteto-mode` coordinates that process, and a repo-specific verification skill gives agents a way to test real features. That lets you move faster and run more work in parallel without supervising every step.
 
-Unlike Cursor’s original Pstack, which is limited to models available through Cursor, Open Pstack lets you [assign providers and models by role](#1-set-up-the-models) using your own provider subscriptions—so exploration, implementation, and review can each use a different provider and model.
+Unlike Cursor’s original Pstack, which is limited to models available through Cursor, Open Pstack lets you [assign providers and models by role](#1-set-up-the-models) using your own provider subscriptions—so exploration, implementation, and review can each use a different provider and model. This cross-provider ability also comes with automatic failover when a worker hits a quota limit or a supported provider failure.
 
 ```mermaid
 flowchart LR
