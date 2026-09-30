@@ -116,6 +116,66 @@ describe("renderWorkerContractBlock", () => {
     expect(prompt).toContain("## Worker contract");
     expect(prompt.endsWith("Assigned task:\nFix the parser.")).toBe(true);
   });
+
+  it("obligates writers to run, repair, and honestly report local checks", () => {
+    const block = renderWorkerContractBlock({
+      parent: "codex",
+      provider: "codex",
+      route: "external",
+      access: "isolated-write",
+      contract: "legacy",
+    });
+    expect(block).toContain("Local checks:");
+    expect(block).toContain("Repair failures your edits caused and rerun the affected checks");
+    expect(block).toContain("failing check is ordinary work, not a denial");
+    expect(block).toContain("request it through the run-checks handoff");
+    expect(block).toContain("Report the commands actually run and their observed results");
+    expect(block).toContain("parent's own acceptance checks are separate");
+  });
+
+  it("does not give read-only lanes a check obligation", () => {
+    const block = renderWorkerContractBlock({
+      parent: "claude",
+      provider: "claude",
+      route: "external",
+      access: "read-only",
+      contract: "legacy",
+    });
+    expect(block).not.toContain("Local checks:");
+    expect(block).toContain("do not edit the inspected checkout");
+  });
+
+  it("describes inherited host tools for native lanes without an enforcement promise", () => {
+    const native = renderWorkerContractBlock({
+      parent: "claude",
+      provider: "claude",
+      route: "native",
+      access: "isolated-write",
+      contract: "legacy",
+    });
+    expect(native).toContain("inherited from the host session");
+    expect(native).toContain("not an enforcement boundary");
+    const external = renderWorkerContractBlock({
+      parent: "claude",
+      provider: "grok",
+      route: "external",
+      access: "isolated-write",
+      contract: "legacy",
+    });
+    expect(external).not.toContain("inherited from the host session");
+  });
+
+  it("keeps denial terminal with no retry, workaround, escalation, or fallback", () => {
+    const block = renderWorkerContractBlock({
+      parent: "codex",
+      provider: "codex",
+      route: "external",
+      access: "isolated-write",
+      contract: "legacy",
+    });
+    expect(block).toContain("do not retry it, work around it, escalate, or substitute a fallback route");
+    expect(block).toContain("Complete the available assigned work");
+  });
 });
 
 describe("parseHandoffBlock", () => {

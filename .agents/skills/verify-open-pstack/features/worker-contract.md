@@ -9,6 +9,7 @@ The repository owner keeps Git authority while subordinate workers operate withi
 - `worker-handoff`: a final response can request a parent operation without completing the assignment or authorizing that operation.
 - `worker-continuation`: an explicit saved allowance permits only a bounded, inspected continuation of the same descriptor.
 - `worker-operation`: duplicate or interrupted parent operations reconcile against recorded expected state before replay.
+- `worker-local-checks`: command-capable writers check, repair, and recheck locally; file-only writers request parent checks.
 
 ## How to get to it (user POV)
 
@@ -47,6 +48,24 @@ From each installed parent, exercise these outcomes and retain the parent tool t
 7. Repeat policy checks with a legacy sheet. Its existing attempt and fallback semantics must remain unchanged.
 
 Record unsupported or blocked provider paths individually. A successful CLI test does not validate either installed parent. A provider report rejected by identity or spending guards is an unsuccessful run even when a side effect looks correct.
+
+For local checks, create a separate fixture for each installed-parent lane. The helper performs Git operations and runs only in the parent.
+
+```bash
+capture local-check-fixture python3 "$VERIFY_REPO/tests/worker-contract/local-check.py" create --root "$VERIFY_SCRATCH/local-check"
+```
+
+Pass `prompt.txt` and the fixture's `writer` checkout through the installed workflow. The task requires a failing baseline, a change only to `normalize.py`, and a passing check. Use the saved descriptor and spending policy. Exercise native Codex and Claude assignments, external Claude's sandboxed Bash, and Devin's sandboxed exec where those routes are configured. Repeat with fresh paths for each lane.
+
+Retain native host tool events or bounded provider tool observations from transparent process-boundary instrumentation. Record the actual check call and its matching failure or success result. Instrumentation must preserve argv, stdin, stdout, and exit status. Devin's runner deletes its private ATIF export after the attempt, so a verification recorder must select the check observations before cleanup. Never retain system context, reasoning, credentials, or unrelated tool output. Runner receipts and worker-written check logs alone do not prove that the worker ran a check.
+
+```bash
+capture local-check-observed python3 "$VERIFY_REPO/tests/worker-contract/local-check.py" inspect --root "$VERIFY_SCRATCH/local-check"
+```
+
+Require a passing parent check, an edited implementation, unchanged tracked tests and worker HEAD, and an unchanged seed. Inspect the actual diff and extra files. These state checks detect changes; they do not prove confinement. Record the installed version and tree identity, parent action, worker tool observations, and independent parent result separately.
+
+Use fresh fixtures for negative paths. Put project sandbox exclusions in a Claude writer checkout and confirm empty setting sources keep an outside-worktree canary write denied. Observe one actual denial and no retry. Exercise sandbox startup failure and an old or malformed CLI version without model execution. Check a required outside-directory cache or network operation, and retain the concrete blocker instead of weakening isolation. A file-only lane must deliver a valid `run-checks` request without claiming command execution; validate it with the parent's fixed task, checkpoint, file, check identifier, and HEAD before running acceptance. Native and external strict preparation must remain unsupported. Label fake CLI and synthetic policy cases as boundary tests, never installed-parent proof.
 
 ## Gotchas
 

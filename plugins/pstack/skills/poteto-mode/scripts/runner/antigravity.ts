@@ -106,7 +106,7 @@ export function createAntigravityLaneFiles(options: RunnerOptions): AntigravityC
 export function antigravityStdin(prompt: string, cwd: string, mode: AccessMode): string {
   const instruction = mode === "read-only"
     ? `Inspect the assigned workspace at ${cwd}. Do not write files.`
-    : `Edit only the assigned dedicated worktree at ${cwd}. File tools only; the parent runs tests.`;
+    : `Edit only the assigned dedicated worktree at ${cwd}.`;
   return `${JSON.stringify({ event: "user", message: { content: `${instruction}\n\n${prompt}` } })}\n`;
 }
 

@@ -133,6 +133,21 @@ describe("Antigravity external lanes", () => {
     expect(existsSync(join(opts.cwd,".agents"))).toBe(false);
   });
 
+  it("sends the rendered contract with file-only guidance and workspace addressing", async () => {
+    const opts = options({mode:"isolated-write"});
+    const result = await runLane(opts);
+    expect(result.receipt.status).toBe("complete");
+    const seen = observed();
+    const turn = JSON.parse(seen.prompt);
+    expect(turn.event).toBe("user");
+    const content = turn.message.content as string;
+    expect(content).toContain(`Edit only the assigned dedicated worktree at ${opts.cwd}.`);
+    expect(content).toContain("## Worker contract");
+    expect(content).toContain("command execution is unavailable, so request required checks through the run-checks handoff");
+    expect(content).not.toContain("the parent runs tests");
+    expect(content).toContain("Read the assigned value and answer.");
+  });
+
   it("blocks ambient API credentials before any CLI process starts", async () => {
     process.env.GEMINI_API_KEY = "secret-not-for-receipts";
     const result = await runLane(options({apiSpend:"deny"}));
