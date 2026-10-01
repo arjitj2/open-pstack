@@ -6,7 +6,7 @@ Entries describe package versions. Published release checkpoints have tag links;
 
 ## 1.10.3 makes setup recovery choices explicit
 
-Cursor baseline: [0.15.5](https://github.com/cursor/plugins/tree/12d587dfb20741cafc376c42c696c5f6e2a64487/pstack). [Issue #108](https://github.com/arjitj2/open-pstack/issues/108). [PR #109](https://github.com/arjitj2/open-pstack/pull/109).
+Cursor baseline: [0.15.5](https://github.com/cursor/plugins/tree/12d587dfb20741cafc376c42c696c5f6e2a64487/pstack). [Issue #108](https://github.com/arjitj2/open-pstack/issues/108). [PR #109](https://github.com/arjitj2/open-pstack/pull/109). Tag [v1.10.3](https://github.com/arjitj2/open-pstack/releases/tag/v1.10.3).
 
 Setup offers automatic backend recovery, usage exhaustion only, or no automatic fallback on first setup and reruns. Same-model continuation is a separate opt-in choice. Existing policies stay unchanged until accepted, and confirmation shows both recovery settings.
 
