@@ -152,6 +152,7 @@ Use the verification skill for each change. If you add or change a feature, upda
 
 | Skill | Use it when |
 | --- | --- |
+| [benchmark-checklist](plugins/pstack/skills/benchmark-checklist/SKILL.md) | You need to check that a measured speedup or regression reflects correct, completed work before reporting it. |
 | `how` | You want a clear explanation of how part of the system works. |
 | `why` | You want evidence for why the system was built that way. |
 | `architect` | A change crosses a function or module boundary and the design needs to be settled first. |

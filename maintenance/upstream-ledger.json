@@ -55,9 +55,15 @@
       "subject": "fix(pstack): resolve rule conflicts and read the model rule the same way (#422)",
       "reason": "Resolve configured roles consistently and validate plan syntax while excluding raw Cursor task fields and implicit model fallback.",
       "evidence": "https://github.com/arjitj2/open-pstack/pull/9; https://github.com/arjitj2/open-pstack/blob/5f0bb42dea46344c2f1961ebeebaeee135b49778/docs/cursor-adoption-20260924.md records exact-package Codex and Claude validation."
+    },
+    {
+      "commit": "23e4138daa01c42d4969f7a5465f82704e64f798",
+      "date": "2026-10-03",
+      "status": "pending",
+      "subject": "feat(pstack): port explain-the-number, fresh subagents, hourly autopilot tick, PR headings, schema-first cast (0.15.6)"
     }
   ],
-  "reviewed_through": "12d587dfb20741cafc376c42c696c5f6e2a64487",
+  "reviewed_through": "23e4138daa01c42d4969f7a5465f82704e64f798",
   "schema": 1,
   "source": {
     "path": "pstack/",
