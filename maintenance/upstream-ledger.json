@@ -55,9 +55,41 @@
       "subject": "fix(pstack): resolve rule conflicts and read the model rule the same way (#422)",
       "reason": "Resolve configured roles consistently and validate plan syntax while excluding raw Cursor task fields and implicit model fallback.",
       "evidence": "https://github.com/arjitj2/open-pstack/pull/9; https://github.com/arjitj2/open-pstack/blob/5f0bb42dea46344c2f1961ebeebaeee135b49778/docs/cursor-adoption-20260924.md records exact-package Codex and Claude validation."
+    },
+    {
+      "commit": "23e4138daa01c42d4969f7a5465f82704e64f798",
+      "date": "2026-10-03",
+      "status": "adapted",
+      "subject": "feat(pstack): port explain-the-number, fresh subagents, hourly autopilot tick, PR headings, schema-first cast (0.15.6)",
+      "reason": "Adapt benchmark and numerical-evidence guidance, fresh workers, hourly audits, PR headings, and schema-first validation to shared Codex/Claude invocation and tool boundaries; preserve saved provider policy, repository templates, and draft gates. Cursor-only guides remain excluded.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/111"
+    },
+    {
+      "commit": "9511e60321f7e533a187d62854a3d53a53752874",
+      "date": "2026-10-03",
+      "status": "adapted",
+      "subject": "feat(pstack): add /correct skill (#494)",
+      "reason": "Adapt the manual correct skill while preserving meaningful absence and relational-contract tests. Both hosts mined two historical mistakes, derived choices from one registry, and passed checks that fail when the historical omission is restored.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/111"
+    },
+    {
+      "commit": "a58628271271837ef5f386adca29c0812683a19a",
+      "date": "2026-10-03",
+      "status": "adopted",
+      "subject": "feat(pstack): make /architect designs resist agent mistakes (#495)",
+      "reason": "Adopt the four architectural red flags and screen-before-synthesis guidance in the shared skill tree; both installed hosts identified the supplied ownership, boundary, API, and list defects.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/111"
+    },
+    {
+      "commit": "e43c7ee26e0038c6c1fa8380dd34ce86ff94cb2a",
+      "date": "2026-10-03",
+      "status": "adapted",
+      "subject": "refactor(pstack): use bare performance mantras in perf-issue step 2 (#496)",
+      "reason": "Adapt ordered performance mantras into the provider-aware playbooks. Both hosts stop perf investigation at its verified target while retaining the hillclimb target AND iteration-floor predicate.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/111"
     }
   ],
-  "reviewed_through": "12d587dfb20741cafc376c42c696c5f6e2a64487",
+  "reviewed_through": "e43c7ee26e0038c6c1fa8380dd34ce86ff94cb2a",
   "schema": 1,
   "source": {
     "path": "pstack/",

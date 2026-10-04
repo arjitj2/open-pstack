@@ -164,7 +164,7 @@ describe("check-plan", () => {
     for (const item of FORBIDDEN_FENCE) {
       expect(skeleton.includes(item), item).toBe(false);
     }
-    expect(skeleton).toContain("30-minute");
+    expect(skeleton).toContain("hourly audit tick");
     expect(rawSkeleton).toContain(CONTRACT.laneTemplate);
   });
 
@@ -555,6 +555,11 @@ describe("check-plan", () => {
         "### Extra owners\n\n### Spawn owners",
       ),
       "Program checklist H3s are",
+    ],
+    [
+      "the obsolete half-hour cadence",
+      skeleton.replaceAll("hourly audit tick", "30-minute audit tick"),
+      'Program checklist lacks "hourly audit tick"',
     ],
     [
       "a ten-line intro",
