@@ -6,9 +6,9 @@ Entries describe package versions. Published release checkpoints have tag links;
 
 ## 1.11.0 strengthens engineering evidence
 
-Cursor baseline: [0.15.5](https://github.com/cursor/plugins/tree/12d587dfb20741cafc376c42c696c5f6e2a64487/pstack). [Issue #110](https://github.com/arjitj2/open-pstack/issues/110).
+Cursor baseline: [0.15.9](https://github.com/cursor/plugins/tree/e43c7ee26e0038c6c1fa8380dd34ce86ff94cb2a/pstack). [Issue #110](https://github.com/arjitj2/open-pstack/issues/110). [PR #111](https://github.com/arjitj2/open-pstack/pull/111). Tag [v1.11.0](https://github.com/arjitj2/open-pstack/releases/tag/v1.11.0).
 
-Candidate adoption of Cursor 0.15.9 adds benchmark and numerical-evidence guidance, fresh workers for new tasks, hourly automation status updates, clearer PR headings, and schema-first boundary validation. It also adds `/correct`, architecture checks for recurring agent mistakes, and ordered performance guidance. The incorporated baseline remains unchanged until installed-parent validation completes.
+Adds benchmark and numerical-evidence guidance, fresh workers for new tasks, hourly automation status updates, clearer PR headings, and schema-first boundary validation. The new `correct` skill addresses recurring mistakes with structural enforcement. Architecture checks screen for split ownership and duplicated interfaces or lists; performance guidance tries cheaper changes first while preserving hillclimb’s iteration floor.
 
 ## 1.10.3 makes setup recovery choices explicit
 
