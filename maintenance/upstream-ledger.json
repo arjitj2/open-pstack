@@ -61,9 +61,27 @@
       "date": "2026-10-03",
       "status": "pending",
       "subject": "feat(pstack): port explain-the-number, fresh subagents, hourly autopilot tick, PR headings, schema-first cast (0.15.6)"
+    },
+    {
+      "commit": "9511e60321f7e533a187d62854a3d53a53752874",
+      "date": "2026-10-03",
+      "status": "pending",
+      "subject": "feat(pstack): add /correct skill (#494)"
+    },
+    {
+      "commit": "a58628271271837ef5f386adca29c0812683a19a",
+      "date": "2026-10-03",
+      "status": "pending",
+      "subject": "feat(pstack): make /architect designs resist agent mistakes (#495)"
+    },
+    {
+      "commit": "e43c7ee26e0038c6c1fa8380dd34ce86ff94cb2a",
+      "date": "2026-10-03",
+      "status": "pending",
+      "subject": "refactor(pstack): use bare performance mantras in perf-issue step 2 (#496)"
     }
   ],
-  "reviewed_through": "23e4138daa01c42d4969f7a5465f82704e64f798",
+  "reviewed_through": "e43c7ee26e0038c6c1fa8380dd34ce86ff94cb2a",
   "schema": 1,
   "source": {
     "path": "pstack/",

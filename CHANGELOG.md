@@ -8,7 +8,7 @@ Entries describe package versions. Published release checkpoints have tag links;
 
 Cursor baseline: [0.15.5](https://github.com/cursor/plugins/tree/12d587dfb20741cafc376c42c696c5f6e2a64487/pstack). [Issue #110](https://github.com/arjitj2/open-pstack/issues/110).
 
-Candidate adoption of Cursor 0.15.6 adds benchmark and numerical-evidence guidance, fresh workers for new tasks, hourly automation status updates, clearer PR headings, and schema-first boundary validation. The incorporated baseline remains unchanged until installed-parent validation completes.
+Candidate adoption of Cursor 0.15.9 adds benchmark and numerical-evidence guidance, fresh workers for new tasks, hourly automation status updates, clearer PR headings, and schema-first boundary validation. It also adds `/correct`, architecture checks for recurring agent mistakes, and ordered performance guidance. The incorporated baseline remains unchanged until installed-parent validation completes.
 
 ## 1.10.3 makes setup recovery choices explicit
 
