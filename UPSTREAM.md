@@ -23,7 +23,7 @@ The upstream README at this baseline is [cursor/plugins `pstack/README.md` @ e43
 - Commits `799151d` and `6fecddb` add and relocate `make-bot-ui`. It depends on Cursor routines, webhook events, and UI primitives that Claude Code and Codex do not share.
 - Four `disable-model-invocation: true` lines from `73f8be4` are not applied to `how`, `why`, `unslop`, or `typescript-best-practices`. Poteto-mode invokes those skills by name, and the flag blocks that route on Claude Code.
 - The `23a56e2` default-model hunks for `bug-fix`, `perf-issue`, and `hillclimb` are not applied, and the equivalent hunks in `889ec4b` and `70b2dc8` carry the same exclusion. The first-run defaults for those roles stay on `codex:gpt-5.6-sol@max` for cost. Existing user assignments take precedence.
-- The `23e4138` invocation flags for `benchmark-checklist`, `architect`, and the numerical-evidence principle are adapted to preserve automatic workflow use. The new `correct` skill keeps its manual invocation flag. Cursor-only guide content remains excluded.
+- The `23e4138` invocation flags for `benchmark-checklist` and the numerical-evidence principle are adapted to preserve automatic workflow use. The new `correct` skill keeps its manual invocation flag. Cursor-only guide content remains excluded.
 - The `9511e60` test-deletion instruction preserves meaningful absence and relational-contract tests, matching this port’s test-behavior principle.
 - The Claude manifest does not take the logo field from `efa2a53` because Claude Code has no schema for it. The Codex manifest exposes the shared asset instead.
 
