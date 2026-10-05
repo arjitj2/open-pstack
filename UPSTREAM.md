@@ -10,13 +10,13 @@ This page records the current Cursor baseline and the maintainer procedure for r
 | --- | --- |
 | Repository | `https://github.com/cursor/plugins.git` |
 | Path | `pstack/` |
-| Commit | `e43c7ee26e0038c6c1fa8380dd34ce86ff94cb2a` |
-| Upstream version | `0.15.9` |
+| Commit | `4e5b1cf2ccb0ea3716f08c8ee0a5856b5ab93536` |
+| Upstream version | `0.15.10` |
 | open-pstack version | `1.12.0` |
 
 The table records the packaged version on `main` and the Cursor content it incorporates, minus the exclusions below. Detecting or reviewing a newer Cursor commit does not advance this baseline. Cursor's version identifies the imported content. The open-pstack version identifies the cross-harness package, and its numbers are independent of Cursor and Eric's port.
 
-The upstream README at this baseline is [cursor/plugins `pstack/README.md` @ e43c7ee2](https://github.com/cursor/plugins/blob/e43c7ee26e0038c6c1fa8380dd34ce86ff94cb2a/pstack/README.md). [CHANGELOG.md](CHANGELOG.md) records the baseline of each release, and [NOTICE.md](NOTICE.md) records provenance.
+The upstream README at this baseline is [cursor/plugins `pstack/README.md` @ 4e5b1cf2](https://github.com/cursor/plugins/blob/4e5b1cf2ccb0ea3716f08c8ee0a5856b5ab93536/pstack/README.md). [CHANGELOG.md](CHANGELOG.md) records the baseline of each release, and [NOTICE.md](NOTICE.md) records provenance.
 
 ## Upstream-only exclusions
 
@@ -25,6 +25,7 @@ The upstream README at this baseline is [cursor/plugins `pstack/README.md` @ e43
 - The `23a56e2` default-model hunks for `bug-fix`, `perf-issue`, and `hillclimb` are not applied, and the equivalent hunks in `889ec4b` and `70b2dc8` carry the same exclusion. The first-run defaults for those roles stay on `codex:gpt-5.6-sol@max` for cost. Existing user assignments take precedence.
 - The `23e4138` invocation flags for `benchmark-checklist` and the numerical-evidence principle are adapted to preserve automatic workflow use. The new `correct` skill keeps its manual invocation flag. Cursor-only guide content remains excluded.
 - The `9511e60` test-deletion instruction preserves meaningful absence and relational-contract tests, matching this port’s test-behavior principle.
+- The `4e5b1cf` help workflow uses this distribution’s owning documents, namespaced invocation, native/external routes, and host startup controls. Cursor Custom Modes, excluded `make-bot-ui`, and Cursor-only guide edits are not applied.
 - The Claude manifest does not take the logo field from `efa2a53` because Claude Code has no schema for it. The Codex manifest exposes the shared asset instead.
 
 Earlier exclusions include Cursor's Benny automation, tutorial and sticky-mode UI, Cursor-only agent metadata, and Team Kit tools covered by host built-ins or bundled skills. The [historical port record](https://github.com/arjitj2/open-pstack/blob/5f0bb42dea46344c2f1961ebeebaeee135b49778/docs/reference.md#whats-deliberately-not-ported) records those source revisions.

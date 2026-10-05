@@ -91,8 +91,10 @@
     {
       "commit": "4e5b1cf2ccb0ea3716f08c8ee0a5856b5ab93536",
       "date": "2026-10-04",
-      "status": "pending",
-      "subject": "feat(pstack): add /poteto-help skill (#502)"
+      "status": "adapted",
+      "subject": "feat(pstack): add /poteto-help skill (#502)",
+      "reason": "Adapt poteto-help to Codex/Claude invocation, local model sheets, approved provider recovery, startup routing, bundled skills, and distribution documentation. Preserve help-versus-action intent. Cursor Custom Modes and Cursor-only guide edits remain excluded.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/114"
     }
   ],
   "reviewed_through": "4e5b1cf2ccb0ea3716f08c8ee0a5856b5ab93536",
