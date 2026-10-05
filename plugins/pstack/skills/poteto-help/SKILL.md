@@ -51,7 +51,7 @@ How `poteto-mode` stays in effect depends on the parent:
 - On Codex the routing is opt-in. Once the user trusts the plugin's `SessionStart` entry in `/hooks`, new tasks route the same way. Untrusted or disabled, nothing routes: select the skill for each task.
 - There is no mode to toggle on. Routing and explicit selection are the persistence. Mid-chat, "new task" makes the mode match a fresh playbook.
 
-For ad-hoc native helpers, Claude Code can use `poteto-agent`; Codex has no such agent type and instead passes instructions to read `poteto-mode`. Configured roles must use [provider dispatch](../poteto-mode/references/provider-dispatch.md), preserving their selected models and effort. See the [Codex tool mapping](../poteto-mode/references/codex-tools.md#subagents) for host details.
+For ad-hoc native helpers, Claude Code can use `poteto-agent`; Codex has no such agent type and instead passes instructions to read `poteto-mode`. Configured roles must use [provider dispatch](../poteto-mode/references/provider-dispatch.md), preserving their selected models and effort. See the [Codex tool mapping](../poteto-mode/references/codex-tools.md#subagent-policy) for host details.
 
 ## Pick a skill
 
