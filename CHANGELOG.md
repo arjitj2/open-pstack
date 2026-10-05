@@ -4,6 +4,12 @@ This file records what each version of the Open Pstack package changed. Versions
 
 Entries describe package versions. Published release checkpoints have tag links; installation follows `main` unless pinned. Validation belongs to the linked pull requests. Older reports remain available through immutable links.
 
+## 1.12.0 adds help for setup and workflows
+
+Cursor baseline: [0.15.9](https://github.com/cursor/plugins/tree/e43c7ee26e0038c6c1fa8380dd34ce86ff94cb2a/pstack). [Issue #113](https://github.com/arjitj2/open-pstack/issues/113).
+
+Candidate adoption adds `poteto-help`, adapting Cursor 0.15.10 help to this distribution’s setup, hosts, workers, and invocation controls. The source baseline remains unchanged until both-host validation passes.
+
 ## 1.11.0 strengthens engineering evidence
 
 Cursor baseline: [0.15.9](https://github.com/cursor/plugins/tree/e43c7ee26e0038c6c1fa8380dd34ce86ff94cb2a/pstack). [Issue #110](https://github.com/arjitj2/open-pstack/issues/110). [PR #111](https://github.com/arjitj2/open-pstack/pull/111). Tag [v1.11.0](https://github.com/arjitj2/open-pstack/releases/tag/v1.11.0).

@@ -87,9 +87,15 @@
       "subject": "refactor(pstack): use bare performance mantras in perf-issue step 2 (#496)",
       "reason": "Adapt ordered performance mantras into the provider-aware playbooks. Both hosts stop perf investigation at its verified target while retaining the hillclimb target AND iteration-floor predicate.",
       "evidence": "https://github.com/arjitj2/open-pstack/pull/111"
+    },
+    {
+      "commit": "4e5b1cf2ccb0ea3716f08c8ee0a5856b5ab93536",
+      "date": "2026-10-04",
+      "status": "pending",
+      "subject": "feat(pstack): add /poteto-help skill (#502)"
     }
   ],
-  "reviewed_through": "e43c7ee26e0038c6c1fa8380dd34ce86ff94cb2a",
+  "reviewed_through": "4e5b1cf2ccb0ea3716f08c8ee0a5856b5ab93536",
   "schema": 1,
   "source": {
     "path": "pstack/",
