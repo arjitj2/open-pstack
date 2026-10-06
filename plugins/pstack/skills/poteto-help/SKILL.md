@@ -1,6 +1,7 @@
 ---
 name: poteto-help
-description: Guides users through pstack setup, poteto-mode, and picking the skill, playbook, or principle for a task. Use for poteto-help, or when the user asks how to install, set up, or use pstack, or which pstack skill fits. Not for requests to do work, even ones that name pstack.
+description: Guides users through pstack setup, poteto-mode, and picking the skill, playbook, or principle for a task. Invoke `pstack:poteto-help` with a question; it does not load on its own. Not for requests to do work, even ones that name pstack.
+disable-model-invocation: true
 ---
 
 # Poteto help
@@ -26,6 +27,11 @@ Check the state that changes the answer, and mention it only when it does:
 - Read the active parent's model sheet: `~/.claude/pstack-models.md` on Claude Code or `~/.codex/pstack-models.md` on Codex. A missing sheet uses documented role defaults. A missing role in a policy-enabled sheet is an error, not permission to use a default; unreadable or malformed sheets also fail. See [provider dispatch](../poteto-mode/references/provider-dispatch.md) for the legacy-sheet distinction.
 - No `verify-*` skill or other app harness in the project means agents have no scripted way to drive the app. Mention `create-verification-skill` when the question is about proving a change works.
 
+When no model sheet is saved and it matters, ask whether the user wants to pick a model for each role and a reasoning budget now. It matters when the user is new, the question is about setup or cost, or the answer depends on which models run. Ask at most once per chat, and if the need is also unclear ask both questions together. The offer writes nothing; `setup-pstack` saves the sheet only after the user runs it and confirms. Offer two choices:
+
+- Now: give them `setup-pstack` to invoke, and answer their question too.
+- Later: answer their question, and add one line saying every role keeps its documented default until they run `setup-pstack`.
+
 Skill names are namespaced under `pstack:`. In Claude Code, invoke `/pstack:poteto-mode`. In Codex, select `pstack:poteto-mode` in the skill picker or mention `$pstack:poteto-mode`. The rest of this file writes the bare names.
 
 ## Get set up
@@ -34,7 +40,7 @@ Skill names are namespaced under `pstack:`. In Claude Code, invoke `/pstack:pote
 2. Run `setup-pstack`. It asks for a reasoning budget, checks the providers you pick, maps a model to each role, and writes the model sheet: `~/.claude/pstack-models.md` on Claude Code, `~/.codex/pstack-models.md` mirrored into `~/.codex/AGENTS.md` on Codex. The saved sheet loads at the start of a session or task.
 3. Start a real task with `poteto-mode`, a goal, and a check that can pass or fail.
 
-Claude Code loads pstack's session-start routing at session start, clear, and compaction, so non-trivial engineering work enters `poteto-mode` without naming it. Codex ships the same routing as an opt-in `SessionStart` hook covering startup, resume, clear, and compaction: it stays inactive until the user reviews and trusts the pstack entry in `/hooks`. The README's Get started section has the details. Offer to word their first prompt with them.
+Claude Code loads pstack's session-start routing at session start, clear, and compaction, so non-trivial engineering work enters `poteto-mode` without naming it. Codex ships the same routing as an opt-in `SessionStart` hook covering startup, resume, clear, and compaction: it stays inactive until the user reviews and trusts the pstack entry in `/hooks`. The README's Get started section has the details. Offer to word their first prompt with them, per [`references/prompting.md`](references/prompting.md).
 
 If cost is the worry, say where the tokens go and how to spend fewer. pstack spends extra tokens on subagents and review panels. Rerun `setup-pstack` and pick a smaller budget or cheaper models. A role set to `auto` or `inherit-parent` runs on the parent's current model. The sheet's access facts guide recommendations but do not prove entitlement; the saved API-spend setting controls whether metered access is authorized. The [provider dispatch contract](../poteto-mode/references/provider-dispatch.md) owns native versus external routes, access checks, and approved recovery chains. A shorter panel list runs fewer subagents, one for each entry. Save `poteto-mode` for work that needs rigor.
 
@@ -42,7 +48,7 @@ This distribution runs in Claude Code and Codex. Its skills use the Agent Skills
 
 ## Start a task with `poteto-mode`
 
-`poteto-mode` matches the task to a playbook, copies the playbook's steps into the todo list, and runs the other skills as the steps need them. A step it skips stays in the list as `skip: <reason>`. A good prompt states the goal and how to tell it's done. It doesn't list skills, because a hand-written sequence tends to drop or reorder steps the playbook would keep. The Playbooks section of [`poteto-mode`](../poteto-mode/SKILL.md) has the list.
+`poteto-mode` matches the task to a playbook, copies the playbook's steps into the todo list, and runs the other skills as the steps need them. A step it skips stays in the list as `skip: <reason>`. A good prompt states the goal and how to tell it's done. It doesn't list skills, because a hand-written sequence tends to drop or reorder steps the playbook would keep. Read [`references/prompting.md`](references/prompting.md) before you help word one. The Playbooks section of [`poteto-mode`](../poteto-mode/SKILL.md) has the list.
 
 How `poteto-mode` stays in effect depends on the parent:
 
@@ -68,7 +74,7 @@ The default answer is `poteto-mode`, which runs most of the others when its step
 | Settle types and module shape before code that crosses a function boundary | [`architect`](../architect/SKILL.md) |
 | Get several attempts at one brief, merged into the best one | [`arena`](../arena/SKILL.md) |
 | Run parallel checks over slices, or race workers | [`swarm`](../swarm/SKILL.md) |
-| Have several models review a diff and try to break it | [`interrogate`](../interrogate/SKILL.md) |
+| Have different models review a diff and try to break it | [`interrogate`](../interrogate/SKILL.md) |
 | Fix a bug test-first when a cheap local test exists | [`tdd`](../tdd/SKILL.md) |
 | Apply TypeScript rules to `.ts` or `.tsx` work | [`typescript-best-practices`](../typescript-best-practices/SKILL.md) |
 | Strip comments before review, using a reviewer that didn't write them | [`no-comments`](../no-comments/SKILL.md) |
@@ -142,11 +148,13 @@ Principles are one-rule skills that `poteto-mode` reads and cites in its replies
 | A question got treated as the next step of the last task | Say "new task", or say the turn doesn't need the mode. |
 | A new model choice had no effect | The saved sheet loads at the start of a session or task. Start a new one. |
 | Runs cost more than expected | See the cost paragraph under Get set up. |
-| A skill didn't load on its own | Skills load when named, when a description matches, or when `poteto-mode` runs them, and it doesn't run every skill. Session-start routing only steers non-trivial engineering work into `poteto-mode`. |
+| A skill didn't load on its own | Skills load when named, when a description matches, or when `poteto-mode` runs them, and it doesn't run every skill. `poteto-help` is manual-only: it runs only when invoked. Session-start routing only steers non-trivial engineering work into `poteto-mode`. |
 | Parallel agents overwrote each other | Give each writer its own worktree or unique output directory. |
 | A worker stopped instead of switching models | By design. Only the sheet's saved `primary -> fallback` chain, under its [`# fallback` policy](../poteto-mode/references/provider-dispatch.md#saved-fallback-and-backend-recovery), may take over. Anything else is a dropout; repair the route or change assignments through `setup-pstack`. |
 | An overnight run moved but finished nothing | A scheduled loop needs a check that can pass or fail, not a duration. |
 | The reply claims success from a green build | Ask for the real command, flow, stored value, or profile. That's the prove-it-works principle. |
+
+For a run that drifts, [`references/prompting.md`](references/prompting.md) has one-line steers.
 
 ## Make pstack my own
 
@@ -157,4 +165,4 @@ Principles are one-rule skills that `poteto-mode` reads and cites in its replies
 
 ## Reply
 
-Lead with the answer. Give at most one example prompt in a code block, then the link to that file. Keep it short unless the user asked for the whole map.
+Lead with the answer. Give at most one example prompt in a code block, adapted from [`references/recipes.md`](references/recipes.md) when one fits, then the link to that file. Keep it short unless the user asked for the whole map.

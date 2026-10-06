@@ -95,9 +95,39 @@
       "subject": "feat(pstack): add /poteto-help skill (#502)",
       "reason": "Adapt poteto-help to Codex/Claude invocation, local model sheets, approved provider recovery, startup routing, bundled skills, and distribution documentation. Preserve help-versus-action intent. Cursor Custom Modes and Cursor-only guide edits remain excluded.",
       "evidence": "https://github.com/arjitj2/open-pstack/pull/114"
+    },
+    {
+      "commit": "00b52d954a99ff67802cad428ff19218659f76fd",
+      "date": "2026-10-05",
+      "status": "pending",
+      "subject": "fix(pstack): make /poteto-help typed-only (#506)"
+    },
+    {
+      "commit": "807c031086fcf71c88c863b4a4e6938b6785c58f",
+      "date": "2026-10-05",
+      "status": "pending",
+      "subject": "feat(pstack): add prompting references to /poteto-help (#507)"
+    },
+    {
+      "commit": "2cbf58508f40de470d7490b55c51d71241928fa2",
+      "date": "2026-10-05",
+      "status": "pending",
+      "subject": "docs(pstack): refresh guide for /correct, checklist, prompting tips (#508)"
+    },
+    {
+      "commit": "1e56b2913469f05101e4ffd4d437c2e6fd2c1b8d",
+      "date": "2026-10-05",
+      "status": "pending",
+      "subject": "feat(pstack): have /poteto-help ask about /setup-pstack when no model rule exists (#509)"
+    },
+    {
+      "commit": "df581122cde17e6e27686b5a448bde23e4ad4318",
+      "date": "2026-10-05",
+      "status": "pending",
+      "subject": "feat(pstack): drop Sol, default to Opus xhigh and Grok (#511)"
     }
   ],
-  "reviewed_through": "4e5b1cf2ccb0ea3716f08c8ee0a5856b5ab93536",
+  "reviewed_through": "df581122cde17e6e27686b5a448bde23e4ad4318",
   "schema": 1,
   "source": {
     "path": "pstack/",

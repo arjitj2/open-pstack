@@ -4,6 +4,12 @@ This file records what each version of the Open Pstack package changed. Versions
 
 Entries describe package versions. Published release checkpoints have tag links; installation follows `main` unless pinned. Validation belongs to the linked pull requests. Older reports remain available through immutable links.
 
+## 1.13.0 adds prompting guidance to explicit help
+
+Cursor baseline: [0.15.10](https://github.com/cursor/plugins/tree/4e5b1cf2ccb0ea3716f08c8ee0a5856b5ab93536/pstack). [Issue #115](https://github.com/arjitj2/open-pstack/issues/115). Tag [v1.13.0](https://github.com/arjitj2/open-pstack/releases/tag/v1.13.0).
+
+Makes poteto-help explicitly invoked, adds portable prompt examples, and offers setup when a relevant question reveals a missing model sheet. Keeps this distribution's provider defaults, saved model choices, and budget ceilings.
+
 ## 1.12.0 adds help for setup and workflows
 
 Cursor baseline: [0.15.10](https://github.com/cursor/plugins/tree/4e5b1cf2ccb0ea3716f08c8ee0a5856b5ab93536/pstack). [Issue #113](https://github.com/arjitj2/open-pstack/issues/113). [PR #114](https://github.com/arjitj2/open-pstack/pull/114). Tag [v1.12.0](https://github.com/arjitj2/open-pstack/releases/tag/v1.12.0).

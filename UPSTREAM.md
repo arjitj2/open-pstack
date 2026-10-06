@@ -12,7 +12,7 @@ This page records the current Cursor baseline and the maintainer procedure for r
 | Path | `pstack/` |
 | Commit | `4e5b1cf2ccb0ea3716f08c8ee0a5856b5ab93536` |
 | Upstream version | `0.15.10` |
-| open-pstack version | `1.12.0` |
+| open-pstack version | `1.13.0` |
 
 The table records the packaged version on `main` and the Cursor content it incorporates, minus the exclusions below. Detecting or reviewing a newer Cursor commit does not advance this baseline. Cursor's version identifies the imported content. The open-pstack version identifies the cross-harness package, and its numbers are independent of Cursor and Eric's port.
 
@@ -26,6 +26,8 @@ The upstream README at this baseline is [cursor/plugins `pstack/README.md` @ 4e5
 - The `23e4138` invocation flags for `benchmark-checklist` and the numerical-evidence principle are adapted to preserve automatic workflow use. The new `correct` skill keeps its manual invocation flag. Cursor-only guide content remains excluded.
 - The `9511e60` test-deletion instruction preserves meaningful absence and relational-contract tests, matching this port’s test-behavior principle.
 - The `4e5b1cf` help workflow uses this distribution’s owning documents, namespaced invocation, native/external routes, and host startup controls. Cursor Custom Modes, excluded `make-bot-ui`, and Cursor-only guide edits are not applied.
+- The `2cbf585` guide-only refresh stays upstream; this distribution links Lauren's guide and keeps portable prompting guidance in `poteto-help`.
+- The `df58112` model and effort changes are excluded. This distribution retains Sol as a first-run family, its existing provider-qualified panel and role defaults, and confirmed budget ceilings that do not raise lower saved efforts. Cursor's model availability and two-model panel do not define access in Codex or Claude Code. Its accompanying panel-count prose, test fixture rename, and guide edits stay with that excluded model change.
 - The Claude manifest does not take the logo field from `efa2a53` because Claude Code has no schema for it. The Codex manifest exposes the shared asset instead.
 
 Earlier exclusions include Cursor's Benny automation, tutorial and sticky-mode UI, Cursor-only agent metadata, and Team Kit tools covered by host built-ins or bundled skills. The [historical port record](https://github.com/arjitj2/open-pstack/blob/5f0bb42dea46344c2f1961ebeebaeee135b49778/docs/reference.md#whats-deliberately-not-ported) records those source revisions.
