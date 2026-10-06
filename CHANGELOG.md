@@ -6,7 +6,7 @@ Entries describe package versions. Published release checkpoints have tag links;
 
 ## 1.13.0 adds prompting guidance to explicit help
 
-Cursor baseline: [0.15.10](https://github.com/cursor/plugins/tree/4e5b1cf2ccb0ea3716f08c8ee0a5856b5ab93536/pstack). [Issue #115](https://github.com/arjitj2/open-pstack/issues/115). Tag [v1.13.0](https://github.com/arjitj2/open-pstack/releases/tag/v1.13.0).
+Cursor baseline: [0.15.15](https://github.com/cursor/plugins/tree/df581122cde17e6e27686b5a448bde23e4ad4318/pstack). [Issue #115](https://github.com/arjitj2/open-pstack/issues/115). [PR #116](https://github.com/arjitj2/open-pstack/pull/116). Tag [v1.13.0](https://github.com/arjitj2/open-pstack/releases/tag/v1.13.0).
 
 Makes poteto-help explicitly invoked, adds portable prompt examples, and offers setup when a relevant question reveals a missing model sheet. Keeps this distribution's provider defaults, saved model choices, and budget ceilings.
 
