@@ -7,7 +7,7 @@ Run the parent skill's Launch and Doctor first. Use one fresh scratch store per 
 - [Installation and discovery](installation.md): marketplace installation, reload, skill discovery in both parents.
 - [Model setup](setup.md): selected-provider checks, confirmation, persistence, native probes.
 - [Startup routing](startup-routing.md): bundled SessionStart hook registration, opt-in trust, and shared routing text.
-- [Engineering workflows](workflows.md): invoking poteto-mode and direct focused skills.
+- [Engineering workflows](workflows.md): poteto-mode and focused entry points, manual Ketchup, How/Why/Reflect handoffs, Architect/Arena and Interrogate completion, path discovery, and distilled guidance artifacts.
 - [Routing policy](routing.md): inspecting a saved role through the CLI and observing parent-owned dispatch.
 - [Worker ownership and continuation](worker-contract.md): enforced capabilities, parent Git operations, handoffs and bounded recovery.
 - [Worker lifecycle progress](worker-progress.md): bounded `--progress` snapshots and the `status` reader for external lanes.
@@ -18,4 +18,4 @@ Run the parent skill's Launch and Doctor first. Use one fresh scratch store per 
 
 Capture command or parent action, output, exit status or native terminal state, and a second read of persistent changes. A path not exercised is unverified even if another entry point passed. Map entries are a starter set, not exhaustive coverage: watch-pr, plan checking, worktree auditing, and all review panels need their own recipes when changed. One CLI smoke validates the generated skill's harness; it does not validate all features or approve a release.
 
-Each feature has four H2 sections: Sub-features, How to get to it (user POV), Driving it with the named harness, and Gotchas. Add new entry points and preconditions when product behavior changes.
+Each feature has four H2 sections: Sub-features, How to get to it (user POV), Driving it with the named harness, and Gotchas. Add new entry points and preconditions when product behavior changes. The workflow recipes name the changed prompt paths; a listed recipe is a coverage plan until its installed-host action and result are retained.

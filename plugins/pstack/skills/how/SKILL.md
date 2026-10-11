@@ -24,7 +24,7 @@ Decompose the question into 2 to 4 angles, each a distinct slice of the subsyste
 
 ## 3. Synthesize (complex only)
 
-Once all explorers have returned, dispatch one read-only lane to synthesize their findings into one explanation using the `how explainer` line's descriptor (default `claude:opus@max`), with `references/explainer-prompt.md` and every explorer's findings filled in.
+Wait for every explorer lane to reach a verified terminal result or a recorded dropout under provider dispatch. Retain native results and external task/session handles and receipts; startup, progress, or a worker's claim of completion is insufficient. Then dispatch one read-only lane using the `how explainer` line's descriptor (default `claude:opus@max`), with `references/explainer-prompt.md`, every explorer's full findings, and named dropouts. Verify the explainer's completion before presenting it.
 
 ## 4. Present
 

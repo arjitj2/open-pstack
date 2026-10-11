@@ -164,6 +164,7 @@ Use the verification skill for each change. If you add or change a feature, upda
 | `reflect` | A hard task is finished and its lessons should improve the next run. |
 | [correct](plugins/pstack/skills/correct/SKILL.md) | You keep correcting agents for the same mistakes and want the repo changed so the next agent cannot repeat them. |
 | [poteto-help](plugins/pstack/skills/poteto-help/SKILL.md) | You want help installing, setting up, or picking the right pstack skill. |
+| [ketchup](plugins/pstack/skills/ketchup/SKILL.md) | You want a manual, read-only catch-up for this chat and its pending human decisions, leaving queued work pending. |
 
 Plugin skills include `pstack:` in their name. In Claude Code, invoke `/pstack:architect`. In Codex, select `pstack:architect` from the skill picker or mention `$pstack:architect`. Browse the [packaged skills](plugins/pstack/skills/) for each skill's description and instructions.
 

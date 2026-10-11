@@ -6,13 +6,17 @@ disable-model-invocation: true
 
 # Ketchup
 
-Catch the user up on everything in this chat since the last message they wrote before `ketchup` was invoked. That anchor is the last actual human user message: heartbeat or automation events, scheduled wake-ups, and subagent notifications and results are not their messages, even when the transcript renders them in the user position. Write in the plain voice of [`bro`](../bro/SKILL.md), and skip its restating step. Assume the user remembers their last message and nothing after it. Call each PR, branch, or agent by a name they would know, not by a label you invented during the work.
+Invoke manually as `/pstack:ketchup` in Claude Code, or select `pstack:ketchup` or mention `$pstack:ketchup` in Codex. Do not load it implicitly.
+
+Catch the user up on everything in this chat since the last actual human-authored message before this invocation. Exclude the invocation itself, system messages, heartbeat and scheduler prompts, automated notifications, and subagent results when choosing that anchor, even if the host presents them as user-role events. Automated events after the anchor still belong in the catch-up. If the true anchor or intervening activity cannot be established, state the gap and use only confirmed current-chat context. Do not search unrelated chats. Write in the plain voice of [`bro`](../bro/SKILL.md), and skip its restating step. Assume the user remembers their last message and nothing after it. Call each PR, branch, or agent by a name they would know, not by a label you invented during the work.
 
 ## Gather what changed
 
-Keep this turn read-only. Collect your own work since that message, reports from subagents, and messages from anyone else in this chat. Check the current state of each PR, CI run, or agent this chat touched through a CLI or API when one is available (`gh`, the CI's CLI, the agent platform's CLI or API). Inspect a UI only when the user has authorized UI inspection and no CLI or API reaches the state. Say which are still running and which you could not check.
+Keep this turn read-only. Collect your own work since that message, reports from subagents, and messages from anyone else in this chat. Check the current state of each PR, CI run, or agent this chat touched through existing CLI, API, or connector readers. Inspect a UI only under explicit user authorization for the current task and scope. General task authorization or an app mention does not grant it. If status requires unauthorized UI or an unavailable reader, name the concrete limitation and leave that status unchecked. Say which tasks are still running.
 
-An action item is a decision or step only the user can take, such as a product choice, an approval, an irreversible action, or access you lack. Include any still waiting on the user, even one raised before their last message. Work you can still do yourself is not an action item, and catching up does not authorize doing it. Report queued work as remaining, never start it in this turn.
+Do not edit files, accounts, issues, PRs, installations, model sheets, or scheduler state. Do not dispatch or resume work, start Babysit repairs, approve, merge, ship, or cancel anything.
+
+An action item is a decision or step that still requires the user, such as a product choice, a required approval, an irreversible action they must authorize, or access you lack. Include an older unresolved decision. Omit resolved decisions and approvals already covered by the user's authorization. Work you can still do yourself is not an action item, and catching up does not authorize doing it. Report queued work as remaining, never start it in this turn.
 
 ## Write the reply
 

@@ -2,7 +2,9 @@
 
 Invoked at the end of every other playbook.
 
-**Worktree.** Work from a git worktree off main. Subagents inherit it. Multiple `Agent` calls on the same branch each get their own worktree. To reuse one branch across worktrees, resolve and validate `<head-url>` through Shipping step 1, capture it as `head_url`, then run `git fetch -- "$head_url" "refs/heads/$branch" && git reset --hard FETCH_HEAD` between them. Dirty branch with unrelated work: patch out, fresh worktree, apply. Snarled worktree: reset from main, redo minimally.
+**Worktree.** The parent owns every Git operation and assigns each writer its own worktree and output scope. Branch from main for independent work or from the exact parent tip for a stack. Preserve a prior worker's checkout and receipt before a fresh continuation; never reset a shared branch between workers. If unrelated or failed work is present, inspect and preserve it before preparing a clean checkout. Subagents return scoped file changes and request parent-owned checks or commits through the worker contract.
+
+When the parent prepares a fresh checkout from a published fork head, resolve and validate `<head-url>` through Shipping step 1, capture it as `head_url`, and have the parent run `git fetch -- "$head_url" "refs/heads/$branch"`. Inspect the fetched commit before assigning the new worktree; preserve the previous attempt's checkout.
 
 **Commits.** Commit liberally. Rebase into small, ordered commits before opening PRs. Each commit is a future PR: landable, ordered to tell the story. Amend when the fix belongs in a just-made commit. New commit when separable. Commit bodies don't restate the subject.
 
@@ -33,4 +35,4 @@ After the sections, attach videos or screenshots when they prove a claim. Full S
 
 **Babysit.** Opening a PR does not start a babysit. Post the URL and keep building. Finish the phase or stack first. Run a separate babysit pass only when the user asks for one after the whole stack exists, per `babysit.md`. A babysit for each new PR stalls the build and spends checks on commits later waves restart. Push back when feedback drifts from intent.
 
-A subagent that opens a PR runs `interrogate`, `/deslop`, and `/no-comments`, and posts the URL. It returns to the parent without babysitting, unless it is an Autopilot-full or Autopilot-stack owner. That owner's brief assigns the babysit loop and is the ask `playbooks/babysit.md` waits for. The owner starts the loop after its code-ready report, reports merge-ready or STACK-READY per its playbook, and is exempt from the rules here and in `playbooks/babysit.md` that hold babysitting until a whole stack is built.
+The parent runs `interrogate`, `/deslop`, and `/no-comments` as required, performs the PR operations, and reports the URL. A worker returns its scoped result and handoff without babysitting unless its brief assigns an Autopilot-full or Autopilot-stack ownership role. That owner's brief assigns the babysit loop and is the ask `playbooks/babysit.md` waits for. It still requests parent-owned Git and account operations through the worker contract. The owner starts the loop after its code-ready report, reports merge-ready or STACK-READY per its playbook, and is exempt from the rules here and in `playbooks/babysit.md` that hold babysitting until a whole stack is built.

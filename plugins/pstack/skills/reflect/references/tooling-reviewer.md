@@ -28,7 +28,7 @@ Scan for:
 
 ## Scope to skills and tools the session actually used
 
-Route findings only to skills, tools, or MCPs this transcript used. A skill counts as used when the transcript shows a `Read` of its `SKILL.md` (under `.claude/skills/`, `~/.claude/skills/`, or `~/.claude/plugins/`), an `Agent` prompt naming its path, or a tool call (Shell, Grep, MCP, etc.) matching its documented commands. Speculative routings to skills the parent never opened do not count.
+Route findings only to skills, tools, or MCPs this transcript used. A skill counts as used when the active host's transcript shows a skill load or file read of its `SKILL.md`, a native subagent prompt naming its path, or a tool call matching its documented commands. Use the path and tool names actually shown, with host locations and schemas from [the tool mapping](../../poteto-mode/references/codex-tools.md#active-conversation-and-evidence). Speculative routings to skills the parent never opened do not count.
 
 Two finding shapes are valid:
 - The parent invoked the skill and you found a real gap in its body. Route to the skill's relevant section.

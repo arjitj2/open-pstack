@@ -39,7 +39,7 @@ Read `references/reviewer-prompt.md` and fill in the same template for every rev
 
 ## Step 4, Synthesize
 
-As results come back, build a unified picture. Parse every reviewer's findings. Merge findings that describe the same issue differently, and note which models raised each one. Findings two or more models raised independently are the highest signal. Read a lone model's finding, but weight it accordingly. Note disagreements. If one model flags something and another explicitly says the opposite, that is context for the verdict.
+As results come back, build a unified picture. Retain native terminal results and external task/session handles and verified receipts. Wait for every configured seat to reach a verified terminal result or recorded dropout before the final lead verdict; process startup, progress, and self-reported completion do not count. Parse every reviewer's full findings. Merge findings that describe the same issue differently, and note which models raised each one. Findings two or more models raised independently are the highest signal. Read a lone model's finding, but weight it accordingly. Note disagreements. If one model flags something and another explicitly says the opposite, that is context for the verdict.
 
 ## Step 5, Lead Judgment
 

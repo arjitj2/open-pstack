@@ -13,13 +13,7 @@ Invoke when the user says "reflect" or "/reflect". Skip when the conversation is
 
 ## 1. Locate the active transcript
 
-Before fanning out, the parent finds this conversation's transcript in Claude Code's per-project transcripts directory, `~/.claude/projects/<encoded-cwd>/`. Do not glob across `~/.claude/projects/`. That crosses workspace boundaries and reads private chats from unrelated projects.
-
-```bash
-ls -t ~/.claude/projects/<encoded-cwd>/*.jsonl 2>/dev/null | head -10
-```
-
-That covers the legacy flat (`<id>.jsonl`), current nested (`<id>/<id>.jsonl`), and subagent (`<parent>/subagents/<child>.jsonl`) layouts. For each candidate, read the first JSONL line. Take the file whose `message.content[0].text` contains the conversation's opening user prompt. If none matches, pass a tight digest of the session instead.
+Before fanning out, identify the active conversation through the current host's session metadata. Use Claude Code's per-project transcript directory only for this conversation; on Codex use the active thread reader or confirmed session path. Follow [`codex-tools.md`](../poteto-mode/references/codex-tools.md#active-conversation-and-evidence) for host paths and message schemas. Verify the conversation identity before reading. Do not search unrelated project transcripts or choose a file merely because it is newest. If the active transcript cannot be identified or read, pass a tight, explicitly labeled digest of confirmed current-session context instead.
 
 ## 2. Spawn three reviewers in parallel
 
@@ -37,7 +31,7 @@ Pass each template verbatim, substituting the transcript path or digest where ma
 
 ## 3. Synthesize
 
-Dispatch one lane using the `reflect tooling, judgment, divergent, synthesizer` line's descriptor (default `inherit-parent`). It spot-verifies citations through MCP, which a read-only mode would strip. Pass `references/synthesizer.md` verbatim, with each reviewer's full output inlined where marked. It returns an Accepted / Rejected / Backlog list.
+Wait for all three reviewer lanes to reach verified native terminal results or recorded dropouts. Retain their handles and full outputs; progress and self-reported completion do not count. Then dispatch one lane using the `reflect tooling, judgment, divergent, synthesizer` line's descriptor (default `inherit-parent`). It spot-verifies citations through MCP, which a read-only mode would strip. Pass `references/synthesizer.md` verbatim, with each reviewer's full output and any named dropout inlined where marked. Verify its terminal result. It returns an Accepted / Rejected / Backlog list.
 
 ## 4. Structural enforcement check
 
@@ -47,7 +41,7 @@ Move any Accepted item that a lint rule, script, metadata flag, or runtime check
 
 Present the synthesizer's full Accepted / Rejected / Backlog output and wait for explicit approval before applying any Accepted edit. The user picks the subset and may redirect routings. Skill changes affect every future agent in the org. Do not auto-apply.
 
-File each Backlog item to your team's devex or backlog tracker without waiting. Only the Accepted list waits for approval.
+File Backlog items only when the task already authorizes that tracker write, using the repository's designated issue owner. Otherwise present them for approval. Reflect does not grant permission to message people, create an unrelated queue, or modify external state.
 
 Follow each approved row's Routing exactly:
 

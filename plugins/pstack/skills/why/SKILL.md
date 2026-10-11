@@ -29,7 +29,7 @@ Before spawning investigators, build the seed context inline: file paths and lin
 
 ### Discovery
 
-Before spawning investigators, list the available MCPs in the Claude Code environment. Use the tool list at the top of the system prompt (every MCP appears as a tool with prefix `mcp__<server>__<name>`). Otherwise read `.mcp.json` in the plugin/project, or run `claude mcp list`.
+Before spawning investigators, discover the active parent's available tools and MCPs. Use its tool catalog and any exposed discovery tools. On Claude Code, `.mcp.json` or `claude mcp list` can supplement that inventory. On Codex, follow the live-tool discovery mapping in [`codex-tools.md`](../poteto-mode/references/codex-tools.md#active-conversation-and-evidence). A configured server or an example tool name alone does not prove live access.
 
 Map each available MCP to one evidence category:
 
@@ -73,7 +73,7 @@ If your scope assessment suggests a single-commit trivial target where the PR de
 
 ## Step 4. Synthesize
 
-Dispatch one synthesizer through the `why investigators, synthesizer` line's descriptor (default `inherit-parent`). Preserve relevant MCP access because the synthesizer's quality check spot-verifies citations. It gets:
+Wait for every investigator to reach a verified native terminal result or a recorded dropout, retaining each handle and full output. Do not synthesize from progress or a favorable summary. Then dispatch one synthesizer through the `why investigators, synthesizer` line's descriptor (default `inherit-parent`). Preserve relevant MCP access because the synthesizer's quality check spot-verifies citations. It gets:
 1. The investigator findings, including any null results and any categories skipped with justification
 2. The code anchor
 3. The user's original question
@@ -82,7 +82,7 @@ Dispatch one synthesizer through the `why investigators, synthesizer` line's des
 
 ## Step 5. Present
 
-Present the synthesizer's output to the user. You may lightly edit for clarity or add context from the conversation, but **do not rewrite the confidence language**.
+Verify the synthesizer's terminal result before presenting its output. You may lightly edit for clarity or add context from the conversation, but **do not rewrite the confidence language**.
 
 ## Output Format
 
