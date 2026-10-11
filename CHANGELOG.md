@@ -4,6 +4,12 @@ This file records what each version of the Open Pstack package changed. Versions
 
 Entries describe package versions. Published release checkpoints have tag links; installation follows `main` unless pinned. Validation belongs to the linked pull requests. Older reports remain available through immutable links.
 
+## 1.14.0 adds read-only chat catch-up
+
+Cursor baseline: [0.15.15](https://github.com/cursor/plugins/tree/df581122cde17e6e27686b5a448bde23e4ad4318/pstack). [Issue #117](https://github.com/arjitj2/open-pstack/issues/117).
+
+Adds the manually invoked ketchup skill and shortens engineering prompts while preserving provider routing and evidence requirements. Candidate validation and Cursor baseline advancement are pending.
+
 ## 1.13.0 adds prompting guidance to explicit help
 
 Cursor baseline: [0.15.15](https://github.com/cursor/plugins/tree/df581122cde17e6e27686b5a448bde23e4ad4318/pstack). [Issue #115](https://github.com/arjitj2/open-pstack/issues/115). [PR #116](https://github.com/arjitj2/open-pstack/pull/116). Tag [v1.13.0](https://github.com/arjitj2/open-pstack/releases/tag/v1.13.0).

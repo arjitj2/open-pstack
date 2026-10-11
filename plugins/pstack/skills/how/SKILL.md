@@ -9,37 +9,27 @@ Explore the codebase to answer "how does X work?" questions. Produce architectur
 
 **Dispatch contract.** Resolve every configured role through [`provider-dispatch.md`](../poteto-mode/references/provider-dispatch.md). Each lane below names a role line in the current harness's pstack model sheet and a default descriptor: use the line's value, or the default when the sheet or the line is missing. `auto` and `inherit-parent` run on the parent model natively. Each lane runs its saved attempt chain: a terminal outcome the sheet's `# fallback` policy authorizes advances to the next saved attempt per provider-dispatch's fallback state machine (`usage-exhausted` only when no policy is saved); every other route failure is a dropout, not a substitution. These lanes are read-only, so an eligible fallback advances directly. On Codex, resolve remaining Claude tool names via [`codex-tools.md`](../poteto-mode/references/codex-tools.md).
 
-## Step 1. Assess Complexity
+## 1. Assess complexity
 
 If the scope is ambiguous, state your interpretation and explore. The user can redirect.
 
-- **Simple** (a single module, a small utility, a narrow question such as "how does function X work"): no explorers. One explainer explores and explains in a single pass. Go to Step 2b.
-- **Complex** (a subsystem spanning multiple files or services, a cross-cutting feature, a full architectural overview): spawn parallel explorers first, then hand off to the explainer. Go to Step 2a.
+- **Simple** (a single module, a small utility, a narrow question such as "how does function X work"): no explorers. Dispatch one read-only lane that explores and explains in one pass using the `how explainer` line's descriptor (default `claude:opus@max`), with `references/explainer-prompt.md` built without the explorer-findings section. Go to step 4.
+- **Complex** (a subsystem spanning multiple files or services, a cross-cutting feature, a full architectural overview): go to step 2.
 
 When in doubt, take the simple path.
 
-## Step 2a. Explore (complex questions only)
+## 2. Explore (complex only)
 
-Decompose the question into 2 to 4 exploration angles, each a distinct slice of the subsystem. Start all explorers in one fan-out phase through provider dispatch. Use the `how explorer` line's descriptor (default `grok:grok-4.7@xhigh`) in `read-only` mode. A native lane uses the parent subagent primitive; an external lane uses the launcher directly.
+Decompose the question into 2 to 4 angles, each a distinct slice of the subsystem. Start all explorers in one fan-out phase through provider dispatch, each with `references/explorer-prompt.md` and its angle filled in. Use the `how explorer` line's descriptor (default `grok:grok-4.7@xhigh`) in `read-only` mode. A native lane uses the parent subagent primitive; an external lane uses the launcher directly.
 
-Each explorer gets the prompt in `references/explorer-prompt.md` with its angle filled in. Then go to Step 3.
+## 3. Synthesize (complex only)
 
-## Step 2b. Direct Explain (simple questions)
+Once all explorers have returned, dispatch one read-only lane to synthesize their findings into one explanation using the `how explainer` line's descriptor (default `claude:opus@max`), with `references/explainer-prompt.md` and every explorer's findings filled in.
 
-Dispatch one read-only lane that explores and explains in one pass using the `how explainer` line's descriptor (default `claude:opus@max`).
+## 4. Present
 
-Build its prompt from `references/explainer-prompt.md` without the explorer-findings section. Go to Step 4.
+Present the explainer's output. Light edits for clarity or context from the conversation are fine. Do not substantially rewrite it.
 
-## Step 3. Synthesize (complex questions only)
-
-Once all explorers have returned, dispatch one read-only lane to synthesize their findings into one explanation using the `how explainer` line's descriptor (default `claude:opus@max`).
-
-Build its prompt from `references/explainer-prompt.md` with every explorer's findings filled in.
-
-## Step 4. Present
-
-Present the explainer's output to the user. Light edits for clarity or context from the conversation are fine. Do not substantially rewrite it.
-
-## Output Format
+## Output format
 
 The explanation uses the sections defined in `references/explainer-prompt.md`, dropping any that do not apply: Overview, Key Concepts, How It Works, Where Things Live, Gotchas.

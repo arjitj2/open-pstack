@@ -135,9 +135,21 @@
       "subject": "feat(pstack): drop Sol, default to Opus xhigh and Grok (#511)",
       "reason": "Retain neutral help wording but exclude removal of Sol, changed provider/panel defaults, automatic effort increases, associated panel-count prose, test fixture rename, and Cursor guide edits. Provider and setup owner trees remain byte-identical to the previous release; both hosts read preserved SWE-2/Sol saved routes without writes.",
       "evidence": "https://github.com/arjitj2/open-pstack/pull/116"
+    },
+    {
+      "commit": "00b14f1df36b32a8dd1529324a3a459f6563b127",
+      "date": "2026-10-10",
+      "status": "pending",
+      "subject": "refactor(pstack): distill skill prompts to cut tokens (#538)"
+    },
+    {
+      "commit": "978ca6e9c0e012047cd5058b8e829240336e704e",
+      "date": "2026-10-10",
+      "status": "pending",
+      "subject": "feat(pstack): add /ketchup skill (#539)"
     }
   ],
-  "reviewed_through": "df581122cde17e6e27686b5a448bde23e4ad4318",
+  "reviewed_through": "978ca6e9c0e012047cd5058b8e829240336e704e",
   "schema": 1,
   "source": {
     "path": "pstack/",
