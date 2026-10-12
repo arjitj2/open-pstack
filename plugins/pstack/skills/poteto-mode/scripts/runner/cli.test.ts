@@ -106,3 +106,17 @@ describe("runner status subcommand", () => {
     expect(captured.err).toContain("--progress");
   });
 });
+
+describe("runner explicit OpenCode public-free flag", () => {
+  it("defaults to ordinary funding and preserves an explicit anonymous request", () => {
+    expect(parseArgs(argv())?.opencodePublicFree).toBe(false);
+    const args = argv(["--api-spend","deny","--opencode-public-free"]);
+    args[args.indexOf("--provider")+1] = "opencode";
+    args[args.indexOf("--model")+1] = "opencode/nemotron-3-ultra-free";
+    args[args.indexOf("--effort")+1] = "default";
+    expect(parseArgs(args)).toMatchObject({provider:"opencode",apiSpend:"deny",opencodePublicFree:true,model:"opencode/nemotron-3-ultra-free"});
+  });
+  it("accepts only a boolean flag", () => {
+    expect(() => parseArgs(argv(["--opencode-public-free=true"]))).toThrow();
+  });
+});

@@ -19,7 +19,7 @@ import {
 } from "./progress.ts";
 import { CLAUDE_WRITER_MINIMUM_VERSION, claudeWriterVersionError, invocationCommand, preflightCommand, type CommandSpec } from "./commands.ts";
 import { nativeLane } from "./native-route.ts";
-import { openCodeConfig, openCodeDirectory, openCodeEnvironment, openCodePreflightPassed, openCodeVersionError, OPENCODE_MINIMUM_VERSION, validateOpenCodeModel } from "./opencode.ts";
+import { openCodeAttempt, openCodeDirectory, openCodeFunding, openCodePreflightPassed, openCodeVersionError, OPENCODE_TESTED_VERSION, validateOpenCodeModel, type OpenCodeAttempt } from "./opencode.ts";
 import { cursorConfigDirectory, cursorConfig, cursorHasApiKey, cursorUserConfigPath, validateCursorModel } from "./cursor.ts";
 import { antigravityLaneFiles, antigravitySettingsPath, antigravitySettingsTakeover, antigravityStdin, auditAntigravityStream, createAntigravityLaneFiles, validateAntigravityModel, type AntigravityCreatedFiles } from "./antigravity.ts";
 import { versionedClaudeAlias } from "./model-aliases.ts";
@@ -626,12 +626,14 @@ function completeReceipt(
     },
     timeoutMs: options.timeoutMs,
     contract: options.contract ?? "legacy",
+    ...(openCodeFunding(options)?.kind === "public-free" ? { funding: { kind: "public-free", model: "opencode/nemotron-3-ultra-free", authentication: "anonymous" } } : {}),
     ...partial,
   };
 }
 
 export function validateOptions(options: RunnerOptions): void {
   assertQuotaAdapter(options.provider);
+  openCodeFunding(options);
   if (options.provider === "opencode") validateOpenCodeModel(options.model, options.effort);
   if (options.provider === "cursor") validateCursorModel(options.model, options.effort);
   if (options.provider === "antigravity") {
@@ -716,11 +718,12 @@ async function executeLane(
   progress: LaneProgress,
   antigravityCreated: AntigravityCreatedFiles | null,
   reporter: ProgressReporter,
-  prompt: string
+  prompt: string,
+  openCode: OpenCodeAttempt | null
 ): Promise<RunResult> {
   const startedAt = new Date(started).toISOString();
   const inherited = childEnvironment(options.provider);
-  const env = options.provider === "opencode" ? openCodeEnvironment(options, inherited) : inherited;
+  const env = openCode?.environment ?? inherited;
   const apiKeyAuth = options.provider === "cursor" && cursorHasApiKey(env);
   if (options.provider === "cursor") env.CURSOR_CONFIG_DIR = cursorConfigDirectory(options);
 
@@ -728,7 +731,7 @@ async function executeLane(
     ? apiCredentialTakeover(options.provider, env) ??
       (options.provider === "antigravity" ? antigravitySettingsTakeover(antigravitySettingsPath()) : null)
     : null;
-  const openCodeBillingBlocked = options.provider === "opencode" && options.apiSpend !== "approved";
+  const openCodeBillingBlocked = options.provider === "opencode" && openCode === null;
   if (takeover !== null || openCodeBillingBlocked) {
     const completed = Date.now();
     const receipt = completeReceipt(options, {
@@ -749,7 +752,7 @@ async function executeLane(
       costUsd: null,
       error: {
         message: openCodeBillingBlocked
-          ? "OpenCode requires explicit API-spend approval because subscription-only routing cannot be verified"
+          ? "OpenCode requires explicit API-spend approval or --opencode-public-free with --api-spend deny and exact model opencode/nemotron-3-ultra-free; subscription-only routing cannot be verified"
           : `subscription-only policy refuses ambient API credential ${takeover}; approve API spend explicitly or unset it`,
         evidence: "",
       },
@@ -870,7 +873,7 @@ async function executeLane(
     if (options.provider === "opencode") {
       versionError = preflightResult.exitCode === 0
         ? openCodeVersionError(preflightResult.stdout)
-        : `OpenCode version check failed. Install OpenCode ${OPENCODE_MINIMUM_VERSION} or newer and check opencode --version.`;
+        : `OpenCode version check failed. Install OpenCode ${OPENCODE_TESTED_VERSION} and check opencode --version.`;
       if (versionError === null && preflightResult.cancelledBy === null && !preflightResult.timedOut) {
         activePreflight = preflight;
         progress.preflight = { ...progress.preflight, argv: [preflightExecutable, ...activePreflight.args] };
@@ -882,10 +885,10 @@ async function executeLane(
         : `Claude Code version check failed. Install Claude Code ${CLAUDE_WRITER_MINIMUM_VERSION} or newer and check claude --version.`;
     }
     let rawPreflightEvidence = versionError ?? (options.provider === "opencode"
-      ? "OpenCode effective agent preflight failed; configuration output withheld"
+      ? "OpenCode native configuration preflight failed; configuration output withheld"
       : evidence(`${preflightResult.stdout}\n${preflightResult.stderr}`));
     let passed = options.provider === "opencode"
-      ? versionError === null && preflightResult.exitCode === 0 && openCodePreflightPassed(preflightResult.stdout, options, env)
+      ? versionError === null && preflightResult.exitCode === 0 && openCode !== null && openCodePreflightPassed(preflightResult.stdout, openCode)
       : options.provider === "claude"
         ? versionError === null && preflightResult.exitCode === 0
         : preflightPassed(options.provider, options.model, preflightResult, apiKeyAuth);
@@ -894,12 +897,12 @@ async function executeLane(
       stdout: preflightResult.stdout,
       stderr: preflightResult.stderr,
       note: versionError ?? (options.provider === "opencode"
-        ? "OpenCode effective agent preflight failed; configuration output withheld"
+        ? "OpenCode native configuration preflight failed; configuration output withheld"
         : undefined),
     });
     let preflightEvidence = passed
       ? options.provider === "opencode"
-        ? "effective agent model and tool policy verified; authentication deferred to execution"
+        ? "native configuration verified; authentication deferred to execution"
         : options.provider === "claude"
           ? `Claude Code ${preflightResult.stdout.trim()} satisfies the writer minimum; authentication deferred to invocation`
           : successfulPreflightEvidence(options.provider, options.model, apiKeyAuth)
@@ -1015,7 +1018,7 @@ async function executeLane(
       return { exitCode: statusExitCode(status), receipt };
     }
 
-    if (options.apiSpend === "deny") {
+    if (options.apiSpend === "deny" && openCode?.funding.kind !== "public-free") {
       const verdict = subscriptionAuthEvidence(
         options.provider,
         preflightResult.stdout,
@@ -1309,6 +1312,7 @@ export async function runLane(
   let outcome: RunResult | null = null;
   let createdCursorConfig = false;
   let createdOpenCodeConfig = false;
+  let openCode: OpenCodeAttempt | null = null;
   let devinConfigCreated = false;
   let devinExportCreated = false;
   let contractPromptCreated = false;
@@ -1359,13 +1363,16 @@ export async function runLane(
         });
         contractPromptCreated = true;
       }
-      if (options.provider === "opencode" && options.apiSpend === "approved") {
-        const directory = openCodeDirectory(options);
-        mkdirSync(directory, { mode: 0o700 });
-        createdOpenCodeConfig = true;
-        mkdirSync(`${directory}/home`, { mode: 0o700 });
-        mkdirSync(`${directory}/xdg`, { mode: 0o700 });
-        writeFileSync(`${directory}/opencode.json`, JSON.stringify(openCodeConfig(options)), { flag: "wx", mode: 0o600 });
+      if (options.provider === "opencode") {
+        openCode = openCodeAttempt(options, childEnvironment(options.provider));
+        if (openCode !== null) {
+          const directory = openCodeDirectory(options);
+          mkdirSync(directory, { mode: 0o700 });
+          createdOpenCodeConfig = true;
+          for (const name of ["config", "home", "xdg", "data", "state", "cache", "tmp"]) mkdirSync(join(directory, name), { mode: 0o700 });
+          writeFileSync(join(openCode.configDirectory, "opencode.json"), JSON.stringify(openCode.config), { flag: "wx", mode: 0o600 });
+          writeFileSync(join(openCode.configDirectory, "service.json"), JSON.stringify({ disabled: true }), { flag: "wx", mode: 0o600 });
+        }
       }
       if (options.provider === "cursor") {
         const directory = cursorConfigDirectory(options);
@@ -1384,7 +1391,8 @@ export async function runLane(
         progress,
         antigravityCreated,
         reporter,
-        prompt
+        prompt,
+        openCode
       );
       return outcome;
     } catch (error) {

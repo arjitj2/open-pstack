@@ -10,6 +10,7 @@ Users inspect how a saved role resolves, while the parent owns execution and any
 - `codex-completion`: require completed final-turn output while preserving protocol success as a replay veto.
 - `devin-refusal-fallback`: exclude inherited provider-side fallback from an assigned Devin lane.
 - `receipt-privacy`: bound failure receipts to allowlisted diagnostics and structural counts.
+- `opencode-v2`: verify native CLI configuration and anonymous free funding through both installed parents.
 - `routing-live`: observe the exact approved descriptor and terminal outcome in a parent workflow.
 - `routing-recovery`: verify saved fallback transitions with authentic terminal evidence.
 
@@ -70,6 +71,20 @@ Set `DEVIN_REFUSAL_FALLBACK` to a synthetic value in the test parent's environme
 Have the parent launch the installed runner without unsetting the synthetic variable. Ask the read-only worker to return a unique marker from a file, then independently compare the output with that file. Retain the parent skill invocation, installed-tree identity, boundary records, receipt, and output. Expect the control to be absent from preflight and workload, the assigned model to remain pinned, and the permission configuration to retain its deny rules. Devin receipts must still report `modelEvidence: "pinned-argv"`, `modelVerified: false`, and the saved API-spend policy.
 
 Run the Devin Bun regressions for absent, blank, and nonblank controls, unchanged parent input, and descendant inheritance at the synthetic executable boundary. Capture `devin --version` and `devin acp --help` to confirm the current CLI's fallback contract. These synthetic tests prove environment propagation. The real marker probe proves ordinary execution from each installed parent. Neither requires inducing a refusal or executing a backup model.
+
+### OpenCode V2 and anonymous free funding
+
+Install the exact candidate in dedicated Codex and Claude Code sessions using [installation](installation.md). Record the loaded version and compare the installed plugin tree with the candidate. Use the reviewed OpenCode CLI version from the provider-dispatch reference. Capture `opencode --version` and `opencode run --help` without inference.
+
+For free-only validation, use `opencode/nemotron-3-ultra-free`, `--api-spend deny`, and `--opencode-public-free`. This is explicit permission to use an anonymous public route, not permission to spend on an account. Do not change the user's saved assignments or approve spending to pass a test. Use only synthetic fixtures because the provider's free-service data policy applies. A free model name alone does not prove billing isolation.
+
+From each installed parent, invoke `pstack:poteto-mode` and ask it to run the installed launcher for the explicit OpenCode descriptor above in read-only mode. Provide a fresh fixture directory containing a unique marker file. The task must read the file and return its contents. Keep the actual parent invocation, installed launcher path, runner receipt, output, and independent comparison with the marker. Verify that the receipt records the free route, denied API spending, native configuration validation, and pinned-argv model evidence. The CLI stream does not independently attest the selected model, so `modelVerified` must remain false.
+
+Repeat in writer mode in a fresh, parent-created disposable Git worktree. Ask the worker to read one fixture file and create a second file with its contents. Inspect the resulting file and Git diff independently. The parent owns Git operations; the worker must not run Git commands. Restore or remove only fixtures and worktrees created for this run.
+
+Run `bun test runner/opencode.test.ts` against each installed candidate. The synthetic executable boundary must cover V1 rejection, native V2 argv and configuration, denial of unexpected configuration sources, hostile inherited OpenCode settings, anonymous credential/storage isolation, invalid free-model requests, conservative terminal parsing, error privacy, and cleanup after failure or cancellation. These fixtures prove adapter boundaries. They do not prove model execution or substitute for the live parent tasks.
+
+An upstream 403, authentication failure, or unavailable model is a failed live test. Retain the receipt and sanitized failure details, leave the affected PR draft, and report the parent and provider paths as unverified. Do not retry with paid credentials, spoof client headers, or weaken the configuration check. A later successful test needs a fresh fixture and evidence directory.
 
 ## Gotchas
 

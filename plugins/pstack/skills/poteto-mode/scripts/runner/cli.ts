@@ -46,8 +46,11 @@ checks, and isolated runner configuration. Antigravity requires an explicit
 --api-spend approved
 explicitly authorizes the paid route and records it in the receipt. Omitting
 the flag preserves the legacy behavior for configurations written before
-billing policy existed. OpenCode is new and requires explicit --api-spend approved;
-subscription routing is unproven. It requires provider/model and default effort.
+billing policy existed. OpenCode requires tested V2 2.0.26, provider/model and default
+effort. Ordinary native authentication requires explicit --api-spend approved.
+--opencode-public-free instead requires --api-spend deny and the exact model
+opencode/nemotron-3-ultra-free. It uses private storage with no native credentials.
+The flag cannot authorize another provider, model, or paid fallback.
 Read-only permits file inspection; isolated-write requires a Git worktree root
 and additionally permits edits. Neither mode permits shell commands. OpenCode
 tool permissions are not an OS sandbox. The guard covers known ambient credential and routing
@@ -121,6 +124,7 @@ export function parseArgs(argv: readonly string[]): RunnerOptions | null {
         progress: { type: "string" },
         timeout: { type: "string" },
         "api-spend": { type: "string" },
+        "opencode-public-free": { type: "boolean", default: false },
         contract: { type: "string" },
         help: { type: "boolean", short: "h", default: false },
       },
@@ -164,6 +168,7 @@ export function parseArgs(argv: readonly string[]): RunnerOptions | null {
     progressPath: stringValue(parsed.values.progress) ?? null,
     timeoutMs: timeoutSeconds === null ? null : timeoutSeconds * 1_000,
     apiSpend,
+    opencodePublicFree: parsed.values["opencode-public-free"] === true,
     contract,
   });
 }
