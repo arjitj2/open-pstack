@@ -122,7 +122,7 @@ Do not merge the original contribution pull requests in Eric's repository as par
 `main` is the installation source, so a merged change reaches new installs before any tag exists. [AGENTS.md](AGENTS.md) owns that policy. A tag marks a tested checkpoint that users can pin or roll back to.
 
 1. Confirm the release commit is on `main` and its `plugins/pstack` tree matches the tested candidate.
-2. Create a new, unique `vMAJOR.MINOR.PATCH` tag. Use a major version for incompatible behavior or configuration changes, a minor version for compatible features, and a patch version for compatible fixes. Never move or rename a published tag, including `v1.4.1-arjit.*`.
+2. Choose the version under the [version approval policy](AGENTS.md#provider-compatibility-and-major-releases) and create a new, unique `vMAJOR.MINOR.PATCH` tag. Use a major version for incompatible behavior or configuration changes, a minor version for compatible features, and a patch version for compatible fixes. Never move or rename a published tag, including `v1.4.1-arjit.*`.
 3. Write release notes that name the Cursor version and commit from the sync table, the distribution changes, the validation evidence, known limits, and the previous tested tag. Link the tag-pinned `UPSTREAM.md` for adaptations and exclusions. Use the incorporated baseline, never `reviewed_through`.
 4. Record the tag in [CHANGELOG.md](CHANGELOG.md).
 
