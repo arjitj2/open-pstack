@@ -19,7 +19,7 @@ import {
 } from "./progress.ts";
 import { CLAUDE_WRITER_MINIMUM_VERSION, claudeWriterVersionError, invocationCommand, preflightCommand, type CommandSpec } from "./commands.ts";
 import { nativeLane } from "./native-route.ts";
-import { openCodeAttempt, openCodeDirectory, openCodeFunding, openCodePreflightPassed, openCodeVersionError, OPENCODE_TESTED_VERSION, validateOpenCodeModel, type OpenCodeAttempt } from "./opencode.ts";
+import { openCodeAgent, openCodeAttempt, openCodeDirectory, openCodeFilesUnchanged, openCodeFunding, openCodeOAuthPreflightPassed, openCodePreflightPassed, inspectOpenCodeStream, parseOpenCodeExport, OPENCODE_CHATGPT_ENDPOINT, OPENCODE_CHATGPT_SUBSCRIPTION_MODEL, type OpenCodeTranscript, openCodeVersionError, OPENCODE_TESTED_VERSION, validateOpenCodeModel, type OpenCodeAttempt } from "./opencode.ts";
 import { cursorConfigDirectory, cursorConfig, cursorHasApiKey, cursorUserConfigPath, validateCursorModel } from "./cursor.ts";
 import { antigravityLaneFiles, antigravitySettingsPath, antigravitySettingsTakeover, antigravityStdin, auditAntigravityStream, createAntigravityLaneFiles, validateAntigravityModel, type AntigravityCreatedFiles } from "./antigravity.ts";
 import { versionedClaudeAlias } from "./model-aliases.ts";
@@ -626,7 +626,7 @@ function completeReceipt(
     },
     timeoutMs: options.timeoutMs,
     contract: options.contract ?? "legacy",
-    ...(openCodeFunding(options)?.kind === "public-free" ? { funding: { kind: "public-free", model: "opencode/nemotron-3-ultra-free", authentication: "anonymous" } } : {}),
+    ...(openCodeFunding(options)?.kind === "chatgpt-subscription" ? { funding: { kind: "chatgpt-subscription", model: OPENCODE_CHATGPT_SUBSCRIPTION_MODEL, configuredEndpoint: OPENCODE_CHATGPT_ENDPOINT, authentication: partial.preflight.status === "passed" ? "native-openai-oauth" : null } } : {}),
     ...partial,
   };
 }
@@ -752,7 +752,7 @@ async function executeLane(
       costUsd: null,
       error: {
         message: openCodeBillingBlocked
-          ? "OpenCode requires explicit API-spend approval or --opencode-public-free with --api-spend deny and exact model opencode/nemotron-3-ultra-free; subscription-only routing cannot be verified"
+          ? "OpenCode requires explicit API-spend approval or an exact --opencode-chatgpt-subscription attempt with --api-spend deny"
           : `subscription-only policy refuses ambient API credential ${takeover}; approve API spend explicitly or unset it`,
         evidence: "",
       },
@@ -892,17 +892,30 @@ async function executeLane(
       : options.provider === "claude"
         ? versionError === null && preflightResult.exitCode === 0
         : preflightPassed(options.provider, options.model, preflightResult, apiKeyAuth);
+    let billingRouteBlocked = false;
+    if (passed && openCode?.funding.kind === "chatgpt-subscription" && preflightResult.cancelledBy === null && !preflightResult.timedOut) {
+      if (cancellation.signal !== null) return finishWithoutChild("cancelled", "before native OAuth preflight");
+      if (deadlineAt !== null && Date.now() >= deadlineAt) return finishWithoutChild("timed-out", "before native OAuth preflight");
+      activePreflight = { command: "opencode", args: ["auth", "list", "--standalone", "--format", "json"], stdin: "none" };
+      progress.preflight = { ...progress.preflight, argv: [preflightExecutable, ...activePreflight.args] };
+      preflightResult = await runProcess(preflightExecutable, activePreflight, options.cwd, env, "", deadlineAt, cancellation, { reporter, role: "preflight" });
+      passed = preflightResult.exitCode === 0 && openCodeOAuthPreflightPassed(preflightResult.stdout) && openCodeFilesUnchanged(openCode);
+      billingRouteBlocked = !passed;
+      rawPreflightEvidence = "OpenCode requires exactly one visible native OpenAI OAuth connection and unchanged private configuration; native authentication output withheld";
+    }
     const renderPreflightDetail = (): string => failureDiagnostic(options.provider, {
       phase: "preflight",
       stdout: preflightResult.stdout,
       stderr: preflightResult.stderr,
       note: versionError ?? (options.provider === "opencode"
-        ? "OpenCode native configuration preflight failed; configuration output withheld"
+        ? billingRouteBlocked ? rawPreflightEvidence : "OpenCode native configuration preflight failed; configuration output withheld"
         : undefined),
     });
     let preflightEvidence = passed
       ? options.provider === "opencode"
-        ? "native configuration verified; authentication deferred to execution"
+        ? openCode?.funding.kind === "chatgpt-subscription"
+          ? "private configuration verified; exactly one visible native OpenAI OAuth connection"
+          : "native configuration verified; authentication deferred to execution"
         : options.provider === "claude"
           ? `Claude Code ${preflightResult.stdout.trim()} satisfies the writer minimum; authentication deferred to invocation`
           : successfulPreflightEvidence(options.provider, options.model, apiKeyAuth)
@@ -984,7 +997,7 @@ async function executeLane(
         ? "cancelled"
         : preflightResult.timedOut
           ? "timed-out"
-          : versionError !== null ? "unavailable-cli" : preflightFailure;
+          : versionError !== null ? "unavailable-cli" : billingRouteBlocked ? "billing-policy-blocked" : preflightFailure;
       receipt = completeReceipt(options, {
         status,
         startedAt,
@@ -1006,7 +1019,7 @@ async function executeLane(
             ? `launcher received ${preflightResult.cancelledBy} during preflight`
             : preflightResult.timedOut
               ? "authentication preflight timed out"
-              : versionError ?? "authentication or model preflight failed",
+              : versionError ?? (billingRouteBlocked ? "OpenCode subscription funding preflight failed" : "authentication or model preflight failed"),
           evidence: preflightEvidence,
         },
         failurePhase: "preflight",
@@ -1018,7 +1031,7 @@ async function executeLane(
       return { exitCode: statusExitCode(status), receipt };
     }
 
-    if (options.apiSpend === "deny" && openCode?.funding.kind !== "public-free") {
+    if (options.apiSpend === "deny" && openCode === null) {
       const verdict = subscriptionAuthEvidence(
         options.provider,
         preflightResult.stdout,
@@ -1064,8 +1077,10 @@ async function executeLane(
     return finishWithoutChild("timed-out", "before model execution");
   }
 
+  if (openCode !== null && !openCodeFilesUnchanged(openCode)) throw new OutputValidationError("OpenCode private configuration changed before invocation");
+  const invocationStarted = Date.now();
   progress.modelStarted = true;
-  const result = await runProcess(
+  const workloadResult = await runProcess(
     executable,
     invocation,
     options.cwd,
@@ -1075,6 +1090,27 @@ async function executeLane(
     cancellation,
     { reporter, role: "workload" }
   );
+  let openCodeExport: OpenCodeTranscript | null = null;
+  let exportResult: ProcessResult | null = null;
+  if (options.provider === "opencode" && workloadResult.cancelledBy === null && !workloadResult.timedOut && cancellation.signal === null && (deadlineAt === null || Date.now() < deadlineAt)) {
+    const stream = inspectOpenCodeStream(workloadResult.stdout);
+    if (stream.kind === "identified") {
+      try {
+        exportResult = await runProcess(executable, { command: "opencode", args: ["session", "export", "--standalone", stream.sessionId], stdin: "none" }, options.cwd, env, "", deadlineAt, cancellation, { reporter, role: "workload" });
+        if (exportResult.exitCode === 0 && exportResult.cancelledBy === null && !exportResult.timedOut) {
+          openCodeExport = parseOpenCodeExport(exportResult.stdout, stream, { cwd: options.canonicalCwd ?? options.cwd, prompt, agent: openCodeAgent(options), model: options.model, started: invocationStarted });
+        }
+      } catch {
+        openCodeExport = { kind: "incomplete", reason: "OpenCode native session export failed" };
+      }
+    } else openCodeExport = stream;
+  }
+  const nativeTerminalSuccess = openCodeExport?.kind === "complete";
+  const result: ProcessResult = {
+    ...workloadResult,
+    cancelledBy: workloadResult.cancelledBy ?? exportResult?.cancelledBy ?? cancellation.signal,
+    timedOut: workloadResult.timedOut || exportResult?.timedOut === true || (deadlineAt !== null && Date.now() >= deadlineAt),
+  };
   const completed = Date.now();
   const base = {
     startedAt,
@@ -1106,7 +1142,7 @@ async function executeLane(
         : outcome.status ?? "child-failed";
     const terminalSuccess =
       status !== "cancelled" &&
-      (devinFinalExportCompleted(options) ||
+      (nativeTerminalSuccess || devinFinalExportCompleted(options) ||
         hasTerminalSuccess(options.provider, {
           stdout: result.stdout,
           stderr: result.stderr,
@@ -1144,7 +1180,9 @@ async function executeLane(
   }
 
   try {
-    const parsed = parseProviderOutput(
+    if (options.provider === "opencode" && openCodeExport?.kind === "error") throw new ProviderTerminalError("opencode", "OpenCode reported a failed session", openCodeExport.envelope);
+    if (options.provider === "opencode" && openCodeExport?.kind !== "complete") throw new OutputValidationError(openCodeExport?.kind === "incomplete" ? openCodeExport.reason : "OpenCode native session export did not prove completion");
+    const parsed = options.provider === "opencode" && openCodeExport?.kind === "complete" ? openCodeExport.output : parseProviderOutput(
       options.provider,
       options.provider === "devin" ? readDevinExport(options) : result.stdout,
       result.stderr,
@@ -1164,12 +1202,13 @@ async function executeLane(
         `requested model ${options.model} was not reported by ${options.provider}`
       );
     }
-    writeFileSync(options.outputPath, parsed.text, { encoding: "utf8", mode: 0o600 });
     const outcome = interpretWorkerResult({
       delivered: true,
       finalText: parsed.text,
       denial: null,
     });
+    if (outcome.kind === "failed") removeIfExists(options.outputPath);
+    else writeFileSync(options.outputPath, parsed.text, { encoding: "utf8", mode: 0o600 });
     receipt = completeReceipt(options, {
       ...base,
       status: outcome.kind === "needs-parent-operation"
@@ -1189,6 +1228,7 @@ async function executeLane(
       error: outcome.kind === "failed"
         ? { message: outcome.reason, evidence: "reserved final-response handoff marker was malformed" }
         : null,
+      terminalSuccess: outcome.kind === "failed" ? nativeTerminalSuccess || hasTerminalSuccess(options.provider, result) : undefined,
       failurePhase: outcome.kind === "failed" ? "postprocess" : null,
       processStarted: true,
       apiSpend: options.apiSpend ?? "legacy",
@@ -1217,7 +1257,7 @@ async function executeLane(
             ? "child-failed"
             : "malformed-output";
     const terminalSuccess =
-      devinFinalExportCompleted(options) ||
+      nativeTerminalSuccess || devinFinalExportCompleted(options) ||
       hasTerminalSuccess(options.provider, {
         stdout: result.stdout,
         stderr: result.stderr,

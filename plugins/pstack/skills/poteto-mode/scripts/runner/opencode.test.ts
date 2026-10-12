@@ -3,7 +3,7 @@ import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, sy
 import { execFileSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { openCodeAgent, openCodeAttempt, openCodeConfig, openCodeConfigDirectory, openCodeDirectory, openCodeEnvironment, openCodeFunding, OPENCODE_PUBLIC_FREE_MODEL, openCodePreflightPassed, parseOpenCodeTranscript, openCodeVersionError, validateOpenCodeModel } from "./opencode.ts";
+import { inspectOpenCodeStream, parseOpenCodeExport, openCodeOAuthPreflightPassed, OPENCODE_CHATGPT_SUBSCRIPTION_MODEL, OPENCODE_CHATGPT_ENDPOINT, openCodeAgent, openCodeAttempt, openCodeConfig, openCodeConfigDirectory, openCodeDirectory, openCodeEnvironment, openCodeFunding, openCodePreflightPassed, parseOpenCodeTranscript, openCodeVersionError, validateOpenCodeModel } from "./opencode.ts";
 import { runLane } from "./run.ts";
 import { classifyProcessOutcome, hasTerminalSuccess } from "./provider-failure.ts";
 import { invocationCommand } from "./commands.ts";
@@ -90,7 +90,25 @@ if (args.includes("debug")) {
   if (fixture.extraSource) entries.push({type:"document",info:{model:{providerID:"evil",model:"evil"}}});
   console.log(JSON.stringify(entries)); process.exit(0);
 }
-writeFileSync("invoked.json", JSON.stringify({args, pwd: process.env.PWD, env: process.env, prompt:await Bun.stdin.text()}));
+if (args[0] === "auth") {
+  writeFileSync("auth.json", JSON.stringify({args, env:process.env}));
+  if (fixture.authDelay) await Bun.sleep(fixture.authDelay);
+  if (fixture.authPoison) writeFileSync(configPath, "{}");
+  console.log(fixture.authRaw ?? JSON.stringify(fixture.auth ?? [{id:"openai",name:"CANARY_ACCOUNT",connections:[{type:"credential",id:"CANARY_CONNECTION",label:"CANARY_LABEL",method:"oauth"}]}]));
+  if (fixture.authStderr) console.error(fixture.authStderr);
+  process.exit(fixture.authExit ?? 0);
+}
+if (args[0] === "session") {
+  writeFileSync("export.json", JSON.stringify({args,env:process.env}));
+  if (fixture.exportDelay) await Bun.sleep(fixture.exportDelay);
+  const invocation = JSON.parse(readFileSync("invoked.json", "utf8"));
+  const model = {providerID:config.model.providerID,id:config.model.model,variant:"default"};
+  const now = Date.now();
+  const exported = {info:{id:"s1",agent:config.default_agent,model,cost:0.01,tokens:{input:10,output:5,reasoning:0,cache:{read:2,write:0}},outcome:"succeeded",time:{created:invocation.created,updated:now,idle:now},location:{directory:process.cwd()}},messages:[{id:"u1",type:"user",time:{created:invocation.created},text:invocation.prompt,files:[]},{id:"m1",type:"assistant",agent:config.default_agent,model,time:{created:invocation.created,completed:now},finish:"stop",content:[{type:"text",text:fixture.finalText ?? "FINAL"}]},{id:"idle",type:"idle",time:{created:now},outcome:"succeeded"}]};
+  console.log(fixture.exportRaw ?? JSON.stringify(fixture.exportDocument ?? exported));
+  process.exit(fixture.exportExit ?? (fixture.exportMissing ? 1 : 0));
+}
+writeFileSync("invoked.json", JSON.stringify({args,created:Date.now(), pwd: process.env.PWD, env: process.env, prompt:await Bun.stdin.text()}));
 if (fixture.delay) await Bun.sleep(fixture.delay);
 console.log(fixture.stdout);
 if (fixture.stderr) console.error(fixture.stderr);
@@ -242,33 +260,6 @@ describe("OpenCode optional worker", () => {
     expect(openCodePreflightPassed(JSON.stringify(entries),attempt)).toBe(false);
   });
 
-  it("derives explicit anonymous funding and refuses paid or unrelated combinations", () => {
-    expect(openCodeFunding(options({apiSpend:"deny",opencodePublicFree:true,model:OPENCODE_PUBLIC_FREE_MODEL}))).toEqual({kind:"public-free",apiSpend:"deny",model:OPENCODE_PUBLIC_FREE_MODEL});
-    for (const overrides of [{provider:"codex" as const},{apiSpend:"approved" as const},{apiSpend:null},{model:"opencode/another-free"},{model:"opencode/nemotron-3-ultra"},{model:"other/nemotron-3-ultra-free"}]) {
-      expect(() => openCodeFunding(options({apiSpend:"deny",opencodePublicFree:true,model:OPENCODE_PUBLIC_FREE_MODEL,...overrides}))).toThrow("--opencode-public-free requires");
-    }
-    expect(openCodeFunding(options({apiSpend:"deny",model:OPENCODE_PUBLIC_FREE_MODEL}))).toBeNull();
-  });
-
-  it("runs the explicit public-free route without inherited credentials or account storage", async () => {
-    Object.assign(process.env,{OPENAI_API_KEY:"PRIVATE_KEY",OPENCODE_API_KEY:"PRIVATE_KEY",NODE_OPTIONS:"PRIVATE_OVERRIDE",AWS_PROFILE:"PRIVATE_ACCOUNT",HTTP_PROXY:"PRIVATE_PROXY",OPENCODE_CONFIG_DIR:"PRIVATE_CONFIG",XDG_DATA_HOME:"PRIVATE_DATA",HOME:"PRIVATE_HOME"});
-    const opts = options({apiSpend:"deny",opencodePublicFree:true,model:OPENCODE_PUBLIC_FREE_MODEL});
-    const env = openCodeEnvironment(opts,process.env);
-    for (const key of ["OPENAI_API_KEY","OPENCODE_API_KEY","NODE_OPTIONS","AWS_PROFILE","HTTP_PROXY","OPENCODE_CONFIG"]) expect(env[key]).toBeUndefined();
-    for (const key of ["HOME","XDG_CONFIG_HOME","XDG_DATA_HOME","XDG_STATE_HOME","XDG_CACHE_HOME","TMPDIR"]) expect(env[key]?.startsWith(openCodeDirectory(opts))).toBe(true);
-    expect(env.OPENCODE_CONFIG_DIR).toBe(openCodeConfigDirectory(opts));
-    expect(env.OPENCODE_DISABLE_AUTOUPDATE).toBe("1");
-    expect(env.OPENCODE_FILEWATCHER_DISABLE).toBe("1");
-    expect(openCodeConfig(opts,env).plugins).toContain("opencode.provider.opencode");
-    expect(openCodeConfig(opts,env).plugins).not.toContain("opencode.provider.*");
-    const result = await runLane(opts);
-    expect(result.receipt).toMatchObject({status:"complete",apiSpend:"deny",funding:{kind:"public-free",model:OPENCODE_PUBLIC_FREE_MODEL,authentication:"anonymous"}});
-    const invoked = JSON.parse(readFileSync(join(scratch,"invoked.json"),"utf8"));
-    for (const key of ["OPENAI_API_KEY","OPENCODE_API_KEY","NODE_OPTIONS","AWS_PROFILE","HTTP_PROXY"]) expect(invoked.env[key]).toBeUndefined();
-    expect(JSON.stringify(result.receipt)).not.toContain("PRIVATE_");
-    expect(existsSync(openCodeDirectory(opts))).toBe(false);
-  });
-
   it("preserves native data locations only for explicitly approved ordinary authentication", () => {
     const inherited = {HOME:"/native/home",XDG_DATA_HOME:"/native/data",OPENCODE_CONFIG:"/hostile",OPENCODE_PASSWORD:"private"};
     const env = openCodeEnvironment(options(),inherited);
@@ -281,7 +272,7 @@ describe("OpenCode optional worker", () => {
   it("classifies native pre-session errors and excludes private response bodies from receipts", async () => {
     fixture({stdout:stream({type:"error",sessionID:"",error:{type:"provider.auth",message:"Free route rejected",response:{body:"PRIVATE_RESPONSE_BODY"}}}),exit:1});
     expect(parseOpenCodeTranscript(JSON.parse(readFileSync(join(scratch,"fixture.json"),"utf8")).stdout).kind).toBe("error");
-    const result = await runLane(options({apiSpend:"deny",opencodePublicFree:true,model:OPENCODE_PUBLIC_FREE_MODEL}));
+    const result = await runLane(subscription());
     expect(result.receipt.status).toBe("child-failed");
     expect(result.receipt.error?.evidence).toContain("provider.auth");
     expect(result.receipt.error?.evidence).toContain("Free route rejected");
@@ -301,7 +292,7 @@ describe("OpenCode optional worker", () => {
     const opts = options();
     const running = runLane(opts);
     const marker = join(scratch,phase === "version" ? "version.json" : "invoked.json");
-    for (let i=0;i<100 && !existsSync(marker);i++) await Bun.sleep(10);
+    for (let i=0;i<500 && !existsSync(marker);i++) await Bun.sleep(10);
     expect(existsSync(marker)).toBe(true);
     process.emit("SIGTERM");
     expect((await running).receipt).toMatchObject({status:"cancelled",processStarted:phase === "invocation"});
@@ -319,7 +310,7 @@ describe("OpenCode optional worker", () => {
     fixture({preflightDelay:5000});
     const opts = options();
     const running = runLane(opts);
-    for (let i=0;i<100 && !existsSync(join(scratch,"preflight.json"));i++) await Bun.sleep(10);
+    for (let i=0;i<500 && !existsSync(join(scratch,"preflight.json"));i++) await Bun.sleep(10);
     expect(existsSync(join(scratch,"preflight.json"))).toBe(true);
     process.emit("SIGTERM");
     expect((await running).receipt).toMatchObject({status:"cancelled",processStarted:false});
@@ -331,7 +322,7 @@ describe("OpenCode optional worker", () => {
     writeFileSync(join(openCodeDirectory(opts),"keep"),"keep");
     expect((await runLane(opts)).receipt.status).toBe("child-failed");
     expect(readFileSync(join(openCodeDirectory(opts),"keep"),"utf8")).toBe("keep");
-    fixture({stdout:stream(start,text)});
+    fixture({stdout:stream(start,text),exportMissing:true});
     const next = options({receiptPath:join(scratch,"next-receipt"),outputPath:join(scratch,"next-output")});
     expect((await runLane(next)).receipt.status).toBe("malformed-output");
     expect(existsSync(next.outputPath)).toBe(false);
@@ -360,4 +351,158 @@ describe("OpenCode optional worker", () => {
     expect(result.receipt.error?.evidence).not.toContain("provider terminal detail");
     expect(result.receipt.error?.evidence).toContain("stdout:");
   });
+});
+
+function exportFixture() {
+  const model = { providerID: "openai", id: "gpt-6.1-sol", variant: "default" };
+  return {
+    info: { id: "s1", agent: "worker", model, outcome: "succeeded", location: { directory: "/fixture" }, time: { created: 10, updated: 30, idle: 31 }, cost: 0, tokens: { input: 10, output: 5, reasoning: 0, cache: { read: 2, write: 0 } } },
+    messages: [
+      { id: "u1", type: "user", time: { created: 11 }, text: "PROMPT", files: [] },
+      { id: "m1", type: "assistant", agent: "worker", model, time: { created: 12, completed: 30 }, finish: "stop", content: [{ type: "text", text: "FINAL" }] },
+      { id: "i1", type: "idle", time: { created: 31 }, outcome: "succeeded" },
+    ],
+  };
+}
+const exportExpected = { cwd: "/fixture", prompt: "PROMPT", agent: "worker", model: OPENCODE_CHATGPT_SUBSCRIPTION_MODEL, started: 9 };
+function verdict(value: unknown, stdout = stream(text)) {
+  const inspected = inspectOpenCodeStream(stdout);
+  if (inspected.kind !== "identified") return inspected;
+  return parseOpenCodeExport(typeof value === "string" ? value : JSON.stringify(value), inspected, exportExpected);
+}
+
+describe("OpenCode native completion", () => {
+  it("accepts missing finishes and reconciliation-only text, delivering export text and usage once", () => {
+    for (const stdout of [stream(text), stream(start, text), stream(start,text,finish,event("text","suffix",{text:"TAIL"}))]) {
+      expect(verdict(exportFixture(),stdout)).toMatchObject({kind:"complete",output:{text:"FINAL",reportedModel:null,usage:{inputTokens:10,outputTokens:5},costUsd:0}});
+    }
+    const result = verdict(exportFixture(),success);
+    if (result.kind !== "complete") throw Error("fixture was incomplete");
+    expect(result.output.usage?.totalTokens).toBeUndefined();
+  });
+  for (const field of ["id", "agent", "model", "location", "outcome", "time", "parentID", "fork", "revert"] as const) it(`rejects mismatched session ${field}`, () => {
+    const value = exportFixture();
+    Object.assign(value.info,{[field]: field === "time" ? {created:1,idle:31} : "wrong"});
+    expect(verdict(value).kind).toBe("incomplete");
+  });
+  for (const [name, mutate] of Object.entries({
+    prompt: (value: ReturnType<typeof exportFixture>) => { value.messages[0]!.text = "OTHER"; },
+    duplicate: (value: ReturnType<typeof exportFixture>) => { value.messages[2]!.id = "m1"; },
+    absentFinal: (value: ReturnType<typeof exportFixture>) => { value.messages[1]!.id = "older"; },
+    laterAssistant: (value: ReturnType<typeof exportFixture>) => { value.messages.splice(2,0,{...value.messages[1]!,id:"later"}); },
+    laterUser: (value: ReturnType<typeof exportFixture>) => { value.messages.splice(2,0,{...value.messages[0]!,id:"u2"}); },
+    unknownRecord: (value: ReturnType<typeof exportFixture>) => { value.messages.splice(2,0,{...value.messages[0]!,id:"unknown",type:"shell"}); },
+    idleFailure: (value: ReturnType<typeof exportFixture>) => { value.messages[2]!.outcome = "failed"; },
+    idleMissing: (value: ReturnType<typeof exportFixture>) => { value.messages.pop(); },
+    idleEarly: (value: ReturnType<typeof exportFixture>) => { value.messages[2]!.time.created = 29; },
+    completedMissing: (value: ReturnType<typeof exportFixture>) => { delete value.messages[1]!.time.completed; },
+    finalError: (value: ReturnType<typeof exportFixture>) => { Object.assign(value.messages[1]!,{error:{message:"failed"}}); },
+    finalRetry: (value: ReturnType<typeof exportFixture>) => { Object.assign(value.messages[1]!,{retry:{attempt:1}}); },
+    finalTool: (value: ReturnType<typeof exportFixture>) => { Object.assign(value.messages[1]!,{content:[{type:"tool",id:"call",state:{status:"completed"}}]}); },
+    blank: (value: ReturnType<typeof exportFixture>) => { value.messages[1]!.content![0]!.text = " "; },
+    staleOrder: (value: ReturnType<typeof exportFixture>) => { value.messages[1]!.time.created = 10; },
+    extraPromptAgent: (value: ReturnType<typeof exportFixture>) => { Object.assign(value.messages[0]!,{agents:["foreign"]}); },
+    usage: (value: ReturnType<typeof exportFixture>) => { value.info.tokens.input = -1; },
+  })) it(`rejects ${name}`, () => { const value = exportFixture(); mutate(value); expect(verdict(value).kind).toBe("incomplete"); });
+  for (const reason of ["length","error","unknown","content-filter","tool-calls"]) it(`rejects final ${reason}`, () => {
+    const value = exportFixture(); value.messages[1]!.finish = reason;
+    expect(verdict(value).kind).toBe("incomplete");
+  });
+  it("rejects truncated exports and conflicting stream finishes", () => {
+    expect(verdict("{").kind).toBe("incomplete");
+    expect(verdict(exportFixture(),stream(start,text,event("step_finish","finish",{reason:"length"}))).kind).toBe("incomplete");
+    expect(inspectOpenCodeStream(stream(text,{...text,part:{...text.part,messageID:"other"}})).kind).toBe("incomplete");
+    expect(inspectOpenCodeStream(stream(start,text,finish,event("step_finish","finish",{reason:"length"}))).kind).toBe("incomplete");
+    expect(inspectOpenCodeStream(stream(start,event("step_start","other-start"),text)).kind).toBe("incomplete");
+    expect(inspectOpenCodeStream(stream(text,finish,event("step_finish","other-finish",{reason:"stop"}))).kind).toBe("incomplete");
+    const tool = event("tool_use","call");
+    expect(inspectOpenCodeStream(stream(tool,{...tool,part:{...tool.part,id:"other-call"}})).kind).toBe("incomplete");
+  });
+  for (const status of ["completed","error","streaming","running"]) it(`requires settled earlier tools (${status})`, () => {
+    const value = exportFixture();
+    const earlier = structuredClone(value.messages[1]!);
+    Object.assign(earlier,{id:"earlier",finish:"tool-calls",time:{created:12,completed:20},content:[{type:"tool",id:"call",time:{created:13,completed:19},state:{status}}]});
+    value.messages[1]!.time.created = 21;
+    value.messages.splice(1,0,earlier);
+    const stdout = stream(event("tool_use","call",{},"earlier"),event("text","t",{text:"FINAL"}));
+    expect(verdict(value,stdout).kind).toBe(status === "completed" || status === "error" ? "complete" : "incomplete");
+    expect(verdict(value,stream(text,event("tool_use","call",{},"earlier"))).kind).toBe("incomplete");
+  });
+  for (const stdout of [stream(text),stream(start,text)]) it("runs one standalone export with the frozen attempt environment", async () => {
+    fixture({stdout});
+    const opts = options(); const result = await runLane(opts);
+    expect(result.receipt).toMatchObject({status:"complete",usage:{inputTokens:10,outputTokens:5}});
+    expect(readFileSync(opts.outputPath,"utf8")).toBe("FINAL");
+    const exported = JSON.parse(readFileSync(join(scratch,"export.json"),"utf8"));
+    const invoked = JSON.parse(readFileSync(join(scratch,"invoked.json"),"utf8"));
+    expect(exported.args).toEqual(["session","export","--standalone","s1"]);
+    expect(exported.env).toEqual(invoked.env);
+  });
+  it("preserves export completion through nonzero workload and malformed handoff without output", async () => {
+    for (const badHandoff of [false,true]) {
+      fixture({stdout:stream(text),exit:badHandoff ? 0 : 1,finalText:badHandoff ? "```pstack-handoff\n{}\n```" : "FINAL"});
+      const opts = options({receiptPath:join(scratch,`receipt-${badHandoff}`),outputPath:join(scratch,`output-${badHandoff}`)});
+      expect((await runLane(opts)).receipt).toMatchObject({status:badHandoff ? "malformed-output" : "child-failed",terminalSuccess:true});
+      expect(existsSync(opts.outputPath)).toBe(false);
+    }
+  });
+  it("does not deliver when native export fails, and preserves strict stream completion", async () => {
+    fixture({stdout:success,exportExit:1}); const opts = options();
+    expect((await runLane(opts)).receipt).toMatchObject({status:"malformed-output",terminalSuccess:true});
+    expect(existsSync(opts.outputPath)).toBe(false);
+  });
+  it("shares the absolute deadline with export and cleans up", async () => {
+    fixture({stdout:stream(text),exportDelay:10000}); const opts = options({timeoutMs:4000});
+    expect((await runLane(opts)).receipt).toMatchObject({status:"timed-out",terminalSuccess:false});
+    expect(existsSync(join(scratch,"export.json"))).toBe(true);
+    expect(existsSync(opts.outputPath)).toBe(false); expect(existsSync(openCodeDirectory(opts))).toBe(false);
+  },8000);
+  it("settles export cancellation before cleaning up", async () => {
+    fixture({stdout:stream(text),exportDelay:5000}); const opts = options(); const running = runLane(opts);
+    for (let i=0;i<500 && !existsSync(join(scratch,"export.json"));i++) await Bun.sleep(10);
+    expect(existsSync(join(scratch,"export.json"))).toBe(true); process.emit("SIGTERM");
+    const result = await running;
+    expect(result.receipt.status).toBe("cancelled"); expect(result.receipt.terminalSuccess).toBeUndefined();
+    expect(existsSync(opts.outputPath)).toBe(false); expect(existsSync(openCodeDirectory(opts))).toBe(false);
+  });
+});
+
+const oauth = [{id:"openai",connections:[{type:"credential",method:"oauth",id:"CANARY_CONNECTION",label:"CANARY_ACCOUNT"}]}];
+function subscription(overrides: Partial<RunnerOptions> = {}) { return options({apiSpend:"deny",model:OPENCODE_CHATGPT_SUBSCRIPTION_MODEL,opencodeChatgptSubscription:true,...overrides}); }
+describe("OpenCode explicit ChatGPT subscription", () => {
+  it("constructs only the exact denied subscription branch", () => {
+    expect(openCodeFunding(subscription())).toEqual({kind:"chatgpt-subscription",apiSpend:"deny",model:OPENCODE_CHATGPT_SUBSCRIPTION_MODEL});
+    for (const change of [{provider:"codex" as const},{model:"openai/other"},{effort:"high" as const},{apiSpend:null},{apiSpend:"approved" as const}]) expect(() => openCodeFunding(subscription(change))).toThrow();
+  });
+  for (const auth of [[],{},[...oauth,...oauth],[{id:"other",connections:oauth[0]!.connections}],[{id:"openai",connections:[]}],[{id:"openai",connections:[...oauth[0]!.connections,...oauth[0]!.connections]}],[{id:"openai",connections:[{type:"credential",method:"api"}]}],[{id:"openai",connections:[{type:"env",method:"oauth"}]}],[{id:"openai",connections:[{type:"external",method:"oauth"}]}],[...oauth,{id:"opencode",connections:[{type:"credential",method:"api"}]}]]) it(`rejects incompatible visible auth ${JSON.stringify(auth)}`, async () => {
+    expect(openCodeOAuthPreflightPassed(JSON.stringify(auth))).toBe(false);
+    fixture({auth,stdout:success,authStderr:"CANARY_AUTH_STDERR"}); const opts = subscription(); const result = await runLane(opts);
+    expect(result.receipt).toMatchObject({status:"billing-policy-blocked",processStarted:false,apiSpend:"deny",funding:{authentication:null}});
+    expect(existsSync(join(scratch,"invoked.json"))).toBe(false); expect(existsSync(join(scratch,"export.json"))).toBe(false);
+    expect(JSON.stringify(result.receipt)).not.toContain("CANARY_");
+  });
+  for (const extra of [{authRaw:"{"},{authExit:1},{authPoison:true}]) it(`rejects failed or malformed auth preflight ${JSON.stringify(extra)}`, async () => {
+    fixture({...extra,stdout:success}); const opts=subscription();
+    expect((await runLane(opts)).receipt).toMatchObject({status:"billing-policy-blocked",processStarted:false});
+    expect(existsSync(join(scratch,"invoked.json"))).toBe(false);
+  });
+  it("uses the native OAuth home/data with a positive provider and stripped credential/route environment", async () => {
+    Object.assign(process.env,{XDG_DATA_HOME:"/native/data",OPENAI_API_KEY:"PRIVATE_KEY",ANTHROPIC_AUTH_TOKEN:"PRIVATE_TOKEN",OPENAI_BASE_URL:"PRIVATE_ROUTE",HTTP_PROXY:"PRIVATE_PROXY",HTTPS_PROXY:"PRIVATE_PROXY",NODE_OPTIONS:"PRIVATE_PRELOAD",AWS_PROFILE:"PRIVATE_ACCOUNT"});
+    const opts = subscription(); const attempt=openCodeAttempt(opts,process.env)!;
+    expect(attempt.config.plugins).toContain("opencode.provider.openai"); expect(attempt.config.plugins).toContain("opencode.config.provider");
+    expect(attempt.config.plugins).not.toContain("opencode.provider.*"); expect(attempt.config.plugins).not.toContain("opencode.provider.chatgpt");
+    expect(attempt.config.providers).toEqual({openai:{settings:{baseURL:OPENCODE_CHATGPT_ENDPOINT,transport:"http"}}});
+    expect(attempt.environment.HOME).toBe(previousEnv.HOME); expect(attempt.environment.XDG_DATA_HOME).toBe("/native/data");
+    for(const key of ["OPENAI_API_KEY","ANTHROPIC_AUTH_TOKEN","OPENAI_BASE_URL","HTTP_PROXY","HTTPS_PROXY","NODE_OPTIONS","AWS_PROFILE"]) expect(attempt.environment[key]).toBeUndefined();
+    fixture({stdout:stream(text)}); const result=await runLane(opts);
+    expect(result.receipt).toMatchObject({status:"complete",apiSpend:"deny",funding:{kind:"chatgpt-subscription",authentication:"native-openai-oauth",configuredEndpoint:OPENCODE_CHATGPT_ENDPOINT},preflight:{evidence:"private configuration verified; exactly one visible native OpenAI OAuth connection"}});
+    const auth=JSON.parse(readFileSync(join(scratch,"auth.json"),"utf8")); const invoked=JSON.parse(readFileSync(join(scratch,"invoked.json"),"utf8")); const exported=JSON.parse(readFileSync(join(scratch,"export.json"),"utf8"));
+    expect(auth.args).toEqual(["auth","list","--standalone","--format","json"]); expect(auth.env).toEqual(invoked.env); expect(auth.env).toEqual(exported.env);
+    expect(JSON.stringify(result.receipt)).not.toContain("CANARY_"); expect(JSON.stringify(result.receipt)).not.toContain("PRIVATE_");
+  });
+  for(const cancel of [false,true]) it(`handles ${cancel ? "cancellation" : "deadline"} during auth without a workload`,async()=>{
+    fixture({authDelay:10000}); const opts=subscription({timeoutMs:cancel ? null : 4000}); const running=runLane(opts);
+    if(cancel){ for(let i=0;i<500 && !existsSync(join(scratch,"auth.json"));i++) await Bun.sleep(10); expect(existsSync(join(scratch,"auth.json"))).toBe(true); process.emit("SIGTERM"); }
+    expect((await running).receipt.status).toBe(cancel ? "cancelled" : "timed-out"); expect(existsSync(join(scratch,"auth.json"))).toBe(true); expect(existsSync(join(scratch,"invoked.json"))).toBe(false); expect(existsSync(openCodeDirectory(opts))).toBe(false);
+  },8000);
 });

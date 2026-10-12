@@ -8,7 +8,9 @@ Entries describe package versions. Published release checkpoints have tag links;
 
 Cursor baseline: [0.15.15](https://github.com/cursor/plugins/tree/df581122cde17e6e27686b5a448bde23e4ad4318/pstack). [Issue #120](https://github.com/arjitj2/open-pstack/issues/120). [PR #121](https://github.com/arjitj2/open-pstack/pull/121).
 
-Replaces the V1 OpenCode adapter with the tested stable V2 2.0.26 command and configuration contract. Requires exact private configuration sources and ordered permissions, keeps process lifecycle and completion validation in the shared runner, and removes V1 compatibility. Adds an explicitly requested anonymous public-free route for `opencode/nemotron-3-ultra-free` with API spending denied. Ordinary native authentication still requires explicit spending approval. Configuration verification does not attest runtime permissions or authentication.
+Replaces the V1 OpenCode adapter with the tested stable V2 2.0.26 command and configuration contract. Requires exact private configuration sources and ordered permissions, keeps process lifecycle in the shared runner, and removes V1 compatibility. Final delivery uses one native standalone session export to prove matching completed stop and succeeded idle, including legitimate streams without a final finish. Export text and usage are delivered once; completion proof prevents replay after delivery failure.
+
+Adds an explicit ChatGPT subscription opt-in for exactly `openai/gpt-6.1-sol@default` with API spending denied. It strips ambient credential and route overrides, configures the native Codex HTTP endpoint, and requires one visible OpenAI OAuth connection before execution. It trusts the normal native login and does not attest hidden credential metadata or runtime permissions. Ordinary native authentication still requires explicit spending approval.
 
 ## 1.13.0 adds prompting guidance to explicit help
 

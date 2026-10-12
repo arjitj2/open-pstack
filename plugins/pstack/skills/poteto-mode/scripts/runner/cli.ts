@@ -48,8 +48,8 @@ explicitly authorizes the paid route and records it in the receipt. Omitting
 the flag preserves the legacy behavior for configurations written before
 billing policy existed. OpenCode requires tested V2 2.0.26, provider/model and default
 effort. Ordinary native authentication requires explicit --api-spend approved.
---opencode-public-free instead requires --api-spend deny and the exact model
-opencode/nemotron-3-ultra-free. It uses private storage with no native credentials.
+--opencode-chatgpt-subscription instead requires --api-spend deny, default effort,
+and openai/gpt-6.1-sol with exactly one visible native OpenAI OAuth connection.
 The flag cannot authorize another provider, model, or paid fallback.
 Read-only permits file inspection; isolated-write requires a Git worktree root
 and additionally permits edits. Neither mode permits shell commands. OpenCode
@@ -124,7 +124,7 @@ export function parseArgs(argv: readonly string[]): RunnerOptions | null {
         progress: { type: "string" },
         timeout: { type: "string" },
         "api-spend": { type: "string" },
-        "opencode-public-free": { type: "boolean", default: false },
+        "opencode-chatgpt-subscription": { type: "boolean", default: false },
         contract: { type: "string" },
         help: { type: "boolean", short: "h", default: false },
       },
@@ -168,7 +168,7 @@ export function parseArgs(argv: readonly string[]): RunnerOptions | null {
     progressPath: stringValue(parsed.values.progress) ?? null,
     timeoutMs: timeoutSeconds === null ? null : timeoutSeconds * 1_000,
     apiSpend,
-    opencodePublicFree: parsed.values["opencode-public-free"] === true,
+    opencodeChatgptSubscription: parsed.values["opencode-chatgpt-subscription"] === true,
     contract,
   });
 }

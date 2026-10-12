@@ -1,5 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import { join } from "node:path";
+import { openCodeFunding } from "./opencode.ts";
 import { main, parseArgs } from "./cli.ts";
 
 function argv(extra: readonly string[] = []): string[] {
@@ -107,16 +108,12 @@ describe("runner status subcommand", () => {
   });
 });
 
-describe("runner explicit OpenCode public-free flag", () => {
-  it("defaults to ordinary funding and preserves an explicit anonymous request", () => {
-    expect(parseArgs(argv())?.opencodePublicFree).toBe(false);
-    const args = argv(["--api-spend","deny","--opencode-public-free"]);
-    args[args.indexOf("--provider")+1] = "opencode";
-    args[args.indexOf("--model")+1] = "opencode/nemotron-3-ultra-free";
-    args[args.indexOf("--effort")+1] = "default";
-    expect(parseArgs(args)).toMatchObject({provider:"opencode",apiSpend:"deny",opencodePublicFree:true,model:"opencode/nemotron-3-ultra-free"});
+describe("runner explicit OpenCode ChatGPT subscription flag", () => {
+  const subscriptionArgs = () => argv().map((value,index,values) => values[index-1] === "--provider" ? "opencode" : values[index-1] === "--model" ? "openai/gpt-6.1-sol" : values[index-1] === "--effort" ? "default" : value);
+  it("preserves the explicit flag and denied spend", () => {
+    expect(parseArgs([...subscriptionArgs(),"--opencode-chatgpt-subscription","--api-spend","deny"])).toMatchObject({opencodeChatgptSubscription:true,apiSpend:"deny"});
   });
-  it("accepts only a boolean flag", () => {
-    expect(() => parseArgs(argv(["--opencode-public-free=true"]))).toThrow();
+  for(const extra of [[],["--api-spend","approved"]]) it("rejects incompatible subscription funding", () => {
+    expect(() => { const opts = parseArgs([...subscriptionArgs(),"--opencode-chatgpt-subscription",...extra]); if (opts !== null) openCodeFunding(opts); }).toThrow();
   });
 });
