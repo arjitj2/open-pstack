@@ -1,7 +1,8 @@
 import { createHash } from "node:crypto";
-import { realpathSync } from "node:fs";
+import { lstatSync, readFileSync, readdirSync, realpathSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { isDeepStrictEqual } from "node:util";
 import { execFileSync } from "node:child_process";
 import { type Effort, type NormalizedUsage, type ParsedOutput, type RunnerOptions, UsageError } from "./types.ts";
 
@@ -13,104 +14,315 @@ function string(value: unknown): string | null {
   return typeof value === "string" && value.length > 0 ? value : null;
 }
 
-export const OPENCODE_MINIMUM_VERSION = "1.18.29";
+export const OPENCODE_TESTED_VERSION = "2.0.26";
+export const OPENCODE_CHATGPT_SUBSCRIPTION_MODEL = "openai/gpt-6.1-sol";
+export const OPENCODE_CHATGPT_ENDPOINT = "https://chatgpt.com/backend-api/codex";
 
 export function openCodeVersionError(stdout: string): string | null {
-  const version = stdout.trim();
-  const match = /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/.exec(version);
-  const parts = match?.slice(1).map(Number);
-  if (parts === undefined || !parts.every(Number.isSafeInteger)) {
-    return `Cannot verify OpenCode version. Install OpenCode ${OPENCODE_MINIMUM_VERSION} or newer and check opencode --version.`;
-  }
-  const minimum = OPENCODE_MINIMUM_VERSION.split(".").map(Number);
-  for (let index = 0; index < minimum.length; index++) {
-    if (parts[index] > minimum[index]) return null;
-    if (parts[index] < minimum[index]) return `OpenCode ${version} is too old. Upgrade to ${OPENCODE_MINIMUM_VERSION} or newer for GPT-6 OAuth model support.`;
-  }
-  return null;
+  return stdout.trim() === `opencode v${OPENCODE_TESTED_VERSION}` ? null
+    : `Cannot verify OpenCode's tested V2 contract. Install OpenCode ${OPENCODE_TESTED_VERSION} and check opencode --version.`;
 }
 
 export function validateOpenCodeModel(model: string, effort: Effort): void {
   if (effort !== "default") throw new UsageError("OpenCode requires default effort; unverified variants can silently use defaults");
   if (!/^[A-Za-z0-9][A-Za-z0-9._-]*(?:\/[A-Za-z0-9][A-Za-z0-9._:-]*)+$/.test(model) || model.split("/").some(part => part.toLowerCase() === "auto")) {
-    throw new UsageError("OpenCode requires an exact provider/model ID from opencode models");
+    throw new UsageError("OpenCode requires an exact native provider/model ID");
   }
+}
+
+export type OpenCodeFunding =
+  | { readonly kind: "native-auth"; readonly apiSpend: "approved" }
+  | { readonly kind: "chatgpt-subscription"; readonly apiSpend: "deny"; readonly model: typeof OPENCODE_CHATGPT_SUBSCRIPTION_MODEL };
+
+export function openCodeFunding(options: RunnerOptions): OpenCodeFunding | null {
+  if (options.opencodeChatgptSubscription) {
+    if (options.provider !== "opencode" || options.apiSpend !== "deny" || options.model !== OPENCODE_CHATGPT_SUBSCRIPTION_MODEL || options.effort !== "default") {
+      throw new UsageError(`--opencode-chatgpt-subscription requires provider opencode, --api-spend deny, default effort, and exact model ${OPENCODE_CHATGPT_SUBSCRIPTION_MODEL}`);
+    }
+    return { kind: "chatgpt-subscription", apiSpend: "deny", model: OPENCODE_CHATGPT_SUBSCRIPTION_MODEL };
+  }
+  return options.provider === "opencode" && options.apiSpend === "approved" ? { kind: "native-auth", apiSpend: "approved" } : null;
 }
 
 export function openCodeDirectory(options: RunnerOptions): string {
   return `${options.receiptPath}.opencode-config`;
 }
+export function openCodeConfigDirectory(options: RunnerOptions): string {
+  return join(openCodeDirectory(options), "config");
+}
 export function openCodeAgent(options: RunnerOptions): string {
   return `pstack-${createHash("sha256").update(options.receiptPath).digest("hex").slice(0, 24)}`;
 }
-function toolOutputGlob(env: NodeJS.ProcessEnv): string {
-  return join(env.XDG_DATA_HOME || join(homedir(), ".local", "share"), "opencode", "tool-output", "*");
-}
 interface PermissionRule {
-  readonly permission: string;
-  readonly pattern: string;
-  readonly action: "allow" | "deny";
+  readonly action: string;
+  readonly resource: string;
+  readonly effect: "allow" | "deny";
 }
 function permissions(options: RunnerOptions, env: NodeJS.ProcessEnv): readonly PermissionRule[] {
+  const data = env.XDG_DATA_HOME || join(homedir(), ".local", "share");
   return [
-    { permission: "*", pattern: "*", action: "deny" },
-    ...["read", "glob", "grep"].map(permission => ({ permission, pattern: "*", action: "allow" as const })),
-    ...(options.mode === "isolated-write" ? [{ permission: "edit", pattern: "*", action: "allow" as const }] : []),
-    { permission: "external_directory", pattern: "*", action: "deny" },
-    { permission: "external_directory", pattern: toolOutputGlob(env), action: "deny" },
+    { action: "*", resource: "*", effect: "deny" },
+    ...["read", "glob", "grep"].map(action => ({ action, resource: "*", effect: "allow" as const })),
+    ...(options.mode === "isolated-write" ? [
+      { action: "edit", resource: "*", effect: "allow" as const },
+      ...[".git", ".git/*", "*/.git", "*/.git/*", join(options.cwd, ".git"), join(options.cwd, ".git", "*")].map(resource => ({ action: "edit", resource, effect: "deny" as const })),
+    ] : []),
+    { action: "external_directory", resource: "*", effect: "deny" },
+    { action: "external_directory", resource: join(data, "opencode", "tool-output", "*"), effect: "deny" },
   ];
 }
 
-export function openCodeConfig(options: RunnerOptions, env: NodeJS.ProcessEnv = process.env): object {
+export function openCodeConfig(options: RunnerOptions, env: NodeJS.ProcessEnv = process.env) {
   if (options.mode === "isolated-write") {
     let root: string;
     try { root = execFileSync("git", ["-C", options.cwd, "rev-parse", "--show-toplevel"], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim(); }
     catch { throw new UsageError("OpenCode isolated-write requires a Git worktree root"); }
     if (realpathSync(root) !== realpathSync(options.cwd)) throw new UsageError("OpenCode isolated-write cwd must be the Git worktree root");
   }
-  const permission: Record<string, Record<string, string>> = {};
-  for (const rule of permissions(options, env)) (permission[rule.permission] ??= {})[rule.pattern] = rule.action;
+  const separator = options.model.indexOf("/");
+  const model = { providerID: options.model.slice(0, separator), model: options.model.slice(separator + 1) };
+  const subscription = openCodeFunding(options)?.kind === "chatgpt-subscription";
   return {
-    model: options.model, small_model: options.model,
-    default_agent: openCodeAgent(options), share: "disabled", autoupdate: false,
-    lsp: false, formatter: false, compaction: { auto: false, prune: false },
-    agent: { [openCodeAgent(options)]: { mode: "primary", model: options.model, permission } },
+    ...(subscription ? { providers: { openai: { settings: { baseURL: OPENCODE_CHATGPT_ENDPOINT, transport: "http" } } } } : {}),
+    model, default_agent: openCodeAgent(options), share: "disabled", update: "disable",
+    snapshots: false, lsp: false, formatter: false, compaction: { auto: false }, warming: false,
+    plugins: ["-*", "opencode.models.dev", subscription ? "opencode.provider.openai" : "opencode.provider.*",
+      ...(subscription ? ["opencode.config.provider"] : []),
+      "opencode.config.agent", "opencode.config.compaction", "opencode.config.formatter", "opencode.config.snapshot",
+      ...["read", "glob", "grep", ...(options.mode === "isolated-write" ? ["edit", "write"] : [])].map(tool => `opencode.tool.${tool}`)],
+    agents: { [openCodeAgent(options)]: { mode: "primary", model, permissions: permissions(options, env) } },
   };
 }
 
 export function openCodeEnvironment(options: RunnerOptions, inherited: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
-  const env = { ...inherited };
+  const funding = openCodeFunding(options);
+  const subscription = funding?.kind === "chatgpt-subscription";
+  const env: NodeJS.ProcessEnv = subscription ? {} : { ...inherited };
+  if (subscription) for (const key of ["PATH", "LANG", "LC_ALL", "LC_CTYPE", "TZ", "SystemRoot", "WINDIR", "PATHEXT"]) {
+    if (inherited[key] !== undefined) env[key] = inherited[key];
+  }
+  if (subscription) for (const key of ["HOME", "USERPROFILE", "XDG_DATA_HOME"]) {
+    if (inherited[key] !== undefined) env[key] = inherited[key];
+  }
   for (const key of Object.keys(env)) if (key.startsWith("OPENCODE_")) delete env[key];
+  const root = openCodeDirectory(options);
   return {
-    ...env,
-    XDG_CONFIG_HOME: join(openCodeDirectory(options), "xdg"),
-    OPENCODE_TEST_HOME: join(openCodeDirectory(options), "home"),
-    OPENCODE_CONFIG: join(openCodeDirectory(options), "opencode.json"),
-    OPENCODE_DISABLE_PROJECT_CONFIG: "1", OPENCODE_DISABLE_EXTERNAL_SKILLS: "1",
-    OPENCODE_DISABLE_CLAUDE_CODE: "1", OPENCODE_DISABLE_AUTOUPDATE: "1",
-    OPENCODE_DISABLE_AUTOCOMPACT: "1", OPENCODE_DISABLE_LSP_DOWNLOAD: "1",
+    ...env, PWD: options.cwd,
+    ...(subscription ? { XDG_STATE_HOME: join(root, "state"), XDG_CACHE_HOME: join(root, "cache"), TMPDIR: join(root, "tmp"), TMP: join(root, "tmp"), TEMP: join(root, "tmp") } : {}),
+    XDG_CONFIG_HOME: join(root, "xdg"), OPENCODE_TEST_HOME: join(root, "home"),
+    OPENCODE_CONFIG_DIR: openCodeConfigDirectory(options), OPENCODE_CONFIG_PROJECT_DISABLE: "1",
+    OPENCODE_DISABLE_AUTOUPDATE: "1", OPENCODE_FILEWATCHER_DISABLE: "1",
   };
 }
 
-export function openCodePreflightPassed(stdout: string, options: RunnerOptions, env: NodeJS.ProcessEnv): boolean {
-  let config: JsonObject | null;
-  try { config = object(JSON.parse(stdout)); } catch { return false; }
-  if (config === null || config.model !== options.model || config.small_model !== options.model ||
-      config.default_agent !== openCodeAgent(options) || config.share !== "disabled" ||
-      config.autoupdate !== false || config.lsp !== false || config.formatter !== false ||
-      object(config.compaction)?.auto !== false || object(config.compaction)?.prune !== false) return false;
-  if (config.provider !== undefined && Object.keys(object(config.provider) ?? { invalid: true }).length !== 0) return false;
-  if (config.mcp !== undefined) {
-    const mcp = object(config.mcp);
-    if (mcp === null || Object.values(mcp).some(value => object(value)?.enabled !== false)) return false;
+export interface OpenCodeAttempt {
+  readonly funding: OpenCodeFunding;
+  readonly configDirectory: string;
+  readonly config: ReturnType<typeof openCodeConfig>;
+  readonly environment: NodeJS.ProcessEnv;
+}
+function freeze<T>(value: T): T {
+  if (value !== null && typeof value === "object") {
+    for (const child of Object.values(value)) freeze(child);
+    Object.freeze(value);
   }
-  const agent = object(object(config.agent)?.[openCodeAgent(options)]);
-  if (agent === null || agent.mode !== "primary" || agent.model !== options.model ||
-      Object.keys(agent).some(key => !["mode", "model", "permission", "options"].includes(key)) ||
-      (agent.options !== undefined && Object.keys(object(agent.options) ?? { invalid: true }).length !== 0)) return false;
-  const expected: Record<string, Record<string, string>> = {};
-  for (const rule of permissions(options, env)) (expected[rule.permission] ??= {})[rule.pattern] = rule.action;
-  return JSON.stringify(agent.permission) === JSON.stringify(expected);
+  return value;
+}
+export function openCodeAttempt(options: RunnerOptions, inherited: NodeJS.ProcessEnv): OpenCodeAttempt | null {
+  const funding = openCodeFunding(options);
+  if (funding === null) return null;
+  const environment = openCodeEnvironment(options, inherited);
+  return freeze({ funding, environment, configDirectory: openCodeConfigDirectory(options), config: openCodeConfig(options, environment) });
+}
+
+export function openCodeFilesUnchanged(attempt: OpenCodeAttempt): boolean {
+  try {
+    if (!lstatSync(attempt.configDirectory).isDirectory() || lstatSync(attempt.configDirectory).isSymbolicLink()) return false;
+    const names = readdirSync(attempt.configDirectory).sort();
+    if (!isDeepStrictEqual(names, ["opencode.json", "service.json"])) return false;
+    for (const name of names) {
+      const path = join(attempt.configDirectory, name);
+      if (!lstatSync(path).isFile() || lstatSync(path).isSymbolicLink()) return false;
+      const wanted = name === "opencode.json" ? attempt.config : { disabled: true };
+      if (!isDeepStrictEqual(JSON.parse(readFileSync(path, "utf8")), wanted)) return false;
+    }
+    return true;
+  } catch { return false; }
+}
+
+export function openCodePreflightPassed(stdout: string, attempt: OpenCodeAttempt): boolean {
+  try {
+    return isDeepStrictEqual(JSON.parse(stdout), [
+      { type: "document", path: join(attempt.configDirectory, "opencode.json"), info: attempt.config },
+      { type: "directory", path: attempt.configDirectory },
+    ]) && openCodeFilesUnchanged(attempt);
+  } catch { return false; }
+}
+
+export function openCodeOAuthPreflightPassed(stdout: string): boolean {
+  try {
+    const value: unknown = JSON.parse(stdout);
+    if (!Array.isArray(value) || value.length !== 1) return false;
+    const integration = object(value[0]);
+    if (integration?.id !== "openai" || !Array.isArray(integration.connections) || integration.connections.length !== 1) return false;
+    const connection = object(integration.connections[0]);
+    return connection?.type === "credential" && connection.method === "oauth";
+  } catch { return false; }
+}
+
+export type OpenCodeStream =
+  | { readonly kind: "identified"; readonly sessionId: string; readonly assistants: readonly { readonly id: string; readonly finish: string | null }[] }
+  | { readonly kind: "error"; readonly envelope: JsonObject }
+  | { readonly kind: "incomplete"; readonly reason: string };
+
+export function inspectOpenCodeStream(stdout: string): OpenCodeStream {
+  const incomplete = (reason: string): OpenCodeStream => ({ kind: "incomplete", reason });
+  const assistants = new Map<string, { id: string; finish: string | null }>();
+  const parts = new Map<string, { messageId: string; type: string; callId: string | null; finish: JsonObject | null }>();
+  const starts = new Map<string, string>();
+  const finishes = new Map<string, string>();
+  let sessionId: string | null = null;
+  let terminalError: JsonObject | null = null;
+  for (const line of stdout.split("\n")) {
+    if (!line.trim()) continue;
+    let event: JsonObject | null;
+    try { event = object(JSON.parse(line)); } catch { return incomplete("OpenCode emitted non-JSON output"); }
+    if (event === null) return incomplete("OpenCode emitted a non-object event");
+    if (event.type === "error") {
+      const error = object(event.error);
+      if (error === null || string(error.message ?? object(error.data)?.message) === null || typeof event.sessionID !== "string" || (sessionId !== null && event.sessionID !== sessionId)) return incomplete("OpenCode emitted an invalid error");
+      terminalError ??= event;
+      continue;
+    }
+    const session = string(event.sessionID);
+    if (session === null || (sessionId !== null && sessionId !== session)) return incomplete("OpenCode emitted missing or mixed sessions");
+    sessionId = session;
+    const type = string(event.type);
+    if (type === null || !["step_start", "step_finish", "text", "tool_use", "reasoning"].includes(type)) return incomplete("OpenCode emitted an unsupported event");
+    const part = object(event.part);
+    const id = string(type === "tool_use" ? part?.partID : part?.id);
+    const messageId = string(part?.messageID);
+    if (part === null || id === null || messageId === null || part.sessionID !== sessionId) return incomplete("OpenCode emitted an invalid part identity");
+    const previous = parts.get(id);
+    if (previous !== undefined && (previous.messageId !== messageId || previous.type !== type || (type === "tool_use" && previous.callId !== part.id))) return incomplete("OpenCode emitted conflicting part identities");
+    let assistant = assistants.get(messageId);
+    if (assistant === undefined) { assistant = { id: messageId, finish: null }; assistants.set(messageId, assistant); }
+    if (type === "step_start") {
+      if (starts.has(messageId) && starts.get(messageId) !== id) return incomplete("OpenCode emitted multiple starts for one assistant");
+      starts.set(messageId, id);
+    }
+    if (type === "text" && typeof part.text !== "string") return incomplete("OpenCode text part has no text");
+    if (type === "tool_use" && string(part.id) === null) return incomplete("OpenCode tool part has no call identity");
+    if (type === "step_finish") {
+      const reason = string(part.reason);
+      if (finishes.has(messageId) && finishes.get(messageId) !== id) return incomplete("OpenCode emitted multiple finishes for one assistant");
+      finishes.set(messageId, id);
+      if (reason === null || (assistant.finish !== null && assistant.finish !== reason) || (previous?.finish !== null && previous?.finish !== undefined && !isDeepStrictEqual(previous.finish, part))) return incomplete("OpenCode emitted conflicting finishes");
+      assistant.finish = reason;
+    }
+    parts.set(id, { messageId, type, callId: type === "tool_use" ? string(part.id) : null, finish: type === "step_finish" ? part : null });
+  }
+  if (terminalError !== null) return { kind: "error", envelope: terminalError };
+  return sessionId !== null && assistants.size > 0
+    ? { kind: "identified", sessionId, assistants: [...assistants.values()] }
+    : incomplete("OpenCode emitted no session identity");
+}
+
+function finite(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0;
+}
+function matchesModel(value: unknown, expected: string): boolean {
+  const model = object(value);
+  return model !== null && `${model.providerID}/${model.id}` === expected && (model.variant === undefined || model.variant === "default");
+}
+
+export function parseOpenCodeExport(stdout: string, stream: Extract<OpenCodeStream, { kind: "identified" }>, expected: { cwd: string; prompt: string; agent: string; model: string; started: number }): OpenCodeTranscript {
+  const incomplete = (reason: string): OpenCodeTranscript => ({ kind: "incomplete", reason });
+  let document: JsonObject | null;
+  try { document = object(JSON.parse(stdout)); } catch { return incomplete("OpenCode session export was not valid JSON"); }
+  const info = object(document?.info);
+  const time = object(info?.time);
+  if (info === null || info.id !== stream.sessionId || info.parentID !== undefined || info.fork !== undefined || info.revert !== undefined || object(info.location)?.directory !== expected.cwd || info.agent !== expected.agent || !matchesModel(info.model, expected.model) || !finite(time?.created) || time.created < expected.started || !finite(time.updated) || time.updated < time.created || !finite(time.idle) || info.outcome !== "succeeded" || !Array.isArray(document?.messages)) return incomplete("OpenCode session export did not match the fresh attempt");
+  const ids = new Set<string>();
+  let previousEnd = time.created;
+  const assistants: JsonObject[] = [];
+  let userSeen = false;
+  let idle: JsonObject | null = null;
+  for (const value of document.messages) {
+    const message = object(value);
+    const id = string(message?.id);
+    const created = object(message?.time)?.created;
+    if (message === null || id === null || ids.has(id) || !finite(created) || created < previousEnd || idle !== null) return incomplete("OpenCode session export had invalid message identities or order");
+    ids.add(id);
+    previousEnd = created;
+    switch (message.type) {
+      case "agent-switched":
+        if (userSeen || message.agent !== expected.agent) return incomplete("OpenCode session export changed its agent");
+        break;
+      case "model-switched":
+        if (userSeen || !matchesModel(message.model, expected.model)) return incomplete("OpenCode session export changed its model");
+        break;
+      case "user":
+        if (userSeen || message.text !== expected.prompt || [message.files, message.agents, message.skills].some(items => items !== undefined && (!Array.isArray(items) || items.length !== 0))) return incomplete("OpenCode session export did not match the prompt");
+        userSeen = true;
+        break;
+      case "assistant": {
+        const completed = object(message.time)?.completed;
+        if (!userSeen || message.agent !== expected.agent || !matchesModel(message.model, expected.model) || !finite(completed) || completed < created || !["stop", "tool-calls"].includes(String(message.finish)) || message.error !== undefined || message.retry !== undefined || !Array.isArray(message.content)) return incomplete("OpenCode session export had an unsettled assistant");
+        for (const item of message.content) {
+          const content = object(item);
+          if (content === null) return incomplete("OpenCode session export had invalid content");
+          if (content.type === "text" || content.type === "reasoning") {
+            if (typeof content.text !== "string") return incomplete("OpenCode session export had invalid text");
+          } else if (content.type === "tool") {
+            const state = object(content.state);
+            const toolTime = object(content.time);
+            if (string(content.id) === null || !finite(toolTime?.created) || !finite(toolTime.completed) || toolTime.completed < toolTime.created || toolTime.completed > completed || (state?.status !== "completed" && state?.status !== "error")) return incomplete("OpenCode session export had an unsettled tool");
+          } else return incomplete("OpenCode session export had unsupported content");
+        }
+        previousEnd = completed;
+        assistants.push(message);
+        break;
+      }
+      case "idle":
+        if (!userSeen || assistants.length === 0 || message.outcome !== "succeeded") return incomplete("OpenCode session export had no succeeded idle");
+        idle = message;
+        break;
+      default: return incomplete("OpenCode session export had unsupported records");
+    }
+  }
+  const final = assistants.at(-1);
+  if (final === undefined || idle === null || final.id !== stream.assistants.at(-1)?.id || final.finish !== "stop" || !Array.isArray(final.content)) return incomplete("OpenCode session export had no matching final stop");
+  let observedIndex = 0;
+  for (const message of assistants) {
+    const observed = stream.assistants[observedIndex];
+    if (observed?.id === message.id) {
+      if (observed.finish !== null && observed.finish !== message.finish) return incomplete("OpenCode stream and export finishes disagreed");
+      observedIndex++;
+    }
+  }
+  if (observedIndex !== stream.assistants.length) return incomplete("OpenCode stream and export assistants disagreed");
+  const completed = object(final.time)?.completed;
+  const idleCreated = object(idle.time)?.created;
+  if (!finite(completed) || !finite(idleCreated) || idleCreated < completed || time.idle < idleCreated || time.updated < completed) return incomplete("OpenCode session export idle preceded completion");
+  const texts: string[] = [];
+  for (const value of final.content) {
+    const content = object(value);
+    if (content?.type === "tool") return incomplete("OpenCode final assistant contained a tool");
+    if (content?.type === "text" && typeof content.text === "string") texts.push(content.text);
+  }
+  const text = texts.join("\n").trim();
+  if (!text) return incomplete("OpenCode final assistant had no text");
+  const tokens = object(info.tokens);
+  const cache = object(tokens?.cache);
+  const fields = { inputTokens: tokens?.input, outputTokens: tokens?.output, reasoningTokens: tokens?.reasoning, cachedInputTokens: cache?.read, cacheCreationInputTokens: cache?.write };
+  const usage: Record<string, number> = {};
+  for (const [key, value] of Object.entries(fields)) {
+    if (value !== undefined && !finite(value)) return incomplete("OpenCode session export had invalid usage");
+    if (finite(value)) usage[key] = value;
+  }
+  if (info.cost !== undefined && !finite(info.cost)) return incomplete("OpenCode session export had invalid cost");
+  return { kind: "complete", output: { text, sessionId: stream.sessionId, reportedModel: null, usage: Object.keys(usage).length ? usage : null, costUsd: finite(info.cost) ? info.cost : null } };
 }
 
 export type OpenCodeTranscript =
@@ -139,22 +351,35 @@ export function parseOpenCodeTranscript(stdout: string): OpenCodeTranscript {
     try { event = object(JSON.parse(line)); } catch { return incomplete("OpenCode emitted non-JSON output"); }
     if (event === null) return incomplete("OpenCode emitted a non-object event");
     lastEventType = string(event.type);
+    if (event.type === "error") {
+      const error = object(event.error);
+      if (error === null || string(error.message ?? object(error.data)?.message) === null) return incomplete("OpenCode emitted an invalid error");
+      const session = string(event.sessionID);
+      if (typeof event.sessionID !== "string" || (sessionId !== null && session !== sessionId)) return incomplete("OpenCode emitted mixed error sessions");
+      terminalError ??= event;
+      continue;
+    }
     const session = string(event.sessionID);
     if (session === null || (sessionId !== null && sessionId !== session)) return incomplete("OpenCode emitted missing or mixed sessions");
     sessionId = session;
-    if (event.type === "error") { terminalError = event; continue; }
     if (terminalError !== null) return { kind: "error", envelope: terminalError };
     if (!["step_start", "step_finish", "text", "tool_use", "reasoning"].includes(String(event.type))) return incomplete("OpenCode emitted an unsupported event");
     const part = object(event.part);
-    const id = string(part?.id);
+    const id = string(event.type === "tool_use" ? part?.partID : part?.id);
     const messageID = string(part?.messageID);
     if (part === null || id === null || messageID === null || part.sessionID !== sessionId) return incomplete("OpenCode emitted an invalid part identity");
     if (currentId !== messageID) {
       if (messages.has(messageID)) return incomplete("OpenCode returned to an earlier message");
+      const previous = currentId === null ? undefined : messages.get(currentId);
+      if (previous !== undefined && (previous.startId === null || previous.reason === null)) return incomplete("OpenCode left an incomplete earlier message");
+      if (event.type !== "step_start") return incomplete("OpenCode message did not start with a step");
       currentId = messageID;
       messages.set(messageID, { text: new Map(), finishes: new Map(), tools: false, startId: null, reason: null });
     }
     const message = messages.get(messageID)!;
+    if (message.reason !== null && !(event.type === "step_finish" && message.finishes.has(id) && isDeepStrictEqual(message.finishes.get(id), part))) {
+      return incomplete("OpenCode emitted an ambiguous reconciliation trailer");
+    }
     if (event.type === "step_start") {
       if (message.startId !== null && message.startId !== id) return incomplete("OpenCode emitted multiple steps in one message");
       if (message.startId === null) {
@@ -165,9 +390,11 @@ export function parseOpenCodeTranscript(stdout: string): OpenCodeTranscript {
       if (typeof part.text !== "string") return incomplete("OpenCode text part has no text");
       message.text.set(id, part.text);
     } else if (event.type === "tool_use") {
+      if (string(part.id) === null) return incomplete("OpenCode tool part has no call identity");
       message.tools = true;
     } else if (event.type === "step_finish") {
       message.reason = string(part.reason);
+      if (message.reason === null) return incomplete("OpenCode finish has no reason");
       message.finishes.set(id, part);
     }
   }

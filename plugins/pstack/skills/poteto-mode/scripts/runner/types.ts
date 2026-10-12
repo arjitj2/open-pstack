@@ -25,6 +25,7 @@ export interface RunnerOptions {
   readonly progressPath?: string | null;
   readonly timeoutMs: number | null;
   readonly apiSpend: ApiSpendMode | null;
+  readonly opencodeChatgptSubscription?: boolean;
   // The worker contract requested for the lane. Absent means the legacy
   // contract: ownership and handoff instructions without extra enforcement.
   readonly contract?: WorkerContractMode;
@@ -142,6 +143,7 @@ export interface RunnerReceipt {
   readonly failurePhase: FailurePhase | null;
   readonly processStarted: boolean;
   readonly apiSpend: ReceiptApiSpend;
+  readonly funding?: { readonly kind: "chatgpt-subscription"; readonly model: "openai/gpt-6.1-sol"; readonly configuredEndpoint: "https://chatgpt.com/backend-api/codex"; readonly authentication: "native-openai-oauth" | null };
   // The worker contract the lane ran under; absent on receipts written
   // before contracts existed and treated as "legacy".
   readonly contract?: WorkerContractMode;

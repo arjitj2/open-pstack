@@ -48,7 +48,7 @@ export function claudeWriterVersionError(stdout: string): string | null {
 export function preflightCommand(provider: Provider, mode: AccessMode): CommandSpec | null {
   switch (provider) {
     case "opencode":
-      return { command: "opencode", args: ["--pure", "debug", "config"], stdin: "none" };
+      return { command: "opencode", args: ["debug", "config"], stdin: "none" };
     case "devin":
       return { command: "devin", args: ["auth", "status"], stdin: "none" };
     case "cursor":
@@ -176,7 +176,7 @@ export function invocationCommand(
       };
     }
     case "opencode":
-      return { command: "opencode", args: ["run", "--pure", "--format", "json", "--model", options.model, "--agent", openCodeAgent(options), "--dir", options.cwd, "--title", "pstack-worker"], stdin: "prompt", workerGuidance: workerGuidance(options.provider, options.mode) };
+      return { command: "opencode", args: ["run", "--standalone", "--format", "json", "--model", options.model, "--agent", openCodeAgent(options), "--title", "pstack-worker"], stdin: "prompt", workerGuidance: workerGuidance(options.provider, options.mode) };
     case "devin":
       return {
         command: "devin",

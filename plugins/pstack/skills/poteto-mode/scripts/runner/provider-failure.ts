@@ -735,7 +735,10 @@ function terminalEnvelopeDetail(provider: Provider, envelope: unknown): JsonObje
       const detail: JsonObject = {};
 
       const message = boundedText(error?.message ?? object(error?.data)?.message);
-      if (message !== null) detail.message = message;
+      if (message === null) return null;
+      detail.message = message;
+      const type = boundedText(error?.type);
+      if (type !== null) detail.type = type;
       return Object.keys(detail).length > 0 ? detail : null;
     }
     case "devin":
