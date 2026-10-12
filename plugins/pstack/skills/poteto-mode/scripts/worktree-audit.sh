@@ -1,21 +1,71 @@
 #!/usr/bin/env bash
-# Read-only worktree prune audit. Classifies every git worktree by size, merge
+# Worktree prune audit. Classifies every git worktree by size, merge
 # state, uncommitted work, remote/PR state, and the most recent chat that
 # operated in it. Emits a table sorted by size with a suggested bucket. Never
-# deletes anything; deletion stays a human-gated step in the playbook.
+# deletes anything; deletion stays a human-gated step in the playbook. The
+# audit does run a best-effort `git fetch` so merge checks see fresh refs;
+# that ref mutation belongs to the owning session, never a read-only worker.
 #
-# Usage: worktree-audit.sh [repo-path]   (defaults to the current repo)
+# Usage: worktree-audit.sh [-b <pr-base-ref>] [--transcript-root <directory>] [repo-path]
+#   (repo-path defaults to the current repo's toplevel)
 set -u
 
-repo="${1:-$(git rev-parse --show-toplevel 2>/dev/null)}"
+usage() { echo "Usage: worktree-audit.sh [-b <pr-base-ref>] [--transcript-root <directory>] [repo-path]" >&2; }
+
+base=""
+repo=""
+transcript_root=""
+while [ $# -gt 0 ]; do
+	case "$1" in
+		-b|--base)
+			[ $# -ge 2 ] && [ -n "$2" ] && [ "${2#-}" = "$2" ] || { usage; exit 2; }
+			base="$2"; shift 2 ;;
+		--transcript-root)
+			[ $# -ge 2 ] && [ -n "$2" ] && [ "${2#-}" = "$2" ] || { usage; exit 2; }
+			transcript_root="$2"; shift 2 ;;
+		-h|--help)
+			usage; exit 0 ;;
+		-*)
+			usage; exit 2 ;;
+		*)
+			[ -n "$repo" ] && { usage; exit 2; }
+			repo="$1"; shift ;;
+	esac
+done
+if [ -n "$transcript_root" ]; then
+	[ -d "$transcript_root" ] && [ -r "$transcript_root" ] || {
+		echo "error: transcript root is not a readable directory: $transcript_root" >&2; exit 2; }
+	transcript_root=$(cd "$transcript_root" && pwd -P) || exit 2
+fi
+repo="${repo:-$(git rev-parse --show-toplevel 2>/dev/null)}"
 [ -z "$repo" ] && { echo "not in a git repo; pass a repo path" >&2; exit 1; }
 cd "$repo" || exit 1
 
+git rev-parse --git-dir >/dev/null 2>&1 || {
+	echo "error: $repo is not a git repository" >&2; exit 1; }
+
+# The audit base is the branch PRs merge into: the remote default branch,
+# or an explicit -b/--base for PRs targeting another branch.
+if [ -z "$base" ]; then
+	base=$(git symbolic-ref --short -q refs/remotes/origin/HEAD 2>/dev/null || true)
+	if [ -z "$base" ]; then
+		for c in origin/main origin/master; do
+			git rev-parse --verify -q "$c" >/dev/null 2>&1 && { base="$c"; break; }
+		done
+	fi
+	[ -n "$base" ] && \
+		echo "note: defaulting base to $base (override with -b/--base)" >&2
+fi
+case "$base" in
+	origin/*)
+		git fetch origin "+refs/heads/${base#origin/}:refs/remotes/$base" --quiet 2>/dev/null \
+			|| echo "warn: could not fetch $base; merged column may be stale" >&2 ;;
+esac
+git rev-parse --verify -q "$base^{commit}" >/dev/null 2>&1 || {
+	echo "error: base ref '$base' does not resolve" >&2; exit 1; }
+
 # Main worktree is the first entry; everything else is a candidate.
 main_wt=$(git worktree list --porcelain | awk '/^worktree /{print $2; exit}')
-
-# origin/main drives the merge check. Best-effort; stale is fine for a first pass.
-git fetch origin main --quiet 2>/dev/null || echo "warn: could not fetch origin/main; merged column may be stale" >&2
 
 # PR state by branch, fetched once. Empty if gh is unavailable.
 prs=$(mktemp)
@@ -31,9 +81,14 @@ command -v rg >/dev/null || echo "warn: rg not found; LAST_CHAT column will be e
 # Transcripts: ~/.claude/projects/<encoded-cwd>/<uuid>.jsonl, where <encoded-cwd> is a
 # session's cwd with every "/" turned into "-". A session run inside a worktree lives
 # under that worktree's own directory, so scan the whole projects tree, not one repo's.
-transcripts="$HOME/.claude/projects"
+if [ -n "$transcript_root" ]; then
+	transcripts="$transcript_root"
+else
+	transcripts="$HOME/.claude/projects"
+fi
 now=$(date +%s)
 
+echo "# base: $base"
 printf "SIZE\tAGE\tMERGED\tDIRTY\tREMOTE\tPR\tLAST_CHAT\tBUCKET\tWORKTREE\n"
 
 git worktree list --porcelain | awk '/^worktree /{print $2}' | while read -r wt; do
@@ -44,9 +99,9 @@ git worktree list --porcelain | awk '/^worktree /{print $2}' | while read -r wt;
 	head_ts=$(git -C "$wt" log -1 --format='%ct' HEAD 2>/dev/null || echo 0)
 	age=$([ "$head_ts" -gt 0 ] 2>/dev/null && echo "$(( (now - head_ts) / 86400 ))d" || echo "?")
 
-	# Squash-merged branches are not ancestors of main, so PR state is the
+	# Squash-merged branches are not ancestors of the base, so PR state is the
 	# real signal; merge-base only catches fast-forward/rebase merges.
-	git merge-base --is-ancestor "$head" origin/main 2>/dev/null && merged=YES || merged=no
+	git merge-base --is-ancestor "$head" "$base" 2>/dev/null && merged=YES || merged=no
 
 	# Distinguish real WIP (tracked edits) from disposable untracked scratch.
 	porcelain=$(git -C "$wt" status --porcelain 2>/dev/null)

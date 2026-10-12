@@ -147,9 +147,87 @@
       "date": "2026-10-10",
       "status": "pending",
       "subject": "feat(pstack): add /ketchup skill (#539)"
+    },
+    {
+      "commit": "ea32d9562a1c9f077d7cdd3be53d07383eb18866",
+      "date": "2026-10-11",
+      "status": "pending",
+      "subject": "feat(pstack): show /ketchup decisions as before/after visuals (#570)"
+    },
+    {
+      "commit": "08bd59b37834550f5e8fa0bb5e8852204a7534cf",
+      "date": "2026-10-11",
+      "status": "pending",
+      "subject": "refactor(pstack): cut unneeded sections from seven skills (#571)"
+    },
+    {
+      "commit": "de2dba6ffa001bc3c97acf1f58bc7ab29d5fdc7a",
+      "date": "2026-10-12",
+      "status": "pending",
+      "subject": "fix(pstack): rename Comment Sicko agent id so Grok can spawn it (#486)"
+    },
+    {
+      "commit": "87c810326a9a1dc727651b7d9bbfc5a116d68582",
+      "date": "2026-10-11",
+      "status": "pending",
+      "subject": "fix(pstack): respect fenced code blocks in plan checks (#536)"
+    },
+    {
+      "commit": "ff8f83da30af53de945acd0e1dc10a7b21a3187f",
+      "date": "2026-10-12",
+      "status": "pending",
+      "subject": "fix(watch-pr): paginate review threads instead of reading only the first 100 (#484)"
+    },
+    {
+      "commit": "bc697d0a5a163cec979e362b601e36f5616083fd",
+      "date": "2026-10-11",
+      "status": "pending",
+      "subject": "fix(pstack): drop \"Must always apply.\" from unslop description (#572)"
+    },
+    {
+      "commit": "cf9a111eaf1eda5724abb607ef4c446ced843d65",
+      "date": "2026-10-11",
+      "status": "pending",
+      "subject": "fix(pstack): worktree-audit checks MERGED against the default branch, not origin/main (#574)"
+    },
+    {
+      "commit": "2bd5dd4f22ef958435082c417c027079f8f4ddb7",
+      "date": "2026-10-11",
+      "status": "pending",
+      "subject": "fix(pstack): make the /poteto-mode chat the runner, poteto-agent a delegate (#575)"
+    },
+    {
+      "commit": "e5a02f8fb0409c2db7eb06eae9078b235a2b5009",
+      "date": "2026-10-11",
+      "status": "pending",
+      "subject": "feat(pstack): add Agent Plugins v1 root manifest (#576)"
+    },
+    {
+      "commit": "c49b37a2c0e7bede60a71ad7322e3f12c337a3da",
+      "date": "2026-10-12",
+      "status": "pending",
+      "subject": "fix(pstack): create-verification-skill readiness means the app is usable (#573)"
+    },
+    {
+      "commit": "1b6d44ff26d4e242f4e8f68c391e6d2f7ca16def",
+      "date": "2026-10-12",
+      "status": "pending",
+      "subject": "chore(pstack): bump to 0.15.20 (#581)"
+    },
+    {
+      "commit": "364a77eb358f16292410a7295fd8d103fb7dd40e",
+      "date": "2026-10-12",
+      "status": "pending",
+      "subject": "fix(pstack): tell agents where bundled leaf skills live (#577)"
+    },
+    {
+      "commit": "997ffc7fe26bdaa6478a14e7f5b8d5f9ed747102",
+      "date": "2026-10-12",
+      "status": "pending",
+      "subject": "chore(pstack): bump to 0.15.21 (#584)"
     }
   ],
-  "reviewed_through": "978ca6e9c0e012047cd5058b8e829240336e704e",
+  "reviewed_through": "997ffc7fe26bdaa6478a14e7f5b8d5f9ed747102",
   "schema": 1,
   "source": {
     "path": "pstack/",

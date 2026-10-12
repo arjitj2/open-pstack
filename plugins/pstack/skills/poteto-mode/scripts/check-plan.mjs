@@ -160,6 +160,31 @@ export const CONTRACT = Object.freeze({
 const SUB_BLOCKS = CONTRACT.prBlocks.map((block) => block.name);
 
 /**
+ * @param {string} text
+ * @returns {{ char: string, length: number } | null}
+ */
+function openingFence(text) {
+  const match = text.match(/^( {0,3})(`{3,}|~{3,})(.*)$/);
+  if (!match) return null;
+  const char = match[2][0];
+  const info = match[3];
+  if (char === "`" && info.includes("`")) return null;
+  return { char, length: match[2].length };
+}
+
+/**
+ * @param {string} text
+ * @param {{ char: string, length: number }} fence
+ * @returns {boolean}
+ */
+function closingFence(text, fence) {
+  const match = text.match(/^ {0,3}(`+|~+)[ \t]*$/);
+  return Boolean(
+    match && match[1][0] === fence.char && match[1].length >= fence.length
+  );
+}
+
+/**
  * @param {string} raw
  * @returns {{ n: number, text: string, code: boolean }[]}
  */
@@ -170,13 +195,22 @@ function toLines(raw) {
     const close = split.indexOf("---", 1);
     start = close === -1 ? 0 : close + 1;
   }
+  /** @type {{ n: number, text: string, code: boolean }[]} */
   const lines = [];
-  let fence = false;
+  /** @type {{ char: string, length: number } | null} */
+  let fence = null;
   for (let i = start; i < split.length; i++) {
     const text = split[i] ?? "";
     const n = i + 1;
-    if (/^```/.test(text)) fence = !fence;
-    lines.push({ n, text, code: fence });
+    let code = Boolean(fence);
+    if (fence && closingFence(text, fence)) {
+      code = false;
+      fence = null;
+    } else if (!fence) {
+      fence = openingFence(text);
+      code = Boolean(fence);
+    }
+    lines.push({ n, text, code });
   }
   return lines;
 }

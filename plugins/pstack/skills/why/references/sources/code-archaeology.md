@@ -37,17 +37,7 @@ git show <hash>
 git log <old>..<new> -p -- <file>
 ```
 
-For each substantive commit, pull the PR context:
-
-```bash
-# PR number from the merge commit or branch
-git log -1 --format=%B <hash>
-
-# Body, review comments, linked issues. In a PR with discussion, reviews and comments hold the real signal
-gh pr view <number> --json title,body,author,createdAt,mergedAt,labels,closingIssuesReferences,comments,reviews,files
-```
-
-Look for out-of-band docs:
+For each substantive commit, pull the PR context with the same `gh pr view` query the seed step used, then look for out-of-band docs:
 
 ```bash
 # ADRs often live in docs/adr/ or similar
@@ -75,12 +65,3 @@ rg -l '<symbol>' --glob '*test*'
 - **Misleading commit messages.** "Small refactor" sometimes hides an intentional behavior change. Look at the diff, not the message.
 - **Cargo-culted patterns.** The author may have copied a pattern without understanding why. Check whether it originated earlier in the codebase, and investigate *that* commit.
 - **Bot commits and auto-merges.** Dependabot, Renovate, and automated backports usually carry no motivation. Skip them when looking for intent.
-- **Treating code as evidence of intent.** The code isn't evidence for why it exists. Evidence comes from commit messages, PRs, comments, tests, and docs. Don't cite "the function is named X" as evidence of intent.
-
-## What to return
-
-Every commit/PR/comment that bears on the question, with:
-- The exact text (quoted)
-- The hash / PR number / file:line
-- Author and date
-- Whether it's direct (explicitly addresses the question) or circumstantial

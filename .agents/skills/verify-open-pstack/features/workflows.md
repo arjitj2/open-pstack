@@ -23,12 +23,15 @@ Users invoke poteto-mode for an engineering task or call a focused skill directl
 - `workflow-interrogate-completion`: independent identical review prompts produce verified terminal findings before a verdict, without automatic edits.
 - `workflow-poteto-paths`: title-derived principle and playbook lookup resolves exception paths and preserves corrected test guidance.
 - `workflow-writing-guidance`: distilled writing, principle, bespoke-playbook, and trace guidance preserves its contracts in an observed artifact.
+- `workflow-watch-pr-pages`: the Babysit watcher walks every review-thread page, keeps later-page blockers visible, counts Bugbot review passes globally, and fails closed on malformed or repeated cursors.
+- `workflow-plan-fences`: `check-plan.mjs` treats CommonMark backtick/tilde fences as code so examples inside them never become plan structure.
+- `workflow-worktree-audit-base`: `worktree-audit.sh` merges against the remote default branch or an explicit `-b` base, fetches through the owning session only, and reports CLI misuse cleanly.
 
 ## How to get to it (user POV)
 
 Claude Code: `/pstack:poteto-mode`, `/pstack:how`, `/pstack:ketchup`, or another named focused skill. Codex: select the same names in the skill picker, or mention `$pstack:poteto-mode`, `$pstack:how`, `$pstack:ketchup`, or the relevant focused skill. Ketchup is manual-only in both hosts.
 
-## Driving it with the parent apps
+## Driving it with the parent apps and shipped CLIs
 
 Preconditions: installed candidate identity established, authenticated selected providers, and a saved approved sheet. Read the installed provider-dispatch reference before dispatch. Use a test task attached to this checkout; do not alter the user's model assignments.
 
@@ -53,6 +56,12 @@ Preconditions: installed candidate identity established, authenticated selected 
 - **Distilled guidance artifacts:** in a bounded installed-host run, ask Figure It Out for a bespoke read-only playbook and apply the changed principle and writing leaves to a supplied artifact. Record which leaves actually load. Check that the plan retains a falsifiable hypothesis, verifiable units, a rerunnable live artifact, a judge, and a decision log. Review the artifact for idempotence, first-unit comparison, structural enforcement, independent layers/state analysis, domain invariants, removal before addition, semantic types and boundary parsing, and evidence for numerical claims where those leaves apply. Check Technical Writing's four layers and Unslop's stable rule IDs against the loaded leaves. For Trace Forensics, supply a fixed captured profiling artifact and expect read-only diagnosis, attribution to captured source, hypotheses labeled as such, and a request for paired-capture confirmation before claiming causation. Retain the input, loaded skills, output, and unchanged source. Mark any leaf or trace route not actually exercised as unverified.
 - **Evidence:** retain parent input, skill loads, native events or external receipts, and `git status --short` plus `git diff` before and after. Verify referenced source locations and the stated persistence behavior against the orchestration recipe.
 
+The changed poteto-mode CLIs also have direct recipes that need no installed host; label their results CLI evidence, never installed-parent proof.
+
+- **Watch-pr pagination:** `bun test --parallel watch-pr` inside `plugins/pstack/skills/poteto-mode/scripts/` covers the whole resolver. For a focused drive, feed the shipped `GitHubReader` seam canned `ReviewThreadPage`s: more than one page with the only unresolved thread on a later page must keep the verdict blocked, Bugbot `RUN_ID:` passes spread across pages must annotate every Bugbot thread with the global count, and a missing `pageInfo`, a `hasNextPage` page with a null, absent, or empty `endCursor`, or a repeated cursor must fail closed as `WatcherQueryError` rather than silently stopping. Live `gh api` paging against a real PR is CLI/service proof; a stub adapter is a labeled synthetic boundary.
+- **Plan fences:** `bun test --parallel check-plan` covers the parser. For a focused drive, write the emitted playbook skeleton to a scratch file and append fenced examples — indented openers, closers longer than the opener, tilde fences, and mismatched or suffixed non-closers must leave the plan valid, while a heading or punctuation violation outside a proper close must fail. `node check-plan.mjs` with no path or extra args exits 2 with usage; an unreadable path exits 2 without usage.
+- **Worktree audit base:** the shipped script runs a real `git fetch`, so the verifying parent runs it against disposable repos, never a read-only worker. Cover an `origin/HEAD` default (including a non-`main` default), a fallback clone where only `origin/master` resolves, `-b origin/<branch>` for worktrees whose PRs target another branch, a single-branch clone where `-b` pulls the base through the explicit refspec, and `bash worktree-audit.sh --help` (exit 0), `-b` with no value and unknown flags (exit 2 with usage), a non-repo path (exit 1), and an unresolvable base (exit 1 naming the ref). The `# base:` line must report the chosen base. Pass `--transcript-root` with the fixture’s scoped transcript directory; never repurpose `HOME` or fall back to personal stores.
+
 ## Gotchas
 
 - The general and direct entry prompts prove read-only workflow entry; they do not cover implementation, architect, arena, or review panels.
@@ -63,4 +72,9 @@ Preconditions: installed candidate identity established, authenticated selected 
 - Run changed prompt recipes in both affected installed hosts with the exact candidate and approved model sheet. Source review and CLI checks do not prove those parent decisions. Record each unexercised workflow or fixture condition as unverified.
 - Ketchup's read-only check is a status catch-up, not an authorization to repair, resume, schedule, approve, merge, ship, or cancel work. UI inspection needs explicit authorization within the current scope, even for read-only status.
 - Retained provider references do not require repeating unchanged setup, billing, provider availability, fallback, orchestration CLI, or install-source coverage. Named terminal results and receipts still need inspection in the changed prompt workflows.
+- The shipped-CLI recipes exercise the real binaries against fake readers and disposable repos; they do not prove GitHub's live paging, `gh`, or an installed parent's use of them.
 - Do not add a timeout, weaker model, or unsaved backup to finish a verification run.
+
+The audit fixture must pass `--transcript-root` pointing to its empty or supplied transcript directory. Verify `--base --help` and empty option values fail with usage, a local slash-containing ref causes no origin fetch, and an explicit unfetched remote base creates its destination ref in a single-branch clone.
+
+Changed-prompt recipes must also exercise: a manual Ketchup grounded in-reply option comparison with missing screenshots or numbers labeled; a parent Poteto run that keeps the playbook and receives one helper’s terminal report after that helper opens the supplied absolute installed skill and sibling leaf; and a generated verification skill launched from empty data through migrations and seed, a failed missing-seed precondition recorded in Gotchas without weakening the journey, stand-in setup steps explicitly left unverified, one actual generated user path, and teardown. Use local CLI surfaces for generator fixtures; UI requires explicit authorization. Invoking `gh` is CLI/service evidence, never proof that an installed parent invoked the watcher.

@@ -25,3 +25,5 @@ Open with one sentence that says how many action items there are, or that there 
 Then say what happened, most important first. Give each result and what it means for the user. Skip steps that changed nothing. Name in one line any work left that you can do yourself.
 
 Then give each action item a short executive summary. Cover the decision to make, why it matters now, the options and what each costs, your recommendation, and what happens if the user does not answer. If you do not know a part, say so instead of guessing. Link to the detail when there is one, and write the summary so the user can decide without opening it.
+
+Show each action item's decision as a grounded comparison inside the reply when one clarifies it: the current state beside each option, or the options alone when there is no current state. Build it only from facts this turn already established — a table of recorded numbers, a quoted diff, a diagram of gathered state. Never invent a number, and never draw a screen you did not capture. Creating the visual is still this read-only turn: no new files, no UI, no posted content. If no grounded visual exists, say so plainly rather than making one.
