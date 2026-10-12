@@ -4,11 +4,27 @@ This file records what each version of the Open Pstack package changed. Versions
 
 Entries describe package versions. Published release checkpoints have tag links; installation follows `main` unless pinned. Validation belongs to the linked pull requests. Older reports remain available through immutable links.
 
-## 1.14.0 adds read-only chat catch-up
+## 1.15.0 adds read-only chat catch-up
 
 Cursor baseline: [0.15.15](https://github.com/cursor/plugins/tree/df581122cde17e6e27686b5a448bde23e4ad4318/pstack). [Issue #117](https://github.com/arjitj2/open-pstack/issues/117).
 
 Adds the manually invoked ketchup skill and shortens engineering prompts while preserving provider routing and evidence requirements. Candidate validation and Cursor baseline advancement are pending.
+
+## 1.14.0 restores compatible OpenCode V1 and generalizes V2 support
+
+Cursor baseline: [0.15.15](https://github.com/cursor/plugins/tree/df581122cde17e6e27686b5a448bde23e4ad4318/pstack). [Issue #122](https://github.com/arjitj2/open-pstack/issues/122). [PR #123](https://github.com/arjitj2/open-pstack/pull/123). Tag [v1.14.0](https://github.com/arjitj2/open-pstack/releases/tag/v1.14.0).
+
+Restores OpenCode V1 support (`>=1.18.29 <2`) and admits stable V2 (`>=2.0.0 <3`) through required capability checks. Compatible patch and minor updates no longer require a Pstack release. V1 uses its original configuration and terminal-stream completion; V2 retains private configuration and persisted session completion checks.
+
+The explicit ChatGPT subscription mode now supports both contracts with API spending denied. The CLI must expose the authentication metadata needed to verify the route; V2 2.0.0 lacks that capability and is rejected before inference. The premature 2.0.0 release announcement is withdrawn, and its historical tag is preserved. [Update instructions](README.md#update-switch-or-roll-back) cover installing this replacement when the version number decreases. Provider compatibility and major-release approval requirements are recorded in [AGENTS.md](AGENTS.md#provider-compatibility-and-major-releases).
+
+## 2.0.0 migrates OpenCode workers to native V2 (withdrawn)
+
+Cursor baseline: [0.15.15](https://github.com/cursor/plugins/tree/df581122cde17e6e27686b5a448bde23e4ad4318/pstack). [Issue #120](https://github.com/arjitj2/open-pstack/issues/120). [PR #121](https://github.com/arjitj2/open-pstack/pull/121). Preserved tag [v2.0.0](https://github.com/arjitj2/open-pstack/tree/v2.0.0). The release announcement for this version was withdrawn by [issue #122](https://github.com/arjitj2/open-pstack/issues/122); the tag remains as historical evidence and is not reused.
+
+Replaces the V1 OpenCode adapter with the tested stable V2 2.0.26 command and configuration contract. Requires exact private configuration sources and ordered permissions, keeps process lifecycle in the shared runner, and removes V1 compatibility. Final delivery uses one native standalone session export to prove matching completed stop and succeeded idle, including legitimate streams without a final finish. Export text and usage are delivered once; completion proof prevents replay after delivery failure.
+
+Adds an explicit ChatGPT subscription opt-in for exactly `openai/gpt-6.1-sol@default` with API spending denied. It strips ambient credential and route overrides, configures the native Codex HTTP endpoint, and requires one visible OpenAI OAuth connection before execution. It trusts the normal native login and does not attest hidden credential metadata or runtime permissions. Ordinary native authentication still requires explicit spending approval.
 
 ## 1.13.0 adds prompting guidance to explicit help
 

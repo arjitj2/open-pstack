@@ -1,5 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import { join } from "node:path";
+import { openCodeFunding } from "./opencode.ts";
 import { main, parseArgs } from "./cli.ts";
 
 function argv(extra: readonly string[] = []): string[] {
@@ -104,5 +105,15 @@ describe("runner status subcommand", () => {
     );
     expect(code).toBe(64);
     expect(captured.err).toContain("--progress");
+  });
+});
+
+describe("runner explicit OpenCode ChatGPT subscription flag", () => {
+  const subscriptionArgs = () => argv().map((value,index,values) => values[index-1] === "--provider" ? "opencode" : values[index-1] === "--model" ? "openai/gpt-6.1-sol" : values[index-1] === "--effort" ? "default" : value);
+  it("preserves the explicit flag and denied spend", () => {
+    expect(parseArgs([...subscriptionArgs(),"--opencode-chatgpt-subscription","--api-spend","deny"])).toMatchObject({opencodeChatgptSubscription:true,apiSpend:"deny"});
+  });
+  for(const extra of [[],["--api-spend","approved"]]) it("rejects incompatible subscription funding", () => {
+    expect(() => { const opts = parseArgs([...subscriptionArgs(),"--opencode-chatgpt-subscription",...extra]); if (opts !== null) openCodeFunding(opts); }).toThrow();
   });
 });

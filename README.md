@@ -208,6 +208,8 @@ In Codex, run `codex plugin marketplace upgrade open-pstack` to refresh the cata
 
 After an update, run `setup-pstack` once. It migrates older versioned Fable, Opus, and Sonnet entries to rolling aliases and keeps your role assignments and efforts. Until you run it, Pstack applies the same migration at run time without saving it.
 
+Version 2.0.0's release announcement was withdrawn; its tag remains as a historical checkpoint. The current release is 1.14.0, whose number is lower than the withdrawn tag, so update prompts may not offer it and pinned `v2.0.0` installations do not move on their own. Refresh or reinstall as shown above to get 1.14.0.
+
 ### Switch from a pinned tag or another distribution
 
 Register the marketplace again without a ref. For Codex, run:
