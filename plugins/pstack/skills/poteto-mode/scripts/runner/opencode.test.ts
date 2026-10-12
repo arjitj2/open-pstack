@@ -3,7 +3,7 @@ import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, sy
 import { execFileSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { inspectOpenCodeStream, parseOpenCodeExport, openCodeOAuthPreflightPassed, OPENCODE_CHATGPT_SUBSCRIPTION_MODEL, OPENCODE_CHATGPT_ENDPOINT, openCodeAgent, openCodeAttempt, openCodeConfig, openCodeConfigDirectory, openCodeDirectory, openCodeEnvironment, openCodeFunding, openCodePreflightPassed, parseOpenCodeTranscript, openCodeVersionError, validateOpenCodeModel } from "./opencode.ts";
+import { inspectOpenCodeStream, parseOpenCodeExport, openCodeOAuthPreflightPassed, openCodeV1OAuthListPassed, OPENCODE_CHATGPT_SUBSCRIPTION_MODEL, OPENCODE_CHATGPT_ENDPOINT, OPENCODE_SUPPORTED_RANGE, OPENCODE_TESTED_VERSIONS, OPENCODE_V1_MINIMUM, openCodeAgent, openCodeAttempt, openCodeV1Config, openCodeV2Config, openCodeConfigDirectory, openCodeDirectory, openCodeEnvironment, openCodeFilesUnchanged, openCodeFunding, openCodePreflightPassed, openCodeSelectVersion, parseOpenCodeTranscript, validateOpenCodeModel, type OpenCodeAttempt, type OpenCodeV1Attempt, type OpenCodeV2Attempt, type OpenCodeVersion } from "./opencode.ts";
 import { runLane } from "./run.ts";
 import { classifyProcessOutcome, hasTerminalSuccess } from "./provider-failure.ts";
 import { invocationCommand } from "./commands.ts";
@@ -45,10 +45,24 @@ describe("OpenCode transcript contract", () => {
     incompleteEarlier: stream(start,text,event("step_start","s2",{},"m2"),event("text","t2",{text:"DONE"},"m2"),event("step_finish","f2",{reason:"stop"},"m2")),
     reconciliationText: stream(start,text,finish,event("text","prt_m1_text-0",{text:"TAIL"}),finish),
     changedFinish: stream(start,text,finish,event("step_finish","finish",{reason:"length"})),
-    missingToolPartID: stream(start,{type:"tool_use",sessionID:"s1",part:{id:"call",messageID:"m1",sessionID:"s1"}},finish),
+    toolOnFinalMessage: stream(start,{type:"tool_use",sessionID:"s1",part:{id:"call",messageID:"m1",sessionID:"s1"}},finish),
     missingFinishReason: stream(start,text,event("step_finish","f2")),
     wrongPartSession: stream(start, { ...text, part: { ...text.part, sessionID: "other" } }, finish),
   })) it(`rejects ${name}`, () => expect(parseOpenCodeTranscript(value).kind).toBe("incomplete"));
+  it("admits V1 and V2 tool identities without treating conflicting identities as interchangeable", () => {
+    const v1tool = { type: "tool_use", sessionID: "s1", part: { id: "call-1", sessionID: "s1", messageID: "m1", tool: "read" } };
+    const v2tool = { type: "tool_use", sessionID: "s1", part: { partID: "part-9", id: "call-9", sessionID: "s1", messageID: "m1", tool: "read" } };
+    expect(inspectOpenCodeStream(stream(v1tool)).kind).toBe("incomplete");
+    expect(inspectOpenCodeStream(stream(v2tool)).kind).toBe("identified");
+    for (const tool of [v1tool, v2tool]) {
+      const stdout = stream(start, tool, finish,
+        event("step_start", "s2", {}, "m2"), event("text", "t2", { text: "DONE" }, "m2"), event("step_finish", "f2", { reason: "stop" }, "m2"));
+      expect(parseOpenCodeTranscript(stdout).kind).toBe("complete");
+    }
+    expect(inspectOpenCodeStream(stream(v2tool, { ...v2tool, part: { partID: "part-9", id: "other-call", sessionID: "s1", messageID: "m1", tool: "read" } })).kind).toBe("incomplete");
+    expect(inspectOpenCodeStream(stream(v1tool, { ...v1tool, part: { ...v1tool.part, messageID: "other" } })).kind).toBe("incomplete");
+    expect(inspectOpenCodeStream(stream({ ...v2tool, part: { ...v2tool.part, partID: "call-9", id: "v2-call" } }, { ...v1tool, part: { ...v1tool.part, id: "call-9" } })).kind).toBe("incomplete");
+  });
   it("preserves terminal errors and never classifies generic quota text as exhaustion", () => {
     const stdout = success + "\n" + JSON.stringify({ type: "error", sessionID: "s1", error: { name: "APIError", data: { statusCode: 429, message: "quota exhausted" } } });
     expect(parseOpenCodeTranscript(stdout).kind).toBe("error");
@@ -65,36 +79,62 @@ function options(overrides: Partial<RunnerOptions> = {}): RunnerOptions {
   return { parent: "codex", provider: "opencode", model: "openai/vendor/model", effort: "default", mode: "read-only", promptPath: join(scratch, "prompt"), cwd: scratch, outputPath: join(scratch, "output"), receiptPath: join(scratch, "receipt"), timeoutMs: null, apiSpend: "approved", ...overrides };
 }
 function fixture(value: object): void { writeFileSync(join(scratch, "fixture.json"), JSON.stringify(value)); }
+const v2Version: OpenCodeVersion = { contract: "v2", major: 2, minor: 0, patch: 26, text: "2.0.26" };
+const v1Version: OpenCodeVersion = { contract: "v1", major: 1, minor: 18, patch: 32, text: "1.18.32" };
+function v2Attempt(opts: RunnerOptions, env: NodeJS.ProcessEnv = process.env): OpenCodeV2Attempt {
+  const attempt = openCodeAttempt(opts, env, v2Version);
+  if (attempt === null || attempt.contract !== "v2") throw Error("expected a V2 attempt");
+  return attempt;
+}
+function v1Attempt(opts: RunnerOptions, env: NodeJS.ProcessEnv = process.env): OpenCodeV1Attempt {
+  const attempt = openCodeAttempt(opts, env, v1Version);
+  if (attempt === null || attempt.contract !== "v1") throw Error("expected a V1 attempt");
+  return attempt;
+}
 const syntheticOpenCode = `#!/usr/bin/env bun
 import { readFileSync, writeFileSync, statSync, symlinkSync } from "node:fs";
 const fixture = JSON.parse(readFileSync("fixture.json", "utf8"));
-const args = process.argv.slice(2);
-if (args[0] === "--version") {
-  writeFileSync("version.json", JSON.stringify(args));
+const rawArgs = process.argv.slice(2);
+if (rawArgs[0] === "--version") {
+  writeFileSync("version.json", JSON.stringify(rawArgs));
   if (fixture.versionDelay) await Bun.sleep(fixture.versionDelay);
   console.log(fixture.version ?? "opencode v2.0.26"); process.exit(fixture.versionExit ?? 0);
 }
-const configDir = process.env.OPENCODE_CONFIG_DIR;
-const configPath = configDir + "/opencode.json";
+const v1 = process.env.OPENCODE_CONFIG_DIR === undefined;
+const configPath = v1 ? process.env.OPENCODE_CONFIG : process.env.OPENCODE_CONFIG_DIR + "/opencode.json";
+const configDir = v1 ? undefined : process.env.OPENCODE_CONFIG_DIR;
 const config = JSON.parse(readFileSync(configPath, "utf8"));
+if (v1 && !config.$schema) { config.$schema = "https://opencode.ai/config.json"; writeFileSync(configPath, JSON.stringify(config)); }
+const args = rawArgs[0] === "--pure" ? rawArgs.slice(1) : rawArgs;
 if (args.includes("debug")) {
-  writeFileSync("preflight.json", JSON.stringify({args, config, configMode: statSync(configPath).mode & 511, home: process.env.HOME, pwd: process.env.PWD, service: JSON.parse(readFileSync(configDir + "/service.json", "utf8")), configHome:process.env.XDG_CONFIG_HOME, opencodeHome:process.env.OPENCODE_TEST_HOME, override:process.env.OPENCODE_CONFIG_CONTENT}));
+  writeFileSync("preflight.json", JSON.stringify({args: rawArgs, config, configMode: statSync(configPath).mode & 511, home: process.env.HOME, pwd: process.env.PWD, service: v1 ? undefined : JSON.parse(readFileSync(configDir + "/service.json", "utf8")), configHome:process.env.XDG_CONFIG_HOME, opencodeHome:process.env.OPENCODE_TEST_HOME, override:process.env.OPENCODE_CONFIG_CONTENT, noColor:process.env.NO_COLOR}));
   if (fixture.preflightDelay) await Bun.sleep(fixture.preflightDelay);
+  if (fixture.preflightSecret) { console.error("SECRET_SENTINEL"); process.exit(1); }
+  if (v1) {
+    if (fixture.poison) config.agent[config.default_agent].permission.bash = {"*":"allow"};
+    if (fixture.mcp) config.mcp = {evil:{type:"local",command:["false"],enabled:true}};
+    if (fixture.configPoison) writeFileSync(configPath, "{}");
+    console.log(JSON.stringify(fixture.debugV2Shape ? [{type:"document",path:configPath,info:config},{type:"directory",path:"/cross"}] : config)); process.exit(0);
+  }
   if (fixture.poison) config.agents[config.default_agent].permissions.push({action:"bash",resource:"*",effect:"allow"});
   if (fixture.mcp) config.mcp = {evil:{type:"local",command:["false"],enabled:true}};
-  if (fixture.preflightSecret) { console.error("SECRET_SENTINEL"); process.exit(1); }
   if (fixture.supplemental) writeFileSync(configDir + "/opencode.jsonc", "{}");
   if (fixture.symlink) symlinkSync(configPath, configDir + "/ambient.json");
   if (fixture.servicePoison) writeFileSync(configDir + "/service.json", "{}");
+  if (fixture.debugV1Shape) { console.log(JSON.stringify(config)); process.exit(0); }
   const entries = [{type:"document",path:configPath,info:config},{type:"directory",path:configDir}];
   if (fixture.extraSource) entries.push({type:"document",info:{model:{providerID:"evil",model:"evil"}}});
   console.log(JSON.stringify(entries)); process.exit(0);
 }
 if (args[0] === "auth") {
-  writeFileSync("auth.json", JSON.stringify({args, env:process.env}));
+  writeFileSync("auth.json", JSON.stringify({args: rawArgs, env:process.env}));
   if (fixture.authDelay) await Bun.sleep(fixture.authDelay);
   if (fixture.authPoison) writeFileSync(configPath, "{}");
-  console.log(fixture.authRaw ?? JSON.stringify(fixture.auth ?? [{id:"openai",name:"CANARY_ACCOUNT",connections:[{type:"credential",id:"CANARY_CONNECTION",label:"CANARY_LABEL",method:"oauth"}]}]));
+  if (v1) {
+    process.stdout.write(fixture.authV1 ?? fixture.authRaw ?? "\\u250c  Credentials ~/.local/share/opencode/auth.json\\n\\u2502\\n\\u25cf  OpenAI oauth\\n\\u2502\\n\\u2514  1 credentials\\n");
+  } else {
+    console.log(fixture.authRaw ?? JSON.stringify(fixture.auth ?? [{id:"openai",name:"CANARY_ACCOUNT",connections:[{type:"credential",id:"CANARY_CONNECTION",label:"CANARY_LABEL",method:"oauth"}]}]));
+  }
   if (fixture.authStderr) console.error(fixture.authStderr);
   process.exit(fixture.authExit ?? 0);
 }
@@ -108,7 +148,7 @@ if (args[0] === "session") {
   console.log(fixture.exportRaw ?? JSON.stringify(fixture.exportDocument ?? exported));
   process.exit(fixture.exportExit ?? (fixture.exportMissing ? 1 : 0));
 }
-writeFileSync("invoked.json", JSON.stringify({args,created:Date.now(), pwd: process.env.PWD, env: process.env, prompt:await Bun.stdin.text()}));
+writeFileSync("invoked.json", JSON.stringify({args: rawArgs,created:Date.now(), pwd: process.env.PWD, env: process.env, prompt:await Bun.stdin.text()}));
 if (fixture.delay) await Bun.sleep(fixture.delay);
 console.log(fixture.stdout);
 if (fixture.stderr) console.error(fixture.stderr);
@@ -132,18 +172,33 @@ afterEach(() => {
 });
 
 describe("OpenCode optional worker", () => {
-  it("accepts only the tested stable native V2 banner", () => {
-    expect(openCodeVersionError("opencode v2.0.26\n")).toBeNull();
+  it("selects the contract from bare or prefixed stable banners by major", () => {
+    for (const [banner, contract] of [["1.18.29","v1"],["1.18.32\n","v1"],["opencode v1.18.29","v1"],["opencode v1.19.4","v1"],["1.19.0","v1"],["1.18.40","v1"],["2.0.0","v2"],["2.0.25","v2"],["opencode v2.0.26","v2"],["opencode v2.0.27","v2"],["opencode v2.1.0","v2"],["2.1.0+build.3","v2"]] as const) {
+      expect(openCodeSelectVersion(banner)).toMatchObject({kind:"supported",version:{contract}});
+    }
+    expect(openCodeSelectVersion("2.0.27")).toMatchObject({kind:"supported",version:{contract:"v2",text:"2.0.27"}});
+    for (const banner of ["1.18.28","1.4.0","0.99.99","3.0.0","opencode v3.0.0","","unknown","2.0.26-beta","opencode v1.19.0-rc.1","v2.0.26","opencode 2.0.26","opencode v2.0.26 noise","1.18.32\nnoise","2.0"]) {
+      expect(openCodeSelectVersion(banner).kind, JSON.stringify(banner)).toBe("unsupported");
+    }
+    expect(OPENCODE_SUPPORTED_RANGE).toBe(">=1.18.29 <3.0.0 stable");
+    expect(OPENCODE_V1_MINIMUM).toBe("1.18.29");
+    expect(OPENCODE_TESTED_VERSIONS).toEqual(["1.18.32","2.0.0","2.0.25","2.0.26","2.0.27"]);
   });
-  for (const version of ["1.4.0", "1.18.32", "2.0.26", "opencode v2.0.25", "opencode v2.0.27", "opencode v3.0.0", "", "unknown", "opencode v2.0.26-beta", "opencode v2.0.26\nnoise"]) it(`blocks unsupported version ${JSON.stringify(version)} before config or inference`, async () => {
+  for (const version of ["1.18.28", "1.4.0", "0.99.99", "3.0.0", "opencode v3.0.0", "", "unknown", "opencode v2.0.26-beta", "opencode v1.18.32-rc.1", "opencode v2.0.26\nnoise"]) it(`blocks unsupported version ${JSON.stringify(version)} before config or inference`, async () => {
     fixture({version, stdout:success});
     const opts = options();
     const receipt = (await runLane(opts)).receipt;
     expect(receipt).toMatchObject({status:"unavailable-cli",processStarted:false,preflight:{status:"failed"}});
     expect(receipt.preflight.argv.at(-1)).toBe("--version");
-    expect(receipt.error?.message).toContain("2.0.26");
+    expect(receipt.error?.message).toContain("OpenCode");
     expect(existsSync(join(scratch,"preflight.json"))).toBe(false);
     expect(existsSync(join(scratch,"invoked.json"))).toBe(false);
+    expect(existsSync(openCodeDirectory(opts))).toBe(false);
+  });
+  for (const version of ["2.0.0", "opencode v2.0.25", "opencode v2.0.27", "opencode v2.1.0", "opencode v1.19.4", "1.18.40"]) it(`admits compatible stable ${JSON.stringify(version)} through the same capability checks`, async () => {
+    fixture({version, stdout:success});
+    const opts = options({receiptPath:join(scratch,`receipt-${version.replace(/[^0-9.]/g,"")}`),outputPath:join(scratch,`output-${version.replace(/[^0-9.]/g,"")}`)});
+    expect((await runLane(opts)).receipt.status).toBe("complete");
     expect(existsSync(openCodeDirectory(opts))).toBe(false);
   });
   it("shares the explicit deadline with the version preflight", async () => {
@@ -204,11 +259,11 @@ describe("OpenCode optional worker", () => {
     expect(existsSync(openCodeDirectory(opts))).toBe(false);
   });
   it("requires a real Git root and denies Git metadata edits", () => {
-    expect(() => openCodeConfig(options({mode:"isolated-write"}))).toThrow("Git worktree root");
+    expect(() => openCodeV2Config(options({mode:"isolated-write"}))).toThrow("Git worktree root");
     execFileSync("git",["init",scratch],{stdio:"ignore"});
     const cwd = scratch;
     const opts = options({mode:"isolated-write",cwd});
-    const config = openCodeConfig(opts);
+    const config = openCodeV2Config(opts);
     const rules = config.agents[openCodeAgent(opts)].permissions;
     expect(rules[0]).toEqual({action:"*",resource:"*",effect:"deny"});
     expect(rules).toContainEqual({action:"edit",resource:"*",effect:"allow"});
@@ -221,12 +276,12 @@ describe("OpenCode optional worker", () => {
     expect(config.plugins).not.toContain("opencode.tool.patch");
     expect(config.plugins).not.toContain("opencode.tool.shell");
     mkdirSync(join(scratch,"nested"));
-    expect(() => openCodeConfig(options({mode:"isolated-write",cwd:join(scratch,"nested")}))).toThrow("Git worktree root");
+    expect(() => openCodeV2Config(options({mode:"isolated-write",cwd:join(scratch,"nested")}))).toThrow("Git worktree root");
   });
 
   it("checks native entries structurally and rejects poisoned sources and rule order", () => {
     const opts = options();
-    const attempt = openCodeAttempt(opts,process.env)!;
+    const attempt = v2Attempt(opts);
     mkdirSync(attempt.configDirectory,{recursive:true});
     writeFileSync(join(attempt.configDirectory,"opencode.json"),JSON.stringify(attempt.config));
     writeFileSync(join(attempt.configDirectory,"service.json"),JSON.stringify({disabled:true}));
@@ -250,7 +305,7 @@ describe("OpenCode optional worker", () => {
   });
 
   it("rejects replacement symlinks for the private native files", () => {
-    const attempt = openCodeAttempt(options(),process.env)!;
+    const attempt = v2Attempt(options());
     mkdirSync(attempt.configDirectory,{recursive:true});
     const document = join(scratch,"foreign.json");
     writeFileSync(document,JSON.stringify(attempt.config));
@@ -262,7 +317,7 @@ describe("OpenCode optional worker", () => {
 
   it("preserves native data locations only for explicitly approved ordinary authentication", () => {
     const inherited = {HOME:"/native/home",XDG_DATA_HOME:"/native/data",OPENCODE_CONFIG:"/hostile",OPENCODE_PASSWORD:"private"};
-    const env = openCodeEnvironment(options(),inherited);
+    const env = openCodeEnvironment(options(),inherited,"v2");
     expect(env.HOME).toBe(inherited.HOME);
     expect(env.XDG_DATA_HOME).toBe(inherited.XDG_DATA_HOME);
     expect(env.OPENCODE_CONFIG).toBeUndefined();
@@ -350,6 +405,144 @@ describe("OpenCode optional worker", () => {
     }
     expect(result.receipt.error?.evidence).not.toContain("provider terminal detail");
     expect(result.receipt.error?.evidence).toContain("stdout:");
+  });
+});
+
+describe("OpenCode V1 worker contract", () => {
+  it("runs a compatible V1 CLI with private config, strict stream completion, and cleanup", async () => {
+    fixture({version:"1.18.32", stdout:success});
+    const opts = options();
+    const result = await runLane(opts);
+    expect(result.receipt).toMatchObject({status:"complete",modelVerified:false,modelEvidence:"pinned-argv",reportedModel:null,sessionId:"s1"});
+    expect(readFileSync(opts.outputPath,"utf8").trim()).toBe("FINAL");
+    const observed = JSON.parse(readFileSync(join(scratch,"preflight.json"),"utf8"));
+    expect(observed.args).toEqual(["--pure","debug","config"]);
+    expect(observed.configMode).toBe(0o600);
+    expect(observed.override).toBeUndefined();
+    expect(observed.service).toBeUndefined();
+    expect(observed.config.model).toBe(opts.model);
+    expect(observed.config.small_model).toBe(opts.model);
+    expect(observed.config.autoupdate).toBe(false);
+    expect(observed.config.compaction).toEqual({auto:false,prune:false});
+    expect(observed.config.provider).toBeUndefined();
+    const invoked = JSON.parse(readFileSync(join(scratch,"invoked.json"),"utf8"));
+    expect(invoked.args).toEqual(["run","--pure","--format","json","--model",opts.model,"--agent",openCodeAgent(opts),"--dir",opts.cwd,"--title","pstack-worker"]);
+    expect(existsSync(join(scratch,"auth.json"))).toBe(false);
+    expect(existsSync(join(scratch,"export.json"))).toBe(false);
+    expect(existsSync(openCodeDirectory(opts))).toBe(false);
+    expect(result.receipt.preflight.evidence).toContain("authentication deferred");
+  });
+  it("rejects a V1 stream missing its terminal step_finish without attempting export", async () => {
+    fixture({version:"1.18.32", stdout:stream(start,text)});
+    const opts = options();
+    expect((await runLane(opts)).receipt.status).toBe("malformed-output");
+    expect(existsSync(opts.outputPath)).toBe(false);
+    expect(existsSync(join(scratch,"export.json"))).toBe(false);
+    expect(existsSync(openCodeDirectory(opts))).toBe(false);
+  });
+  it("fails closed when the debug output belongs to the other contract", async () => {
+    fixture({version:"1.18.32", debugV2Shape:true, stdout:success});
+    expect((await runLane(options())).receipt.status).not.toBe("complete");
+    expect(existsSync(join(scratch,"invoked.json"))).toBe(false);
+  });
+  it("fails closed when a V2 banner receives V1-shaped merged config", async () => {
+    fixture({debugV1Shape:true, stdout:success});
+    expect((await runLane(options())).receipt.status).not.toBe("complete");
+    expect(existsSync(join(scratch,"invoked.json"))).toBe(false);
+  });
+  for (const poison of [{poison:true},{mcp:true},{preflightSecret:true},{configPoison:true}]) it(`rejects unsafe V1 effective configuration ${JSON.stringify(poison)}`, async () => {
+    fixture({version:"1.18.32", ...poison, stdout:success});
+    const result = await runLane(options());
+    expect(result.receipt.status).not.toBe("complete");
+    expect(JSON.stringify(result.receipt)).not.toContain("SECRET_SENTINEL");
+    expect(existsSync(join(scratch,"invoked.json"))).toBe(false);
+    expect(existsSync(openCodeDirectory(options()))).toBe(false);
+  });
+  for (const apiSpend of ["deny",null] as const) it(`blocks ${apiSpend ?? "legacy"} V1 billing before CLI startup`, async () => {
+    fixture({version:"1.18.32"});
+    const opts = options({apiSpend});
+    expect((await runLane(opts)).receipt).toMatchObject({status:"billing-policy-blocked",processStarted:false,preflight:{status:"not-run"}});
+    expect(existsSync(join(scratch,"version.json"))).toBe(false);
+    expect(existsSync(openCodeDirectory(opts))).toBe(false);
+  });
+  it("cleans up on cancellation during the V1 configuration preflight", async () => {
+    fixture({version:"1.18.32", preflightDelay:5000});
+    const opts = options();
+    const running = runLane(opts);
+    for (let i=0;i<500 && !existsSync(join(scratch,"preflight.json"));i++) await Bun.sleep(10);
+    expect(existsSync(join(scratch,"preflight.json"))).toBe(true);
+    process.emit("SIGTERM");
+    expect((await running).receipt).toMatchObject({status:"cancelled",processStarted:false});
+    expect(existsSync(openCodeDirectory(opts))).toBe(false);
+  });
+  it("builds the released V1 config shape with an ordered permission map", () => {
+    const opts = options();
+    const config = openCodeV1Config(opts) as Record<string, unknown>;
+    expect(config.model).toBe(opts.model);
+    expect(config.small_model).toBe(opts.model);
+    expect(config.default_agent).toBe(openCodeAgent(opts));
+    expect(config.share).toBe("disabled");
+    expect(config.autoupdate).toBe(false);
+    expect(config.compaction).toEqual({auto:false,prune:false});
+    expect(config.provider).toBeUndefined();
+    const agent = (config.agent as Record<string,Record<string,unknown>>)[openCodeAgent(opts)];
+    expect(agent.mode).toBe("primary");
+    expect(agent.model).toBe(opts.model);
+    const permission = agent.permission as Record<string,Record<string,string>>;
+    expect(permission["*"]).toEqual({"*":"deny"});
+    expect(permission.read).toEqual({"*":"allow"});
+    expect(permission.glob).toEqual({"*":"allow"});
+    expect(permission.grep).toEqual({"*":"allow"});
+    expect(permission.edit).toBeUndefined();
+    expect(permission.external_directory["*"]).toBe("deny");
+    expect(Object.keys(permission)).toEqual(["*","read","glob","grep","external_directory"]);
+  });
+  it("checks V1 effective configuration structurally and rejects mismatches", () => {
+    const opts = options();
+    const attempt = v1Attempt(opts);
+    mkdirSync(openCodeDirectory(opts), { recursive: true });
+    writeFileSync(attempt.configPath, JSON.stringify(attempt.config), { mode: 0o600 });
+    const merged = JSON.parse(JSON.stringify(attempt.config)) as Record<string, unknown>;
+    expect(openCodePreflightPassed(JSON.stringify(merged), attempt)).toBe(true);
+    for (const change of [
+      (value: Record<string,unknown>) => { value.model = "other/model"; },
+      (value: Record<string,unknown>) => { value.default_agent = "other"; },
+      (value: Record<string,unknown>) => { value.share = "auto"; },
+      (value: Record<string,unknown>) => { value.compaction = { auto: true, prune: false }; },
+      (value: Record<string,unknown>) => { value.provider = { custom: {} }; },
+      (value: Record<string,unknown>) => { value.mcp = { evil: { enabled: true } }; },
+      (_value: Record<string,unknown>, a: Record<string,unknown>) => { a.model = "other/model"; },
+      (_value: Record<string,unknown>, a: Record<string,unknown>) => { (a.permission as Record<string,Record<string,string>>).bash = { "*": "allow" }; },
+      (_value: Record<string,unknown>, a: Record<string,unknown>) => { a.extra = true; },
+      (_value: Record<string,unknown>, a: Record<string,unknown>) => { a.options = { temperature: 0 }; },
+    ]) {
+      const value = JSON.parse(JSON.stringify(attempt.config)) as Record<string, unknown>;
+      const a = (value.agent as Record<string,Record<string,unknown>>)[String(value.default_agent)];
+      change(value, a);
+      expect(openCodePreflightPassed(JSON.stringify(value), attempt)).toBe(false);
+    }
+    expect(openCodePreflightPassed("[]", attempt)).toBe(false);
+    expect(Object.isFrozen(attempt)).toBe(true);
+    expect(Object.isFrozen(attempt.config)).toBe(true);
+  });
+  it("rejects replacement symlinks for the private V1 config file", () => {
+    const attempt = v1Attempt(options());
+    const merged = JSON.stringify(attempt.config);
+    mkdirSync(openCodeDirectory(options()), { recursive: true });
+    writeFileSync(attempt.configPath, merged, { mode: 0o600 });
+    expect(openCodeFilesUnchanged(attempt)).toBe(true);
+    const foreign = join(scratch, "foreign.json");
+    writeFileSync(foreign, merged);
+    rmSync(attempt.configPath);
+    symlinkSync(foreign, attempt.configPath);
+    expect(openCodeFilesUnchanged(attempt)).toBe(false);
+  });
+  it("checks V1 merged output against the private file", () => {
+    const attempt = v1Attempt(options());
+    expect(openCodePreflightPassed(JSON.stringify(attempt.config), attempt)).toBe(false);
+    mkdirSync(openCodeDirectory(options()), { recursive: true });
+    writeFileSync(attempt.configPath, JSON.stringify(attempt.config), { mode: 0o600 });
+    expect(openCodePreflightPassed(JSON.stringify(attempt.config), attempt)).toBe(true);
   });
 });
 
@@ -481,6 +674,14 @@ describe("OpenCode explicit ChatGPT subscription", () => {
     expect(existsSync(join(scratch,"invoked.json"))).toBe(false); expect(existsSync(join(scratch,"export.json"))).toBe(false);
     expect(JSON.stringify(result.receipt)).not.toContain("CANARY_");
   });
+  it("rejects missing credential-method capability before inference without an exact-version gate", async () => {
+    fixture({version:"opencode v2.0.0",auth:[{id:"openai",connections:[{type:"credential",id:"CANARY_ID",label:"CANARY_LABEL"}]}],stdout:success});
+    const result = await runLane(subscription());
+    expect(result.receipt).toMatchObject({status:"billing-policy-blocked",processStarted:false,funding:{authentication:null}});
+    expect(result.receipt.preflight.evidence).toContain("Upgrade OpenCode if auth list does not expose credential methods");
+    expect(existsSync(join(scratch,"invoked.json"))).toBe(false);
+    expect(JSON.stringify(result.receipt)).not.toContain("CANARY_");
+  });
   for (const extra of [{authRaw:"{"},{authExit:1},{authPoison:true}]) it(`rejects failed or malformed auth preflight ${JSON.stringify(extra)}`, async () => {
     fixture({...extra,stdout:success}); const opts=subscription();
     expect((await runLane(opts)).receipt).toMatchObject({status:"billing-policy-blocked",processStarted:false});
@@ -488,14 +689,14 @@ describe("OpenCode explicit ChatGPT subscription", () => {
   });
   it("uses the native OAuth home/data with a positive provider and stripped credential/route environment", async () => {
     Object.assign(process.env,{XDG_DATA_HOME:"/native/data",OPENAI_API_KEY:"PRIVATE_KEY",ANTHROPIC_AUTH_TOKEN:"PRIVATE_TOKEN",OPENAI_BASE_URL:"PRIVATE_ROUTE",HTTP_PROXY:"PRIVATE_PROXY",HTTPS_PROXY:"PRIVATE_PROXY",NODE_OPTIONS:"PRIVATE_PRELOAD",AWS_PROFILE:"PRIVATE_ACCOUNT"});
-    const opts = subscription(); const attempt=openCodeAttempt(opts,process.env)!;
+    const opts = subscription(); const attempt=v2Attempt(opts);
     expect(attempt.config.plugins).toContain("opencode.provider.openai"); expect(attempt.config.plugins).toContain("opencode.config.provider");
     expect(attempt.config.plugins).not.toContain("opencode.provider.*"); expect(attempt.config.plugins).not.toContain("opencode.provider.chatgpt");
     expect(attempt.config.providers).toEqual({openai:{settings:{baseURL:OPENCODE_CHATGPT_ENDPOINT,transport:"http"}}});
     expect(attempt.environment.HOME).toBe(previousEnv.HOME); expect(attempt.environment.XDG_DATA_HOME).toBe("/native/data");
     for(const key of ["OPENAI_API_KEY","ANTHROPIC_AUTH_TOKEN","OPENAI_BASE_URL","HTTP_PROXY","HTTPS_PROXY","NODE_OPTIONS","AWS_PROFILE"]) expect(attempt.environment[key]).toBeUndefined();
     fixture({stdout:stream(text)}); const result=await runLane(opts);
-    expect(result.receipt).toMatchObject({status:"complete",apiSpend:"deny",funding:{kind:"chatgpt-subscription",authentication:"native-openai-oauth",configuredEndpoint:OPENCODE_CHATGPT_ENDPOINT},preflight:{evidence:"private configuration verified; exactly one visible native OpenAI OAuth connection"}});
+    expect(result.receipt).toMatchObject({status:"complete",apiSpend:"deny",funding:{kind:"chatgpt-subscription",authentication:"native-openai-oauth",configuredEndpoint:OPENCODE_CHATGPT_ENDPOINT},preflight:{evidence:"OpenCode 2.0.26 (v2): private configuration verified; exactly one visible native OpenAI OAuth credential"}});
     const auth=JSON.parse(readFileSync(join(scratch,"auth.json"),"utf8")); const invoked=JSON.parse(readFileSync(join(scratch,"invoked.json"),"utf8")); const exported=JSON.parse(readFileSync(join(scratch,"export.json"),"utf8"));
     expect(auth.args).toEqual(["auth","list","--standalone","--format","json"]); expect(auth.env).toEqual(invoked.env); expect(auth.env).toEqual(exported.env);
     expect(JSON.stringify(result.receipt)).not.toContain("CANARY_"); expect(JSON.stringify(result.receipt)).not.toContain("PRIVATE_");
@@ -505,4 +706,79 @@ describe("OpenCode explicit ChatGPT subscription", () => {
     if(cancel){ for(let i=0;i<500 && !existsSync(join(scratch,"auth.json"));i++) await Bun.sleep(10); expect(existsSync(join(scratch,"auth.json"))).toBe(true); process.emit("SIGTERM"); }
     expect((await running).receipt.status).toBe(cancel ? "cancelled" : "timed-out"); expect(existsSync(join(scratch,"auth.json"))).toBe(true); expect(existsSync(join(scratch,"invoked.json"))).toBe(false); expect(existsSync(openCodeDirectory(opts))).toBe(false);
   },8000);
+});
+
+
+const v1AuthBlock = "\u250c  Credentials ~/.local/share/opencode/auth.json\n\u2502\n\u25cf  OpenAI oauth\n\u2502\n\u2514  1 credentials\n";
+describe("OpenCode V1 explicit ChatGPT subscription", () => {
+  it("admits exactly one native OpenAI OAuth credential block and rejects grammar deviations", () => {
+    expect(openCodeV1OAuthListPassed(v1AuthBlock, "")).toBe(true);
+    expect(openCodeV1OAuthListPassed(v1AuthBlock, "\x1b[0m\n")).toBe(true);
+    expect(openCodeV1OAuthListPassed("\x1b[32m" + v1AuthBlock + "\x1b[0m", "\x1b[0m\n")).toBe(true);
+    expect(openCodeV1OAuthListPassed(v1AuthBlock.replace("1 credentials", "1 credential"), "")).toBe(true);
+    expect(openCodeV1OAuthListPassed("", v1AuthBlock)).toBe(true);
+    expect(openCodeV1OAuthListPassed(v1AuthBlock.replaceAll("\n", "\r\n"), "")).toBe(true);
+    for (const [name, [out, err]] of Object.entries({
+      api: ["Credentials /p\n\u2502  OpenAI api\n\u2514  1 credentials\n", ""],
+      badCount: [v1AuthBlock.replace("1 credentials", "2 credentials"), ""],
+      zeroCount: [v1AuthBlock.replace("1 credentials", "0 credentials"), ""],
+      duplicate: ["Credentials /p\n\u25cf  OpenAI oauth\n\u25cf  OpenAI oauth\n\u2514  1 credentials\n", ""],
+      extraEntry: ["Credentials /p\n\u25cf  OpenAI oauth\n\u2502  Anthropic oauth\n\u2514  2 credentials\n", ""],
+      environment: ["Environment\n\u2502  OPENAI_API_KEY\n\u2514  1 environment variables\n", ""],
+      envSection: [v1AuthBlock + "Environment\n\u2502  OPENAI_API_KEY\n\u2514  1 environment variables\n", ""],
+      unknownLine: [v1AuthBlock + "noise\n", ""],
+      bareEntry: ["OpenAI oauth\n", ""],
+      splitFragment: [v1AuthBlock, "OpenAI oauth\n"],
+      frameOnlyOtherStream: [v1AuthBlock, "│\n"],
+      repeatedFrame: [v1AuthBlock.replace("OpenAI oauth", "│OpenAI oauth"), ""],
+      bothStreams: [v1AuthBlock, v1AuthBlock],
+      controlNoise: ["\x1b[2J" + v1AuthBlock, ""],
+      apiKeyNoise: ["Credentials /p\n\u25cf  OpenAI oauth\n\u2514  1 credentials\n", "OPENAI_API_KEY\n"],
+    })) {
+      expect(openCodeV1OAuthListPassed(out, err), name).toBe(false);
+    }
+  });
+  it("runs a V1 subscription lane under the native home with truthful endpoint metadata", async () => {
+    Object.assign(process.env,{XDG_DATA_HOME:"/native/data",OPENAI_API_KEY:"PRIVATE_KEY",OPENAI_BASE_URL:"PRIVATE_ROUTE"});
+    fixture({version:"1.18.32", stdout:success});
+    const opts = subscription();
+    const attempt = v1Attempt(opts);
+    expect((attempt.config as Record<string,unknown>).provider).toBeUndefined();
+    expect(attempt.environment.XDG_DATA_HOME).toBe("/native/data");
+    expect(attempt.environment.NO_COLOR).toBe("1");
+    expect(attempt.environment.OPENCODE_CONFIG).toBe(join(openCodeDirectory(opts),"opencode.json"));
+    expect(attempt.environment.OPENCODE_CONFIG_DIR).toBeUndefined();
+    for (const key of ["OPENAI_API_KEY","OPENAI_BASE_URL","OPENCODE_CONFIG_DIR"]) expect(attempt.environment[key]).toBeUndefined();
+    const result = await runLane(opts);
+    expect(result.receipt).toMatchObject({status:"complete",apiSpend:"deny",sessionId:"s1",funding:{kind:"chatgpt-subscription",authentication:"native-openai-oauth",configuredEndpoint:null},preflight:{evidence:"OpenCode 1.18.32 (v1): private configuration verified; exactly one visible native OpenAI OAuth credential"}});
+    const auth = JSON.parse(readFileSync(join(scratch,"auth.json"),"utf8"));
+    const invoked = JSON.parse(readFileSync(join(scratch,"invoked.json"),"utf8"));
+    expect(auth.args).toEqual(["--pure","auth","list"]);
+    expect(auth.env).toEqual(invoked.env);
+    const observed = JSON.parse(readFileSync(join(scratch,"preflight.json"),"utf8"));
+    expect(observed.args).toEqual(["--pure","debug","config"]);
+    expect(observed.noColor).toBe("1");
+    expect(observed.config.provider).toBeUndefined();
+    expect(existsSync(join(scratch,"export.json"))).toBe(false);
+    expect(JSON.stringify(result.receipt)).not.toContain("PRIVATE_");
+  });
+  for (const bad of [
+    {authV1:"Credentials /p\n\u2502  OpenAI api\n\u2514  1 credentials\n"},
+    {authV1:"Credentials /p\n\u25cf  OpenAI oauth\n\u2514  2 credentials\n"},
+    {authV1:"Credentials /p\n\u25cf  OpenAI oauth\n\u25cf  OpenAI oauth\n\u2514  1 credentials\n"},
+    {authV1:"Credentials /p\n\u25cf  OpenAI oauth\n\u2514  1 credentials\nEnvironment\n\u2502  OPENAI_API_KEY\n\u2514  1 environment variables\n"},
+    {authV1:"OpenAI oauth\n"},
+    {authV1:""},
+    {authRaw:"Credentials /p\n\u25cf  OpenAI oauth\n\u2514  1 credentials\n", authStderr:"OpenAI oauth\n"},
+    {authStderr:"CANARY_AUTH_STDERR\n"},
+    {authExit:1},
+    {authPoison:true},
+  ]) it(`stops the V1 workload when native auth metadata fails ${JSON.stringify(bad)}`, async () => {
+    fixture({version:"1.18.32", stdout:success, ...bad});
+    const result = await runLane(subscription());
+    expect(result.receipt).toMatchObject({status:"billing-policy-blocked",processStarted:false,apiSpend:"deny",funding:{authentication:null}});
+    expect(existsSync(join(scratch,"invoked.json"))).toBe(false);
+    expect(existsSync(join(scratch,"export.json"))).toBe(false);
+    expect(JSON.stringify(result.receipt)).not.toContain("CANARY_");
+  });
 });

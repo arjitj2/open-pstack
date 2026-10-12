@@ -1,4 +1,4 @@
-import { openCodeAgent } from "./opencode.ts";
+import { openCodeAgent, type OpenCodeContract } from "./opencode.ts";
 import { cursorHasApiKey } from "./cursor.ts";
 import { antigravityLaneFiles } from "./antigravity.ts";
 import type {
@@ -45,10 +45,35 @@ export function claudeWriterVersionError(stdout: string): string | null {
   return null;
 }
 
-export function preflightCommand(provider: Provider, mode: AccessMode): CommandSpec | null {
+export function openCodePreflightCommand(contract: OpenCodeContract): CommandSpec {
+  return contract === "v1"
+    ? { command: "opencode", args: ["--pure", "debug", "config"], stdin: "none" }
+    : { command: "opencode", args: ["debug", "config"], stdin: "none" };
+}
+
+export function openCodeAuthListCommand(contract: OpenCodeContract): CommandSpec {
+  return contract === "v1"
+    ? { command: "opencode", args: ["--pure", "auth", "list"], stdin: "none" }
+    : { command: "opencode", args: ["auth", "list", "--standalone", "--format", "json"], stdin: "none" };
+}
+
+export function openCodeInvocationCommand(options: RunnerOptions, contract: OpenCodeContract): WorkerCommandSpec {
+  const guidance = workerGuidance(options.provider, options.mode);
+  return contract === "v1"
+    ? { command: "opencode", args: ["run", "--pure", "--format", "json", "--model", options.model, "--agent", openCodeAgent(options), "--dir", options.cwd, "--title", "pstack-worker"], stdin: "prompt", workerGuidance: guidance }
+    : { command: "opencode", args: ["run", "--standalone", "--format", "json", "--model", options.model, "--agent", openCodeAgent(options), "--title", "pstack-worker"], stdin: "prompt", workerGuidance: guidance };
+}
+
+export function openCodeVersionProbe(mode: AccessMode): WorkerCommandSpec {
+  return { command: "opencode", args: ["--version"], stdin: "none", workerGuidance: workerGuidance("opencode", mode) };
+}
+
+export function preflightCommand(provider: Provider, mode: AccessMode, openCodeContract?: OpenCodeContract): CommandSpec | null {
   switch (provider) {
     case "opencode":
-      return { command: "opencode", args: ["debug", "config"], stdin: "none" };
+      return openCodeContract === undefined
+        ? { command: "opencode", args: ["--version"], stdin: "none" }
+        : openCodePreflightCommand(openCodeContract);
     case "devin":
       return { command: "devin", args: ["auth", "status"], stdin: "none" };
     case "cursor":
@@ -146,7 +171,8 @@ function workerGuidance(provider: Provider, mode: AccessMode): string {
 
 export function invocationCommand(
   options: RunnerOptions,
-  effectivePromptPath: string = options.promptPath
+  effectivePromptPath: string = options.promptPath,
+  openCodeContract?: OpenCodeContract
 ): WorkerCommandSpec {
   if ((options.contract ?? "legacy") === "strict") {
     const verdict = strictRouteSupport({
@@ -176,7 +202,9 @@ export function invocationCommand(
       };
     }
     case "opencode":
-      return { command: "opencode", args: ["run", "--standalone", "--format", "json", "--model", options.model, "--agent", openCodeAgent(options), "--title", "pstack-worker"], stdin: "prompt", workerGuidance: workerGuidance(options.provider, options.mode) };
+      return openCodeContract === undefined
+        ? openCodeVersionProbe(options.mode)
+        : openCodeInvocationCommand(options, openCodeContract);
     case "devin":
       return {
         command: "devin",

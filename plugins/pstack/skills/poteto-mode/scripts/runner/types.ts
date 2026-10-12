@@ -143,7 +143,7 @@ export interface RunnerReceipt {
   readonly failurePhase: FailurePhase | null;
   readonly processStarted: boolean;
   readonly apiSpend: ReceiptApiSpend;
-  readonly funding?: { readonly kind: "chatgpt-subscription"; readonly model: "openai/gpt-6.1-sol"; readonly configuredEndpoint: "https://chatgpt.com/backend-api/codex"; readonly authentication: "native-openai-oauth" | null };
+  readonly funding?: { readonly kind: "chatgpt-subscription"; readonly model: "openai/gpt-6.1-sol"; readonly configuredEndpoint: "https://chatgpt.com/backend-api/codex" | null; readonly authentication: "native-openai-oauth" | null };
   // The worker contract the lane ran under; absent on receipts written
   // before contracts existed and treated as "legacy".
   readonly contract?: WorkerContractMode;

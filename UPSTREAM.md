@@ -12,7 +12,7 @@ This page records the current Cursor baseline and the maintainer procedure for r
 | Path | `pstack/` |
 | Commit | `df581122cde17e6e27686b5a448bde23e4ad4318` |
 | Upstream version | `0.15.15` |
-| open-pstack version | `2.0.0` |
+| open-pstack version | `1.14.0` |
 
 The table records the packaged version on `main` and the Cursor content it incorporates, minus the exclusions below. Detecting or reviewing a newer Cursor commit does not advance this baseline. Cursor's version identifies the imported content. The open-pstack version identifies the cross-harness package, and its numbers are independent of Cursor and Eric's port.
 
@@ -122,7 +122,7 @@ Do not merge the original contribution pull requests in Eric's repository as par
 `main` is the installation source, so a merged change reaches new installs before any tag exists. [AGENTS.md](AGENTS.md) owns that policy. A tag marks a tested checkpoint that users can pin or roll back to.
 
 1. Confirm the release commit is on `main` and its `plugins/pstack` tree matches the tested candidate.
-2. Create a new, unique `vMAJOR.MINOR.PATCH` tag. Use a major version for incompatible behavior or configuration changes, a minor version for compatible features, and a patch version for compatible fixes. Never move or rename a published tag, including `v1.4.1-arjit.*`.
+2. Choose the version under the [version approval policy](AGENTS.md#provider-compatibility-and-major-releases) and create a new, unique `vMAJOR.MINOR.PATCH` tag. Use a major version for incompatible behavior or configuration changes, a minor version for compatible features, and a patch version for compatible fixes. Never move or rename a published tag, including `v1.4.1-arjit.*`.
 3. Write release notes that name the Cursor version and commit from the sync table, the distribution changes, the validation evidence, known limits, and the previous tested tag. Link the tag-pinned `UPSTREAM.md` for adaptations and exclusions. Use the incorporated baseline, never `reviewed_through`.
 4. Record the tag in [CHANGELOG.md](CHANGELOG.md).
 
