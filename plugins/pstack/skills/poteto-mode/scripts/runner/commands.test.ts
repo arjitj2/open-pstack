@@ -4,6 +4,7 @@ import {
   CLAUDE_WRITER_SETTINGS,
   claudeWriterVersionError,
   invocationCommand,
+  openCodeAuthListCommand,
   preflightCommand,
 } from "./commands.ts";
 import type { RunnerOptions } from "./types.ts";
@@ -344,5 +345,29 @@ describe("strict worker contract argv", () => {
         provider
       ).toThrow(/strict worker contract is unsupported/);
     }
+  });
+});
+
+describe("OpenCode contract argv", () => {
+  const opts = () => options({ provider: "opencode", model: "openai/gpt-6.1-sol", effort: "default", apiSpend: "approved" });
+  it("probes the version banner before any route-specific argv", () => {
+    expect(invocationCommand(opts()).args).toEqual(["--version"]);
+    expect(preflightCommand("opencode", "read-only")?.args).toEqual(["--version"]);
+  });
+  it("derives V1 and V2 invocation argv from the selected contract", () => {
+    const agent = invocationCommand(opts(), "/tmp/prompt.md", "v1").args;
+    expect(agent.slice(0, 4)).toEqual(["run", "--pure", "--format", "json"]);
+    expect(agent).toContain("--dir");
+    expect(agent).not.toContain("--standalone");
+    const v2 = invocationCommand(opts(), "/tmp/prompt.md", "v2").args;
+    expect(v2.slice(0, 4)).toEqual(["run", "--standalone", "--format", "json"]);
+    expect(v2).not.toContain("--pure");
+    expect(v2).not.toContain("--dir");
+  });
+  it("derives preflight and auth argv from the same contract", () => {
+    expect(preflightCommand("opencode", "read-only", "v1")?.args).toEqual(["--pure", "debug", "config"]);
+    expect(preflightCommand("opencode", "read-only", "v2")?.args).toEqual(["debug", "config"]);
+    expect(openCodeAuthListCommand("v1").args).toEqual(["--pure", "auth", "list"]);
+    expect(openCodeAuthListCommand("v2").args).toEqual(["auth", "list", "--standalone", "--format", "json"]);
   });
 });

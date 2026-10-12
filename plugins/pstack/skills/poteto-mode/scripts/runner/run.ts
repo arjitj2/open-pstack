@@ -17,9 +17,9 @@ import {
   type ChildRole,
   type ProgressReporter,
 } from "./progress.ts";
-import { CLAUDE_WRITER_MINIMUM_VERSION, claudeWriterVersionError, invocationCommand, preflightCommand, type CommandSpec } from "./commands.ts";
+import { CLAUDE_WRITER_MINIMUM_VERSION, claudeWriterVersionError, invocationCommand, openCodeAuthListCommand, openCodePreflightCommand, preflightCommand, type CommandSpec } from "./commands.ts";
 import { nativeLane } from "./native-route.ts";
-import { openCodeAgent, openCodeAttempt, openCodeDirectory, openCodeFilesUnchanged, openCodeFunding, openCodeOAuthPreflightPassed, openCodePreflightPassed, inspectOpenCodeStream, parseOpenCodeExport, OPENCODE_CHATGPT_ENDPOINT, OPENCODE_CHATGPT_SUBSCRIPTION_MODEL, type OpenCodeTranscript, openCodeVersionError, OPENCODE_TESTED_VERSION, validateOpenCodeModel, type OpenCodeAttempt } from "./opencode.ts";
+import { openCodeAgent, openCodeAttempt, openCodeDirectory, openCodeFilesUnchanged, openCodeFunding, openCodeOAuthPreflightPassed, openCodePreflightPassed, openCodeProbeEnvironment, openCodeSelectVersion, openCodeV1OAuthListPassed, inspectOpenCodeStream, parseOpenCodeExport, OPENCODE_CHATGPT_ENDPOINT, OPENCODE_CHATGPT_SUBSCRIPTION_MODEL, OPENCODE_SUPPORTED_RANGE, OPENCODE_TESTED_VERSIONS, type OpenCodeContract, type OpenCodeTranscript, type OpenCodeVersion, validateOpenCodeModel, type OpenCodeAttempt } from "./opencode.ts";
 import { cursorConfigDirectory, cursorConfig, cursorHasApiKey, cursorUserConfigPath, validateCursorModel } from "./cursor.ts";
 import { antigravityLaneFiles, antigravitySettingsPath, antigravitySettingsTakeover, antigravityStdin, auditAntigravityStream, createAntigravityLaneFiles, validateAntigravityModel, type AntigravityCreatedFiles } from "./antigravity.ts";
 import { versionedClaudeAlias } from "./model-aliases.ts";
@@ -605,7 +605,8 @@ function modelProof(
 
 function completeReceipt(
   options: RunnerOptions,
-  partial: Omit<RunnerReceipt, "schemaVersion" | "parent" | "provider" | "model" | "effort" | "mode" | "cwd" | "promptPath" | "outputPath" | "receiptPath" | "executionId" | "canonicalPaths" | "timeoutMs">
+  partial: Omit<RunnerReceipt, "schemaVersion" | "parent" | "provider" | "model" | "effort" | "mode" | "cwd" | "promptPath" | "outputPath" | "receiptPath" | "executionId" | "canonicalPaths" | "timeoutMs">,
+  openCodeContract: OpenCodeContract | null = null
 ): RunnerReceipt {
   return {
     schemaVersion: 2,
@@ -626,7 +627,7 @@ function completeReceipt(
     },
     timeoutMs: options.timeoutMs,
     contract: options.contract ?? "legacy",
-    ...(openCodeFunding(options)?.kind === "chatgpt-subscription" ? { funding: { kind: "chatgpt-subscription", model: OPENCODE_CHATGPT_SUBSCRIPTION_MODEL, configuredEndpoint: OPENCODE_CHATGPT_ENDPOINT, authentication: partial.preflight.status === "passed" ? "native-openai-oauth" : null } } : {}),
+    ...(openCodeFunding(options)?.kind === "chatgpt-subscription" ? { funding: { kind: "chatgpt-subscription", model: OPENCODE_CHATGPT_SUBSCRIPTION_MODEL, configuredEndpoint: openCodeContract === "v2" ? OPENCODE_CHATGPT_ENDPOINT : null, authentication: partial.preflight.status === "passed" ? "native-openai-oauth" : null } } : {}),
     ...partial,
   };
 }
@@ -718,12 +719,15 @@ async function executeLane(
   progress: LaneProgress,
   antigravityCreated: AntigravityCreatedFiles | null,
   reporter: ProgressReporter,
-  prompt: string,
-  openCode: OpenCodeAttempt | null
+  prompt: string
 ): Promise<RunResult> {
   const startedAt = new Date(started).toISOString();
   const inherited = childEnvironment(options.provider);
-  const env = openCode?.environment ?? inherited;
+  let env = options.provider === "opencode" ? openCodeProbeEnvironment(options, inherited) : inherited;
+  let openCode: OpenCodeAttempt | null = null;
+  let detected: OpenCodeVersion | null = null;
+  let activeInvocation: CommandSpec = invocation;
+  const laneReceipt = (partial: Parameters<typeof completeReceipt>[1]): RunnerReceipt => completeReceipt(options, partial, openCode?.contract ?? detected?.contract ?? null);
   const apiKeyAuth = options.provider === "cursor" && cursorHasApiKey(env);
   if (options.provider === "cursor") env.CURSOR_CONFIG_DIR = cursorConfigDirectory(options);
 
@@ -731,17 +735,17 @@ async function executeLane(
     ? apiCredentialTakeover(options.provider, env) ??
       (options.provider === "antigravity" ? antigravitySettingsTakeover(antigravitySettingsPath()) : null)
     : null;
-  const openCodeBillingBlocked = options.provider === "opencode" && openCode === null;
+  const openCodeBillingBlocked = options.provider === "opencode" && openCodeFunding(options) === null;
   if (takeover !== null || openCodeBillingBlocked) {
     const completed = Date.now();
-    const receipt = completeReceipt(options, {
+    const receipt = laneReceipt({
       status: "billing-policy-blocked",
       startedAt,
       completedAt: new Date(completed).toISOString(),
       elapsedMs: completed - started,
       executable: null,
       preflight: progress.preflight,
-      argv: [invocation.command, ...invocation.args],
+      argv: [activeInvocation.command, ...activeInvocation.args],
       exitCode: null,
       signal: null,
       reportedModel: null,
@@ -765,12 +769,12 @@ async function executeLane(
     return { exitCode: statusExitCode(receipt.status), receipt };
   }
 
-  const executable = Bun.which(invocation.command, {
+  const executable = Bun.which(activeInvocation.command, {
     PATH: env.PATH,
     cwd: options.cwd,
   });
   progress.executable = executable;
-  progress.argv = [executable ?? invocation.command, ...invocation.args];
+  progress.argv = [executable ?? activeInvocation.command, ...activeInvocation.args];
 
   let preflightState = progress.preflight;
   let receipt: RunnerReceipt;
@@ -784,14 +788,14 @@ async function executeLane(
     const terminalPreflight = preflight !== null && preflightState.status === "not-run"
       ? { ...preflightState, status }
       : preflightState;
-    receipt = completeReceipt(options, {
+    receipt = laneReceipt({
       status,
       startedAt,
       completedAt: new Date(completed).toISOString(),
       elapsedMs: completed - started,
       executable,
       preflight: terminalPreflight,
-      argv: [executable ?? invocation.command, ...invocation.args],
+      argv: [executable ?? activeInvocation.command, ...activeInvocation.args],
       exitCode: null,
       signal: null,
       reportedModel: null,
@@ -824,14 +828,14 @@ async function executeLane(
 
   if (executable === null) {
     const completed = Date.now();
-    receipt = completeReceipt(options, {
+    receipt = laneReceipt({
       status: "unavailable-cli",
       startedAt,
       completedAt: new Date(completed).toISOString(),
       elapsedMs: completed - started,
       executable: null,
       preflight: preflightState,
-      argv: [invocation.command, ...invocation.args],
+      argv: [activeInvocation.command, ...activeInvocation.args],
       exitCode: null,
       signal: null,
       reportedModel: null,
@@ -841,7 +845,7 @@ async function executeLane(
       usage: null,
       costUsd: null,
       error: {
-        message: `${invocation.command} executable not found`,
+        message: `${activeInvocation.command} executable not found`,
         evidence: "",
       },
       failurePhase: "preflight",
@@ -872,20 +876,42 @@ async function executeLane(
     let versionError: string | null = null;
     if (options.provider === "opencode") {
       versionError = preflightResult.exitCode === 0
-        ? openCodeVersionError(preflightResult.stdout)
-        : `OpenCode version check failed. Install OpenCode ${OPENCODE_TESTED_VERSION} and check opencode --version.`;
+        ? null
+        : `OpenCode version check failed. Install ${OPENCODE_SUPPORTED_RANGE} and check opencode --version.`;
       if (versionError === null && preflightResult.cancelledBy === null && !preflightResult.timedOut) {
-        activePreflight = preflight;
-        progress.preflight = { ...progress.preflight, argv: [preflightExecutable, ...activePreflight.args] };
-        preflightResult = await runProcess(preflightExecutable, activePreflight, options.cwd, env, "", deadlineAt, cancellation, { reporter, role: "preflight" });
+        const selection = openCodeSelectVersion(preflightResult.stdout);
+        if (selection.kind === "unsupported") {
+          versionError = selection.message;
+        } else {
+          detected = selection.version;
+          openCode = openCodeAttempt(options, inherited, detected);
+          if (openCode === null) {
+            versionError = "OpenCode funding could not be resolved for the selected contract";
+          } else {
+            if (openCode.contract === "v1") {
+              writeFileSync(openCode.configPath, JSON.stringify(openCode.config), { flag: "wx", mode: 0o600 });
+            } else {
+              writeFileSync(join(openCode.configDirectory, "opencode.json"), JSON.stringify(openCode.config), { flag: "wx", mode: 0o600 });
+              writeFileSync(join(openCode.configDirectory, "service.json"), JSON.stringify({ disabled: true }), { flag: "wx", mode: 0o600 });
+            }
+            env = openCode.environment;
+            activeInvocation = invocationCommand(options, options.promptPath, openCode.contract);
+            progress.argv = [preflightExecutable, ...activeInvocation.args];
+            activePreflight = openCodePreflightCommand(openCode.contract);
+            progress.preflight = { ...progress.preflight, argv: [preflightExecutable, ...activePreflight.args] };
+            preflightResult = await runProcess(preflightExecutable, activePreflight, options.cwd, env, "", deadlineAt, cancellation, { reporter, role: "preflight" });
+          }
+        }
       }
     } else if (options.provider === "claude") {
       versionError = preflightResult.exitCode === 0
         ? claudeWriterVersionError(preflightResult.stdout)
         : `Claude Code version check failed. Install Claude Code ${CLAUDE_WRITER_MINIMUM_VERSION} or newer and check claude --version.`;
     }
+    const detectedLabel = detected === null ? "OpenCode" : `OpenCode ${detected.text} (${detected.contract})`;
+    const openCodeConfigNote = `${detectedLabel} configuration preflight failed; supported ${OPENCODE_SUPPORTED_RANGE}, tested ${OPENCODE_TESTED_VERSIONS.join(", ")}; configuration output withheld`;
     let rawPreflightEvidence = versionError ?? (options.provider === "opencode"
-      ? "OpenCode native configuration preflight failed; configuration output withheld"
+      ? openCodeConfigNote
       : evidence(`${preflightResult.stdout}\n${preflightResult.stderr}`));
     let passed = options.provider === "opencode"
       ? versionError === null && preflightResult.exitCode === 0 && openCode !== null && openCodePreflightPassed(preflightResult.stdout, openCode)
@@ -896,26 +922,30 @@ async function executeLane(
     if (passed && openCode?.funding.kind === "chatgpt-subscription" && preflightResult.cancelledBy === null && !preflightResult.timedOut) {
       if (cancellation.signal !== null) return finishWithoutChild("cancelled", "before native OAuth preflight");
       if (deadlineAt !== null && Date.now() >= deadlineAt) return finishWithoutChild("timed-out", "before native OAuth preflight");
-      activePreflight = { command: "opencode", args: ["auth", "list", "--standalone", "--format", "json"], stdin: "none" };
+      activePreflight = openCodeAuthListCommand(openCode.contract);
       progress.preflight = { ...progress.preflight, argv: [preflightExecutable, ...activePreflight.args] };
       preflightResult = await runProcess(preflightExecutable, activePreflight, options.cwd, env, "", deadlineAt, cancellation, { reporter, role: "preflight" });
-      passed = preflightResult.exitCode === 0 && openCodeOAuthPreflightPassed(preflightResult.stdout) && openCodeFilesUnchanged(openCode);
+      passed = preflightResult.exitCode === 0
+        && (openCode.contract === "v1"
+          ? openCodeV1OAuthListPassed(preflightResult.stdout, preflightResult.stderr)
+          : openCodeOAuthPreflightPassed(preflightResult.stdout))
+        && openCodeFilesUnchanged(openCode);
       billingRouteBlocked = !passed;
-      rawPreflightEvidence = "OpenCode requires exactly one visible native OpenAI OAuth connection and unchanged private configuration; native authentication output withheld";
+      rawPreflightEvidence = `${detectedLabel} requires native authentication metadata confirming exactly one OpenAI OAuth credential and unchanged private configuration. Upgrade OpenCode if auth list does not expose credential methods; otherwise check the native authentication list. Authentication output withheld`;
     }
     const renderPreflightDetail = (): string => failureDiagnostic(options.provider, {
       phase: "preflight",
       stdout: preflightResult.stdout,
       stderr: preflightResult.stderr,
       note: versionError ?? (options.provider === "opencode"
-        ? billingRouteBlocked ? rawPreflightEvidence : "OpenCode native configuration preflight failed; configuration output withheld"
+        ? billingRouteBlocked ? rawPreflightEvidence : openCodeConfigNote
         : undefined),
     });
     let preflightEvidence = passed
       ? options.provider === "opencode"
         ? openCode?.funding.kind === "chatgpt-subscription"
-          ? "private configuration verified; exactly one visible native OpenAI OAuth connection"
-          : "native configuration verified; authentication deferred to execution"
+          ? `${detectedLabel}: private configuration verified; exactly one visible native OpenAI OAuth credential`
+          : `${detectedLabel}: ${openCode?.contract === "v1" ? "effective agent model and tool policy" : "native configuration"} verified; authentication deferred to execution`
         : options.provider === "claude"
           ? `Claude Code ${preflightResult.stdout.trim()} satisfies the writer minimum; authentication deferred to invocation`
           : successfulPreflightEvidence(options.provider, options.model, apiKeyAuth)
@@ -998,14 +1028,14 @@ async function executeLane(
         : preflightResult.timedOut
           ? "timed-out"
           : versionError !== null ? "unavailable-cli" : billingRouteBlocked ? "billing-policy-blocked" : preflightFailure;
-      receipt = completeReceipt(options, {
+      receipt = laneReceipt({
         status,
         startedAt,
         completedAt: new Date(completed).toISOString(),
         elapsedMs: completed - started,
         executable,
         preflight: preflightState,
-        argv: [executable, ...invocation.args],
+        argv: [executable, ...activeInvocation.args],
         exitCode: preflightResult.exitCode,
         signal: preflightResult.signal,
         reportedModel: null,
@@ -1039,14 +1069,14 @@ async function executeLane(
       );
       if (verdict !== null && !verdict.compatible) {
         const completed = Date.now();
-        receipt = completeReceipt(options, {
+        receipt = laneReceipt({
           status: "billing-policy-blocked",
           startedAt,
           completedAt: new Date(completed).toISOString(),
           elapsedMs: completed - started,
           executable,
           preflight: preflightState,
-          argv: [executable, ...invocation.args],
+          argv: [executable, ...activeInvocation.args],
           exitCode: null,
           signal: null,
           reportedModel: null,
@@ -1082,7 +1112,7 @@ async function executeLane(
   progress.modelStarted = true;
   const workloadResult = await runProcess(
     executable,
-    invocation,
+    activeInvocation,
     options.cwd,
     env,
     options.provider === "antigravity" ? antigravityStdin(prompt, options.cwd, options.mode) : prompt,
@@ -1092,7 +1122,7 @@ async function executeLane(
   );
   let openCodeExport: OpenCodeTranscript | null = null;
   let exportResult: ProcessResult | null = null;
-  if (options.provider === "opencode" && workloadResult.cancelledBy === null && !workloadResult.timedOut && cancellation.signal === null && (deadlineAt === null || Date.now() < deadlineAt)) {
+  if (options.provider === "opencode" && openCode?.contract === "v2" && workloadResult.cancelledBy === null && !workloadResult.timedOut && cancellation.signal === null && (deadlineAt === null || Date.now() < deadlineAt)) {
     const stream = inspectOpenCodeStream(workloadResult.stdout);
     if (stream.kind === "identified") {
       try {
@@ -1118,7 +1148,7 @@ async function executeLane(
     elapsedMs: completed - started,
     executable,
     preflight: preflightState,
-    argv: [executable, ...invocation.args],
+    argv: [executable, ...activeInvocation.args],
     exitCode: result.exitCode,
     signal: result.signal,
   } as const;
@@ -1149,7 +1179,7 @@ async function executeLane(
           exitCode: result.exitCode,
         }));
     const denial = providerDenialEvidence(options.provider, result.stderr);
-    receipt = completeReceipt(options, {
+    receipt = laneReceipt({
       ...base,
       status,
       reportedModel: null,
@@ -1180,9 +1210,9 @@ async function executeLane(
   }
 
   try {
-    if (options.provider === "opencode" && openCodeExport?.kind === "error") throw new ProviderTerminalError("opencode", "OpenCode reported a failed session", openCodeExport.envelope);
-    if (options.provider === "opencode" && openCodeExport?.kind !== "complete") throw new OutputValidationError(openCodeExport?.kind === "incomplete" ? openCodeExport.reason : "OpenCode native session export did not prove completion");
-    const parsed = options.provider === "opencode" && openCodeExport?.kind === "complete" ? openCodeExport.output : parseProviderOutput(
+    if (options.provider === "opencode" && openCode?.contract === "v2" && openCodeExport?.kind === "error") throw new ProviderTerminalError("opencode", "OpenCode reported a failed session", openCodeExport.envelope);
+    if (options.provider === "opencode" && openCode?.contract === "v2" && openCodeExport?.kind !== "complete") throw new OutputValidationError(openCodeExport?.kind === "incomplete" ? openCodeExport.reason : "OpenCode native session export did not prove completion");
+    const parsed = options.provider === "opencode" && openCode?.contract === "v2" && openCodeExport?.kind === "complete" ? openCodeExport.output : parseProviderOutput(
       options.provider,
       options.provider === "devin" ? readDevinExport(options) : result.stdout,
       result.stderr,
@@ -1209,7 +1239,7 @@ async function executeLane(
     });
     if (outcome.kind === "failed") removeIfExists(options.outputPath);
     else writeFileSync(options.outputPath, parsed.text, { encoding: "utf8", mode: 0o600 });
-    receipt = completeReceipt(options, {
+    receipt = laneReceipt({
       ...base,
       status: outcome.kind === "needs-parent-operation"
         ? "needs-parent-operation"
@@ -1265,7 +1295,7 @@ async function executeLane(
         terminalEnvelope:
           error instanceof ProviderTerminalError ? error.envelope : undefined,
       });
-    receipt = completeReceipt(options, {
+    receipt = laneReceipt({
       ...base,
       status,
       reportedModel: null,
@@ -1352,7 +1382,6 @@ export async function runLane(
   let outcome: RunResult | null = null;
   let createdCursorConfig = false;
   let createdOpenCodeConfig = false;
-  let openCode: OpenCodeAttempt | null = null;
   let devinConfigCreated = false;
   let devinExportCreated = false;
   let contractPromptCreated = false;
@@ -1403,16 +1432,11 @@ export async function runLane(
         });
         contractPromptCreated = true;
       }
-      if (options.provider === "opencode") {
-        openCode = openCodeAttempt(options, childEnvironment(options.provider));
-        if (openCode !== null) {
-          const directory = openCodeDirectory(options);
-          mkdirSync(directory, { mode: 0o700 });
-          createdOpenCodeConfig = true;
-          for (const name of ["config", "home", "xdg", "data", "state", "cache", "tmp"]) mkdirSync(join(directory, name), { mode: 0o700 });
-          writeFileSync(join(openCode.configDirectory, "opencode.json"), JSON.stringify(openCode.config), { flag: "wx", mode: 0o600 });
-          writeFileSync(join(openCode.configDirectory, "service.json"), JSON.stringify({ disabled: true }), { flag: "wx", mode: 0o600 });
-        }
+      if (options.provider === "opencode" && openCodeFunding(options) !== null) {
+        const directory = openCodeDirectory(options);
+        mkdirSync(directory, { mode: 0o700 });
+        createdOpenCodeConfig = true;
+        for (const name of ["config", "home", "xdg", "data", "state", "cache", "tmp"]) mkdirSync(join(directory, name), { mode: 0o700 });
       }
       if (options.provider === "cursor") {
         const directory = cursorConfigDirectory(options);
@@ -1431,8 +1455,7 @@ export async function runLane(
         progress,
         antigravityCreated,
         reporter,
-        prompt,
-        openCode
+        prompt
       );
       return outcome;
     } catch (error) {

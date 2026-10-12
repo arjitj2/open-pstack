@@ -46,11 +46,16 @@ checks, and isolated runner configuration. Antigravity requires an explicit
 --api-spend approved
 explicitly authorizes the paid route and records it in the receipt. Omitting
 the flag preserves the legacy behavior for configurations written before
-billing policy existed. OpenCode requires tested V2 2.0.26, provider/model and default
-effort. Ordinary native authentication requires explicit --api-spend approved.
---opencode-chatgpt-subscription instead requires --api-spend deny, default effort,
-and openai/gpt-6.1-sol with exactly one visible native OpenAI OAuth connection.
-The flag cannot authorize another provider, model, or paid fallback.
+billing policy existed. OpenCode selects its native contract once from the
+version banner: restored V1 (>=1.18.29) or stable V2 (>=2.0.0); prereleases and
+unknown majors are rejected, and compatible patch/minor releases pass through
+the same required capability checks (tested versions are evidence, not an
+allowlist). OpenCode requires provider/model and default effort. Ordinary
+native authentication requires explicit --api-spend approved.
+--opencode-chatgpt-subscription instead requires --api-spend deny, default
+effort, and openai/gpt-6.1-sol with exactly one visible native OpenAI OAuth
+credential on either contract. The flag cannot authorize another provider,
+model, or paid fallback.
 Read-only permits file inspection; isolated-write requires a Git worktree root
 and additionally permits edits. Neither mode permits shell commands. OpenCode
 tool permissions are not an OS sandbox. The guard covers known ambient credential and routing
