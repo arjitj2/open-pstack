@@ -6,7 +6,7 @@ Entries describe package versions. Published release checkpoints have tag links;
 
 ## 2.0.0 migrates OpenCode workers to native V2
 
-Cursor baseline: [0.15.15](https://github.com/cursor/plugins/tree/df581122cde17e6e27686b5a448bde23e4ad4318/pstack). [Issue #120](https://github.com/arjitj2/open-pstack/issues/120).
+Cursor baseline: [0.15.15](https://github.com/cursor/plugins/tree/df581122cde17e6e27686b5a448bde23e4ad4318/pstack). [Issue #120](https://github.com/arjitj2/open-pstack/issues/120). [PR #121](https://github.com/arjitj2/open-pstack/pull/121).
 
 Replaces the V1 OpenCode adapter with the tested stable V2 2.0.26 command and configuration contract. Requires exact private configuration sources and ordered permissions, keeps process lifecycle and completion validation in the shared runner, and removes V1 compatibility. Adds an explicitly requested anonymous public-free route for `opencode/nemotron-3-ultra-free` with API spending denied. Ordinary native authentication still requires explicit spending approval. Configuration verification does not attest runtime permissions or authentication.
 
