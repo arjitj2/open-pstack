@@ -6,7 +6,7 @@ Entries describe package versions. Published release checkpoints have tag links;
 
 ## 1.16.1 improves Ketchup media and explanations
 
-Cursor baseline: [0.15.24](https://github.com/cursor/plugins/tree/1e5c90a4b6f249917bd21fe361b3a2a7deb741b8/pstack). Candidate 0.15.25 content is undergoing validation before baseline advancement. [Issue #131](https://github.com/arjitj2/open-pstack/issues/131). Validation and incorporated baseline are pending.
+Cursor baseline: [0.15.25](https://github.com/cursor/plugins/tree/6ce45c59b9301a638c1fe1a7b8dc2a82b650898f/pstack). [Issue #131](https://github.com/arjitj2/open-pstack/issues/131). Tag [v1.16.1](https://github.com/arjitj2/open-pstack/releases/tag/v1.16.1).
 
 Ketchup leads with existing pictures, draws diagrams only when they explain a relationship or choice, uses summary bullets instead of status-only boxes, and keeps action items as plain bullets. Its prose limit excludes visuals but counts tables. The portable skill retains human-message anchoring, read-only scope, explicit UI authorization and evidence-versus-proposal distinctions. Autopilot borrows the formatting without changing workflow authority. No new provider or model policy is introduced.
 

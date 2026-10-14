@@ -10,13 +10,13 @@ This page records the current Cursor baseline and the maintainer procedure for r
 | --- | --- |
 | Repository | `https://github.com/cursor/plugins.git` |
 | Path | `pstack/` |
-| Commit | `1e5c90a4b6f249917bd21fe361b3a2a7deb741b8` |
-| Upstream version | `0.15.24` |
+| Commit | `6ce45c59b9301a638c1fe1a7b8dc2a82b650898f` |
+| Upstream version | `0.15.25` |
 | open-pstack version | `1.16.1` |
 
 The table records the packaged version on `main` and the Cursor content it incorporates, minus the exclusions below. Detecting or reviewing a newer Cursor commit does not advance this baseline. Cursor's version identifies the imported content. The open-pstack version identifies the cross-harness package, and its numbers are independent of Cursor and Eric's port.
 
-The upstream README at this baseline is [cursor/plugins `pstack/README.md` @ 1e5c90a4](https://github.com/cursor/plugins/blob/1e5c90a4b6f249917bd21fe361b3a2a7deb741b8/pstack/README.md). [CHANGELOG.md](CHANGELOG.md) records the baseline of each release, and [NOTICE.md](NOTICE.md) records provenance.
+The upstream README at this baseline is [cursor/plugins `pstack/README.md` @ 1e5c90a4](https://github.com/cursor/plugins/blob/6ce45c59b9301a638c1fe1a7b8dc2a82b650898f/pstack/README.md). [CHANGELOG.md](CHANGELOG.md) records the baseline of each release, and [NOTICE.md](NOTICE.md) records provenance.
 
 ## Upstream-only exclusions
 
@@ -34,6 +34,7 @@ The upstream README at this baseline is [cursor/plugins `pstack/README.md` @ 1e5
 - The Claude manifest does not take the logo field from `efa2a53` because Claude Code has no schema for it. The Codex manifest exposes the shared asset instead.
 - The `ce649c0` job-specific effort, speed and nearest-family substitutions remain excluded under the saved descriptor and recovery policy. GitHub frontier discovery replaces Graphite, records the canonical GitHub checkout identity or an explicit base-repository override and rejects unsupported fork ancestry before writing. Untested Origin CLI mappings are excluded. Shipping and autopilot retain the port’s expected-head, queue-disarm, captured-lease and no-implicit-deadline rules.
 - The `8043881` automatic catch-up uses Ketchup’s response format without implicitly invoking its manual read-only workflow. The `79afd75` Sharpen skill preserves manual invocation in both hosts and explicit user constraints.
+- The `afd51cf6` Ketchup update retains human-message anchoring, read-only scope, explicit UI authorization and grounded proposal labels. It uses available chart tools rather than Cursor’s `/visualize`, makes table counting explicit, and keeps action consequences together while requiring a visual for unpictured choices.
 
 Earlier exclusions include Cursor's Benny automation, tutorial and sticky-mode UI, Cursor-only agent metadata, and Team Kit tools covered by host built-ins or bundled skills. The [historical port record](https://github.com/arjitj2/open-pstack/blob/5f0bb42dea46344c2f1961ebeebaeee135b49778/docs/reference.md#whats-deliberately-not-ported) records those source revisions.
 
