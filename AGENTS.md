@@ -24,6 +24,14 @@ Provider adapters must support compatible patch and minor versions using a docum
 
 The repository owner chooses release versions. Before changing a candidate version or publishing a release, propose the exact version and explain whether the change warrants a patch, minor, or major release; wait for explicit approval. A major plugin version always requires explicit approval before implementation or publication. General authorization to catch up, implement, merge, release, or roll out does not approve a version choice. Implementation and validation may continue while the choice is pending; version-dependent merge, publication, and rollout must wait.
 
+## Release increment guidance
+
+Match Cursor’s small, frequent content updates while keeping this distribution’s independent version numbers. Default to a patch for compatible Cursor catch-ups, including new optional skills, prompt changes, workflow refinements, and their portable adaptations. Bug fixes and compatible provider maintenance are also patches. A new skill or a large diff alone does not require a minor release.
+
+Propose a minor for a substantial new capability specific to this distribution, such as a new worker provider or routing subsystem, or a broader workflow milestone that the owner wants to mark. An upstream minor bump is a reason to assess that milestone, not an instruction to copy the number. Propose a major only for an unavoidable incompatible command, configuration, or supported-provider change; first consider preserving compatibility. Every exact version still requires the approval above. Explain departures from the default in the proposal.
+
+No version or release is needed when the packaged plugin tree is unchanged. Keep published tags and the existing 1.x sequence intact. Release notes distinguish Cursor additions, port adaptations, and capabilities specific to this distribution, and identify when a highlighted skill shipped in an earlier release.
+
 ## Default delivery workflow
 
 For repository changes, carry the work through validation, public PR review, and squash merge without waiting for another user prompt. An explicit request to stop at a draft, review, or unmerged branch overrides this default.
