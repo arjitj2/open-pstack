@@ -11,7 +11,7 @@ This recipe checks the documentation inventory and the production Cursor ledger 
 
 ## How to get to it (user POV)
 
-Maintainers run `python3 scripts/check-docs.py`, `python3 scripts/fork-maintenance.py check-ledger`, `preview`, and `python3 scripts/upstream-audit.py` from a checkout. The daily catalog workflow creates a proposal pull request; the trusted validation workflow runs `check-candidate` from `main`. Reviewers inspect the ledger diff, source commit links, pinned compare URL, and exact preview command in the pull request body.
+Maintainers run `python3 scripts/check-docs.py`, `python3 scripts/fork-maintenance.py check-ledger`, `preview`, and `python3 scripts/upstream-audit.py` from a checkout. The catalog workflow, scheduled every six hours, creates a proposal pull request; the trusted validation workflow runs `check-candidate` from `main`. Reviewers inspect the ledger diff, source commit links, pinned compare URL, and exact preview command in the pull request body.
 
 ## Driving it with the named harness
 

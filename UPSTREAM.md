@@ -69,7 +69,7 @@ Every final status needs a `reason` and an `evidence` link. `reviewed_through` i
 
 ## How automation proposes changes
 
-The scheduled [catalog workflow](.github/workflows/upstream-sync.yml) runs daily. It compares Cursor `main` with `reviewed_through`. When `pstack/` has new commits, it opens one proposal pull request whose only change is `maintenance/upstream-ledger.json`: `reviewed_through` advances and each new commit appears as `pending`. The pull request body summarizes the proposal and links each source commit at its pinned Cursor URL. The workflow never imports or runs upstream code, never changes `plugins/`, and never merges.
+The scheduled [catalog workflow](.github/workflows/upstream-sync.yml) runs every six hours. It compares Cursor `main` with `reviewed_through`. When `pstack/` has new commits, it opens one proposal pull request whose only change is `maintenance/upstream-ledger.json`: `reviewed_through` advances and each new commit appears as `pending`. The pull request body summarizes the proposal and links each source commit at its pinned Cursor URL. The workflow never imports or runs upstream code, never changes `plugins/`, and never merges.
 
 A separate [validation workflow](.github/workflows/sync-candidate.yml) runs from trusted `main` with read-only credentials. It rebuilds the proposal with `fork-maintenance.py check-candidate`, confirms that the pull request head matches that rebuild exactly, and attaches the result as a commit status. If `main` advances, the old result no longer applies.
 
@@ -127,7 +127,7 @@ Do not merge the original contribution pull requests in Eric's repository as par
 `main` is the installation source, so a merged change reaches new installs before any tag exists. [AGENTS.md](AGENTS.md) owns that policy. A tag marks a tested checkpoint that users can pin or roll back to.
 
 1. Confirm the release commit is on `main` and its `plugins/pstack` tree matches the tested candidate.
-2. Choose the version under the [version approval policy](AGENTS.md#provider-compatibility-and-major-releases) and create a new, unique `vMAJOR.MINOR.PATCH` tag. Use a major version for incompatible behavior or configuration changes, a minor version for compatible features, and a patch version for compatible fixes. Never move or rename a published tag, including `v1.4.1-arjit.*`.
+2. Apply [AGENTS.md’s release increment guidance](AGENTS.md#release-increment-guidance). Routine Cursor patch/minor catch-ups have standing authorization to increment this distribution’s patch/minor respectively and create a unique `vMAJOR.MINOR.PATCH` tag after validation. Cursor major bumps and incompatible port changes require owner approval. Changes outside routine catch-ups retain exact-version approval. Never move or rename a published tag, including `v1.4.1-arjit.*`.
 3. Write release notes that name the Cursor version and commit from the sync table, the distribution changes, the validation evidence, known limits, and the previous tested tag. Link the tag-pinned `UPSTREAM.md` for adaptations and exclusions. Use the incorporated baseline, never `reviewed_through`.
 4. Record the tag in [CHANGELOG.md](CHANGELOG.md).
 
