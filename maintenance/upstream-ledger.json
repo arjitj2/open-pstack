@@ -311,9 +311,33 @@
       "subject": "refactor(pstack): make /ketchup read like /bro in 150 words (#609)",
       "reason": "Adapt under150word plain-voice visual catch-up, retaining portable evidence/proposal/unknown boundaries and scope. Observed Claude label imprecision remains an explicit P3 output limitation.",
       "evidence": "https://github.com/arjitj2/open-pstack/pull/118"
+    },
+    {
+      "commit": "ce649c03ac3b75b6ae80cbd15b7e2c536caedb5a",
+      "date": "2026-10-13",
+      "status": "pending",
+      "subject": "feat(pstack): match subagent effort to the job, drop Graphite from orchestrate, and cut playbooks to principles (#613)"
+    },
+    {
+      "commit": "8043881e5cbb962f8948d1a1f8f8e28089d67c9a",
+      "date": "2026-10-13",
+      "status": "pending",
+      "subject": "pstack: autopilot loops catch the operator up with /ketchup (#616)"
+    },
+    {
+      "commit": "79afd75d5bd51383fbb526b72f36db03180b8301",
+      "date": "2026-10-13",
+      "status": "pending",
+      "subject": "feat(pstack): add /sharpen (#615)"
+    },
+    {
+      "commit": "1e5c90a4b6f249917bd21fe361b3a2a7deb741b8",
+      "date": "2026-10-14",
+      "status": "pending",
+      "subject": "chore(pstack): bump to 0.15.24 (#617)"
     }
   ],
-  "reviewed_through": "c86f349b102feb91f1966f8a6a60882a4e601b50",
+  "reviewed_through": "1e5c90a4b6f249917bd21fe361b3a2a7deb741b8",
   "schema": 1,
   "source": {
     "path": "pstack/",

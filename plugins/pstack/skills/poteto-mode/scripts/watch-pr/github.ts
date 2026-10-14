@@ -237,20 +237,19 @@ export function parseFastCheck(value: unknown): T.Check {
   const details = checkDetails(object, "name");
   const state = string(object.state, "check.state").toUpperCase();
   const bucket = string(object.bucket, "check.bucket");
-  if (state === "ACTION_REQUIRED") return gateOr("failed", details, state);
+  if (state === "ACTION_REQUIRED")
+    return classifyOwnerApprovalGate("failed", details, state);
   if (bucket === "fail" || ["FAILURE", "ERROR"].includes(state))
     return { ...details, kind: "failed", reportedState: state };
-  if (bucket === "pending") return gateOr("pending", details, state);
+  if (bucket === "pending")
+    return classifyOwnerApprovalGate("pending", details, state);
   if (bucket === "pass")
     return { ...details, kind: "passed", reportedState: state };
   if (bucket === "skipping")
     return { ...details, kind: "skipped", reportedState: state };
   return { ...details, kind: "failed", reportedState: state };
 }
-// Every read path classifies the owner-approval gate here, so the rule has one
-// home. A gate that is pending or waits on an owner approval must not count as
-// pending or failed, or the watcher waits on a human.
-function gateOr(
+function classifyOwnerApprovalGate(
   kind: "pending" | "failed",
   details: {
     readonly name: string;
@@ -287,19 +286,19 @@ export function mapRollupNode(value: unknown): T.Check | null {
         ? object.conclusion.toUpperCase()
         : "";
     if (status !== "COMPLETED")
-      return gateOr("pending", { ...details, link }, "PENDING");
+      return classifyOwnerApprovalGate("pending", { ...details, link }, "PENDING");
     if (conclusion === "SUCCESS")
       return { ...details, link, kind: "passed", reportedState: "SUCCESS" };
     if (conclusion === "NEUTRAL" || conclusion === "SKIPPED")
       return { ...details, link, kind: "skipped", reportedState: conclusion };
     if (conclusion === "ACTION_REQUIRED")
-      return gateOr("failed", { ...details, link }, conclusion);
+      return classifyOwnerApprovalGate("failed", { ...details, link }, conclusion);
     return { ...details, link, kind: "failed", reportedState: "FAILURE" };
   }
   const state =
     typeof object.state === "string" ? object.state.toUpperCase() : "";
   if (state === "PENDING" || state === "EXPECTED")
-    return gateOr("pending", { ...details, link }, "PENDING");
+    return classifyOwnerApprovalGate("pending", { ...details, link }, "PENDING");
   return state === "SUCCESS"
     ? { ...details, link, kind: "passed", reportedState: state }
     : { ...details, link, kind: "failed", reportedState: state || "FAILURE" };

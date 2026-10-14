@@ -81,6 +81,9 @@ interface GateResolveOptions {
 
 interface FrontierSetOptions {
   readonly repo?: string;
+  readonly baseRepo: string;
+  readonly trunk?: string;
+  readonly headOwner?: string;
   readonly prs?: readonly number[];
 }
 
@@ -169,7 +172,11 @@ function frontierLine(value: Frontier): string {
               `${row.branches}#${row.pr}@${row.sha}:${row.state}`
           )
           .join(",");
-  return `generation=${value.generation} prs=${prs} lowest-unmerged=${value.lowestUnmerged ?? "none"}`;
+  const resolution =
+    value.resolution === undefined
+      ? ""
+      : ` base-repo=${value.resolution.baseRepo} trunk=${value.resolution.trunk}`;
+  return `generation=${value.generation} prs=${prs} lowest-unmerged=${value.lowestUnmerged ?? "none"}${resolution}`;
 }
 
 function statusLines(report: StatusReport): string {
@@ -472,14 +479,30 @@ function createProgram(io: Io): Command {
 
   const frontier = program
     .command("frontier")
-    .description("manage the Graphite stack frontier")
+    .description("manage the pull request stack frontier")
     .action(() => requireSubcommand(program));
-  leaf(frontier, "set", "discover the Graphite stack and set the frontier")
+  leaf(
+    frontier,
+    "set",
+    "resolve the GitHub pull request base chain and set the frontier"
+  )
     .addOption(
       new Option(
         "--repo <dir>",
         "repository directory (or ORCH_REPO)"
       ).env("ORCH_REPO")
+    )
+    .requiredOption(
+      "--base-repo <owner/name>",
+      "GitHub repository the stack's pull requests target"
+    )
+    .option(
+      "--trunk <branch>",
+      "stack trunk (default: the base repository's default branch)"
+    )
+    .option(
+      "--head-owner <login>",
+      "restrict discovery to pull requests with this head owner"
     )
     .option(
       "--prs <n,...>",
@@ -493,6 +516,9 @@ function createProgram(io: Io): Command {
         (store) =>
           store.frontier.set({
             repo: frontierRepo(options),
+            baseRepo: options.baseRepo,
+            trunk: options.trunk,
+            headOwner: options.headOwner,
             prs: options.prs,
           }),
         frontierLine
