@@ -10,6 +10,7 @@ import {
   initializedStore,
   makeGitStack,
   prFile,
+  pullRequestTable,
   withFakeGh,
 } from "./frontier-fixture.ts";
 
@@ -23,12 +24,14 @@ async function expectSetRejected({
   store,
   stack,
   pulls,
+  overrides,
   error,
 }: {
   readonly directory: string;
   readonly store: FixtureStore;
   readonly stack: FixtureStack;
   readonly pulls: Readonly<Record<string, string>>;
+  readonly overrides?: Readonly<Record<string, string>>;
   readonly error: string;
 }): Promise<void> {
   const before = await readFile(
@@ -37,7 +40,7 @@ async function expectSetRejected({
   );
   await withFakeGh({
     directory,
-    files: { pulls },
+    files: { table: pullRequestTable(pulls), overrides },
     operation: async () => {
       await expect(
         store.frontier.set({ repo: stack.repo, baseRepo: BASE_REPO })
@@ -50,6 +53,46 @@ async function expectSetRejected({
 }
 
 describe("frontier topology boundaries", () => {
+  it("rejects a reported open child absent from its head lookup", async () => {
+    const { directory, store } = await initializedStore();
+    const stack = await makeGitStack(directory);
+    await expectSetRejected({ directory, store, stack,
+      pulls: chainPulls(stack),
+      overrides: { [prFile("head", "stack/draft")]: ghRows([]) },
+      error: "changed during discovery",
+    });
+  });
+
+  it("rejects an open fork beneath a terminal continuation", async () => {
+    const { directory, store } = await initializedStore();
+    const stack = await makeGitStack(directory);
+    await expectSetRejected({ directory, store, stack,
+      pulls: { ...chainPulls(stack),
+        [prFile("base", "stack/open")]: ghRows([
+          { number: 15, state: "closed", head: "stack/abandoned", base: "stack/open", sha: "f".repeat(40) },
+        ]),
+        [prFile("base", "stack/abandoned")]: ghRows([
+          { number: 20, state: "open", head: "fork/further", base: "stack/abandoned", sha: stack.draftSha, owner: "alice", headRepo: "service" },
+        ]),
+      }, error: "fork",
+    });
+  });
+
+  it("does not hide a reachable fork child during same-repository selection", async () => {
+    const { directory, store } = await initializedStore();
+    const stack = await makeGitStack(directory);
+    const before = await readFile(join(directory, "frontier.json"), "utf8");
+    await withFakeGh({ directory, files: { table: pullRequestTable({ ...chainPulls(stack),
+      [prFile("base", "stack/open")]: ghRows([
+        { number: 14, state: "open", head: "stack/draft", base: "stack/open", sha: stack.draftSha },
+        { number: 77, state: "open", head: "fork/further", base: "stack/open", sha: stack.draftSha, owner: "alice", headRepo: "service" },
+      ]),
+    })}, operation: async () => {
+      await expect(store.frontier.set({ repo: stack.repo, baseRepo: BASE_REPO })).rejects.toThrow("fork");
+    } });
+    expect(await readFile(join(directory, "frontier.json"), "utf8")).toBe(before);
+  });
+
   it("rejects a selected open child missing from its later base response", async () => {
     const { directory, store } = await initializedStore();
     const stack = await makeGitStack(directory);
@@ -59,6 +102,7 @@ describe("frontier topology boundaries", () => {
         ...chainPulls(stack),
         [prFile("base", "stack/closed")]: ghRows([]),
       },
+      overrides: { [prFile("base", "stack/closed")]: ghRows([]) },
       error: "changed during discovery",
     });
   });
@@ -75,7 +119,7 @@ describe("frontier topology boundaries", () => {
         { number: 11, state: "open", head: "stack/open", base: "stack/closed", sha: stack.openSha },
       ]),
     };
-    await withFakeGh({ directory, files: { pulls }, operation: async () => {
+    await withFakeGh({ directory, files: { table: pullRequestTable(pulls) }, operation: async () => {
       const first = await store.frontier.set({ repo: stack.repo, baseRepo: BASE_REPO });
       for (const branch of ["stack/merged", "stack/closed", "stack/open", "stack/draft"]) {
         git({ repo: stack.repo, args: ["checkout", branch] });
@@ -96,10 +140,11 @@ describe("frontier topology boundaries", () => {
     git({ repo: stack.repo, args: ["checkout", "stack/open"] });
     await withFakeGh({
       directory,
-      files: { pulls: {
+      files: { table: pullRequestTable({
         ...chainPulls(stack),
         [prFile("head", "stack/draft")]: ghRows([
           { number: 14, state: "open", head: "stack/draft", base: "stack/open", sha: stack.draftSha },
+          { number: 15, state: "closed", head: "stack/draft", base: "stack/open", sha: "f".repeat(40) },
         ]),
         [prFile("base", "stack/open")]: ghRows([
           { number: 14, state: "open", head: "stack/draft", base: "stack/open", sha: stack.draftSha },
@@ -108,7 +153,7 @@ describe("frontier topology boundaries", () => {
         [prFile("base", "stack/draft")]: ghRows([
           { number: 16, state: "open", head: "stack/further", base: "stack/draft", sha: furtherSha },
         ]),
-      } },
+      })},
       operation: async () => {
         const first = await store.frontier.set({ repo: stack.repo, baseRepo: BASE_REPO });
         expect(first.prs.map(row => row.pr)).toEqual([10, 13, 11, 14, 16]);
@@ -141,7 +186,7 @@ describe("frontier topology boundaries", () => {
         { number: 26, state: "open", head: "stack/further", base: "stack/draft", sha: furtherSha },
       ]),
     };
-    await withFakeGh({ directory, files: { pulls }, operation: async () => {
+    await withFakeGh({ directory, files: { table: pullRequestTable(pulls) }, operation: async () => {
       for (const branch of ["stack/closed", "stack/open", "stack/draft", "stack/further"]) {
         git({ repo: stack.repo, args: ["checkout", branch] });
         const frontier = await store.frontier.set({ repo: stack.repo, baseRepo: BASE_REPO });
@@ -150,12 +195,56 @@ describe("frontier topology boundaries", () => {
     } });
   });
 
+  it("does not replace active work with a stale terminal-only checkout", async () => {
+    const { directory, store } = await initializedStore();
+    const stack = await makeGitStack(directory);
+    const pulls = {
+      [prFile("head", "stack/open")]: ghRows([
+        { number: 11, state: "open", head: "stack/open", base: "main", sha: stack.openSha },
+      ]),
+      [prFile("base", "stack/open")]: ghRows([
+        { number: 14, state: "open", head: "stack/draft", base: "stack/open", sha: stack.draftSha },
+      ]),
+      [prFile("head", "stack/merged")]: ghRows([
+        { number: 10, state: "merged", head: "stack/merged", base: "main", sha: stack.mergedSha },
+      ]),
+    };
+    await withFakeGh({ directory, files: { table: pullRequestTable(pulls) }, operation: async () => {
+      await store.frontier.set({ repo: stack.repo, baseRepo: BASE_REPO });
+      const before = await readFile(join(directory, "frontier.json"), "utf8");
+      git({ repo: stack.repo, args: ["checkout", "stack/merged"] });
+      await expect(store.frontier.set({ repo: stack.repo, baseRepo: BASE_REPO })).rejects.toThrow("--allow-empty");
+      expect(await readFile(join(directory, "frontier.json"), "utf8")).toBe(before);
+      const intentional = await store.frontier.set({ repo: stack.repo, baseRepo: BASE_REPO, allowEmpty: true });
+      expect(intentional.generation).toBe(2);
+      expect(intentional.prs.map(row => row.pr)).toEqual([10]);
+      expect(intentional.lowestUnmerged).toBeNull();
+    } });
+  });
+
+  it("bounds an oversized discovered component before persisting", async () => {
+    const { directory, store } = await initializedStore();
+    const stack = await makeGitStack(directory);
+    const pulls: Record<string, string> = {
+      [prFile("head", "stack/open")]: ghRows([
+        { number: 11, state: "open", head: "stack/open", base: "history/0", sha: stack.openSha },
+      ]),
+    };
+    for (let index = 0; index < 100; index += 1) {
+      pulls[prFile("head", `history/${index}`)] = ghRows([
+        { number: index + 100, state: "closed", head: `history/${index}`, base: index === 99 ? "main" : `history/${index + 1}`, sha: stack.mergedSha },
+      ]);
+    }
+    await expectSetRejected({ directory, store, stack, pulls, error: "discovery exceeded 100 branches; check --trunk" });
+    expect((await store.frontier.show()).generation).toBe(0);
+  });
+
   it("does not erase a populated frontier from trunk without explicit intent", async () => {
     const { directory, store } = await initializedStore();
     const stack = await makeGitStack(directory);
     await withFakeGh({
       directory,
-      files: { pulls: chainPulls(stack) },
+      files: { table: pullRequestTable(chainPulls(stack))},
       operation: async () => {
         await store.frontier.set({ repo: stack.repo, baseRepo: BASE_REPO });
         const before = await readFile(join(directory, "frontier.json"), "utf8");
@@ -181,7 +270,7 @@ describe("frontier topology boundaries", () => {
     const stack = await makeGitStack(directory);
     await withFakeGh({
       directory,
-      files: { pulls: {
+      files: { table: pullRequestTable({
         ...chainPulls(stack),
         [prFile("base", "stack/merged")]: ghRows([
           { number: 13, state: "closed", head: "stack/closed", base: "stack/merged", sha: stack.closedSha },
@@ -189,7 +278,7 @@ describe("frontier topology boundaries", () => {
         [prFile("base", "stack/closed")]: ghRows([
           { number: 11, state: "open", head: "stack/open", base: "stack/closed", sha: stack.openSha },
         ]),
-      } },
+      })},
       operation: async () => {
         const frontier = await store.frontier.set({ repo: stack.repo, baseRepo: BASE_REPO });
         expect(frontier.prs.map(row => row.pr)).toEqual([10, 13, 11, 14]);
@@ -219,7 +308,7 @@ describe("frontier topology boundaries", () => {
     const stack = await makeGitStack(directory);
     await withFakeGh({
       directory,
-      files: { pulls: {
+      files: { table: pullRequestTable({
         ...chainPulls(stack),
         [prFile("base", "stack/abandoned")]: ghRows([
           { number: 23, state: "closed", head: "stack/gone", base: "stack/abandoned", sha: "c".repeat(40) },
@@ -227,7 +316,7 @@ describe("frontier topology boundaries", () => {
         [prFile("base", "stack/gone")]: ghRows([
           { number: 24, state: "closed", head: "stack/abandoned", base: "stack/gone", sha: "d".repeat(40) },
         ]),
-      } },
+      })},
       operation: async () => {
         const frontier = await store.frontier.set({ repo: stack.repo, baseRepo: BASE_REPO });
         expect(frontier.prs.map(row => row.pr)).toEqual([10, 13, 11, 14]);
@@ -426,7 +515,7 @@ describe("frontier topology boundaries", () => {
     await withFakeGh({
       directory,
       files: {
-        pulls: {
+        table: pullRequestTable({
           ...chainPulls(stack),
           [prFile("base", "stack/abandoned")]: ghRows([
             {
@@ -437,7 +526,7 @@ describe("frontier topology boundaries", () => {
               sha: "c".repeat(40),
             },
           ]),
-        },
+        }),
       },
       operation: async () => {
         const frontier = await store.frontier.set({
@@ -459,7 +548,7 @@ describe("frontier topology boundaries", () => {
     await withFakeGh({
       directory,
       files: {
-        pulls: {
+        table: pullRequestTable({
           [prFile("head", "stack/open")]: ghRows([
             {
               number: 11,
@@ -478,7 +567,7 @@ describe("frontier topology boundaries", () => {
               sha: published,
             },
           ]),
-        },
+        }),
       },
       operation: async () => {
         const frontier = await store.frontier.set({
@@ -518,46 +607,5 @@ describe("frontier topology boundaries", () => {
     expect((await store.frontier.show()).generation).toBe(0);
   });
 
-  it("matches --head-owner case-insensitively", async () => {
-    const { directory, store } = await initializedStore();
-    const stack = await makeGitStack(directory);
 
-    await withFakeGh({
-      directory,
-      files: {
-        pulls: {
-          ...chainPulls(stack),
-          [prFile("head", "stack/open")]: ghRows([
-            {
-              number: 11,
-              state: "open",
-              head: "stack/open",
-              base: "stack/closed",
-              sha: stack.openSha,
-            },
-            {
-              number: 77,
-              state: "open",
-              head: "stack/open",
-              base: "stack/closed",
-              sha: stack.openSha,
-              owner: "alice",
-              headRepo: "service",
-            },
-          ]),
-        },
-      },
-      operation: async () => {
-        const frontier = await store.frontier.set({
-          repo: stack.repo,
-          baseRepo: BASE_REPO,
-          headOwner: "ACME",
-        });
-        expect(frontier.prs.map((row) => row.pr)).toEqual([
-          10, 13, 11, 14,
-        ]);
-        expect(frontier.resolution?.headOwner).toBe("ACME");
-      },
-    });
-  });
 });

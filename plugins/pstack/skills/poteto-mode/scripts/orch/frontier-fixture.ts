@@ -1,4 +1,4 @@
-import { isRecord } from "./boundary.ts";
+import { isRecord, isUnknownArray } from "./boundary.ts";
 import {
   chmod,
   mkdir,
@@ -197,6 +197,16 @@ export function chainPulls(
   };
 }
 
+export function pullRequestTable(pulls: Readonly<Record<string, string>>): readonly unknown[] {
+  const rows = new Map<string, unknown>();
+  for (const contents of Object.values(pulls)) {
+    const parsed: unknown = JSON.parse(contents);
+    if (!isUnknownArray(parsed)) throw new Error("fixture tables require arrays; use overrides for malformed wire responses");
+    for (const row of parsed) rows.set(JSON.stringify(row), row);
+  }
+  return [...rows.values()];
+}
+
 const FAKE_GH_SCRIPT = `#!/usr/bin/env bash
 set -euo pipefail
 fixture="__FIXTURE__"
@@ -281,7 +291,8 @@ export async function withFakeGh<T>({
   directory: string;
   files?: {
     readonly repoView?: string;
-    readonly pulls?: Readonly<Record<string, string>>;
+    readonly table?: readonly unknown[];
+    readonly overrides?: Readonly<Record<string, string>>;
   };
   operation: (callsPath: string) => Promise<T>;
 }): Promise<T> {
@@ -299,18 +310,12 @@ export async function withFakeGh<T>({
         defaultBranchRef: { name: "main" },
       })}\n`
   );
-  const catalogue = new Map<number, Record<string, unknown>>();
-  for (const contents of Object.values(files.pulls ?? {})) {
-    let rows: unknown;
-    try { rows = JSON.parse(contents); } catch { continue; }
-    if (!Array.isArray(rows)) continue;
-    for (const row of rows) {
-      if (isRecord(row) && typeof row.number === "number" && !catalogue.has(row.number)) {
-        catalogue.set(row.number, row);
-      }
+  const rows = (files.table ?? []).map(row => {
+    if (!isRecord(row) || typeof row.headRefName !== "string" || typeof row.baseRefName !== "string") {
+      throw new Error("fixture tables require head/base identities; use overrides for malformed wire responses");
     }
-  }
-  const rows = [...catalogue.values()];
+    return row;
+  });
   const defaults = new Map<string, readonly Record<string, unknown>[]>();
   for (const row of rows) {
     if (typeof row.headRefName === "string") {
@@ -323,7 +328,7 @@ export async function withFakeGh<T>({
   for (const [name, rows] of defaults) {
     await writeFile(join(fixture, name), JSON.stringify(rows));
   }
-  for (const [name, contents] of Object.entries(files.pulls ?? {})) {
+  for (const [name, contents] of Object.entries(files.overrides ?? {})) {
     await writeFile(join(fixture, name), contents);
   }
   const gh = join(bin, "gh");

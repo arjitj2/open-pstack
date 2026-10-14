@@ -103,7 +103,6 @@ export interface GitHubResolution {
   readonly baseRepo: string;
   readonly trunk: string;
   readonly trunkSource: "explicit" | "repository-default";
-  readonly headOwner?: string;
 }
 
 export interface Frontier {
@@ -191,7 +190,6 @@ export interface SetFrontierParams {
   readonly repo: string;
   readonly baseRepo?: string;
   readonly trunk?: string;
-  readonly headOwner?: string;
   readonly allowEmpty?: boolean;
   readonly prs?: readonly number[];
 }
@@ -697,7 +695,6 @@ function parseFrontier(raw: string): Frontier {
     const trunkSource = isRecord(raw)
       ? gitHubTrunkSourceOrNull(raw.trunkSource)
       : null;
-    const headOwner = isRecord(raw) ? raw.headOwner : undefined;
     if (
       !isRecord(raw) ||
       raw.kind !== "github-base-chain" ||
@@ -705,9 +702,7 @@ function parseFrontier(raw: string): Frontier {
       raw.baseRepo.length === 0 ||
       typeof raw.trunk !== "string" ||
       raw.trunk.length === 0 ||
-      trunkSource === null ||
-      (headOwner !== undefined &&
-        (typeof headOwner !== "string" || headOwner.length === 0))
+      trunkSource === null
     ) {
       throw new UserError("frontier.json has an invalid resolution");
     }
@@ -716,7 +711,6 @@ function parseFrontier(raw: string): Frontier {
       baseRepo: raw.baseRepo,
       trunk: raw.trunk,
       trunkSource,
-      ...(headOwner === undefined ? {} : { headOwner }),
     };
   }
   const prs: FrontierPr[] = [];
@@ -1323,10 +1317,6 @@ export function openStore(
           params.trunk === undefined
             ? undefined
             : requiredLine(params.trunk, "trunk branch");
-        const headOwner =
-          params.headOwner === undefined
-            ? undefined
-            : requiredLine(params.headOwner, "head owner");
         const pin =
           params.prs === undefined
             ? undefined
@@ -1339,11 +1329,12 @@ export function openStore(
           checkout: repo,
           baseRepo,
           trunk,
-          headOwner,
         });
-        if (old.prs.length > 0 && resolved.prs.length === 0 && params.allowEmpty !== true) {
+        const lowestUnmerged = resolved.prs.find(row => row.state === "OPEN")?.pr ?? null;
+        const losesActiveWork = old.lowestUnmerged !== null && lowestUnmerged === null;
+        if ((losesActiveWork || (old.prs.length > 0 && resolved.prs.length === 0)) && params.allowEmpty !== true) {
           throw new UserError(
-            "refusing to erase a populated frontier from trunk; resolve from a stack member, or pass --allow-empty after checking the previous PR states"
+            "refusing to replace a populated frontier with empty or terminal-only discovery; resolve from the current active stack, or pass --allow-empty after checking the previous PR states"
           );
         }
         if (pin !== undefined) {
@@ -1355,8 +1346,7 @@ export function openStore(
         const value: Frontier = {
           generation: old.generation + 1,
           prs: resolved.prs,
-          lowestUnmerged:
-            resolved.prs.find((row) => row.state === "OPEN")?.pr ?? null,
+          lowestUnmerged,
           resolution: resolved.resolution,
         };
         await atomicWrite(

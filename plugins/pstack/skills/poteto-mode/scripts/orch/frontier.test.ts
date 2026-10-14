@@ -11,6 +11,7 @@ import {
   makeDirectory,
   makeGitStack,
   prFile,
+  pullRequestTable,
   runCli,
   useStore,
   withFakeGh,
@@ -23,7 +24,7 @@ describe("frontier resolution", () => {
     const { directory, store } = await initializedStore();
     const stack = await makeGitStack(directory);
     await store.close();
-    await withFakeGh({ directory, files: { pulls: chainPulls(stack) }, operation: async () => {
+    await withFakeGh({ directory, files: { table: pullRequestTable(chainPulls(stack))}, operation: async () => {
       const env = { ...process.env };
       delete env.ORCH_BASE_REPO;
       const result = runCli(["--store", directory, "frontier", "set", "--repo", stack.repo], env);
@@ -38,7 +39,7 @@ describe("frontier resolution", () => {
     const { directory, store } = await initializedStore();
     const stack = await makeGitStack(directory);
     await store.close();
-    await withFakeGh({ directory, files: { pulls: chainPulls(stack) }, operation: async callsPath => {
+    await withFakeGh({ directory, files: { table: pullRequestTable(chainPulls(stack))}, operation: async callsPath => {
       const result = runCli(["--store", directory, "frontier", "set", "--repo", stack.repo], { ...process.env, ORCH_BASE_REPO: BASE_REPO });
       expect(result).toMatchObject({ code: 0, stderr: "" });
       expect((await useStore(directory).frontier.show()).resolution?.baseRepo).toBe(BASE_REPO);
@@ -52,7 +53,7 @@ describe("frontier resolution", () => {
 
     await withFakeGh({
       directory,
-      files: { pulls: chainPulls(stack) },
+      files: { table: pullRequestTable(chainPulls(stack))},
       operation: async () => {
         expect(
           await store.frontier.set({ repo: stack.repo, baseRepo: BASE_REPO })
@@ -138,7 +139,7 @@ describe("frontier resolution", () => {
 
     await withFakeGh({
       directory,
-      files: { pulls: chainPulls(stack) },
+      files: { table: pullRequestTable(chainPulls(stack))},
       operation: async (callsPath) => {
         await store.frontier.set({ repo: stack.repo, baseRepo: BASE_REPO });
         const calls = (await readFile(callsPath, "utf8")).trim().split("\n");
@@ -202,7 +203,7 @@ describe("frontier resolution", () => {
           nameWithOwner: BASE_REPO,
           defaultBranchRef: null,
         })}\n`,
-        pulls: chainPulls(stack),
+        table: pullRequestTable(chainPulls(stack)),
       },
       operation: async () => {
         const frontier = await store.frontier.set({
@@ -226,55 +227,21 @@ describe("frontier resolution", () => {
     });
   });
 
-  it("selects the head pull request by actual owner", async () => {
+  it("prefers same-repository head history consistently across checkouts", async () => {
     const { directory, store } = await initializedStore();
     const stack = await makeGitStack(directory);
-    const pulls = {
+    await withFakeGh({ directory, files: { table: pullRequestTable({
       ...chainPulls(stack),
       [prFile("head", "stack/open")]: ghRows([
-        {
-          number: 11,
-          state: "open",
-          head: "stack/open",
-          base: "stack/closed",
-          sha: stack.openSha,
-        },
-        {
-          number: 77,
-          state: "open",
-          head: "stack/open",
-          base: "stack/closed",
-          sha: stack.openSha,
-          owner: "alice",
-          headRepo: "service",
-        },
+        { number: 11, state: "open", head: "stack/open", base: "stack/closed", sha: stack.openSha },
+        { number: 77, state: "open", head: "stack/open", base: "main", sha: stack.openSha, owner: "alice", headRepo: "service" },
       ]),
-    };
-
-    await withFakeGh({
-      directory,
-      files: { pulls },
-      operation: async () => {
-        await expect(
-          store.frontier.set({ repo: stack.repo, baseRepo: BASE_REPO })
-        ).rejects.toThrow("matches multiple pull requests");
-        const frontier = await store.frontier.set({
-          repo: stack.repo,
-          baseRepo: BASE_REPO,
-          headOwner: "acme",
-        });
-        expect(frontier.prs.map((row) => row.pr)).toEqual([10, 13, 11, 14]);
-        expect(frontier.resolution?.headOwner).toBe("acme");
-        await expect(
-          store.frontier.set({
-            repo: stack.repo,
-            baseRepo: BASE_REPO,
-            headOwner: "alice",
-          })
-        ).rejects.toThrow("fork");
-        expect((await store.frontier.show()).generation).toBe(1);
-      },
-    });
+    })}, operation: async () => {
+      for (const branch of ["stack/closed", "stack/open", "stack/draft"]) {
+        git({ repo: stack.repo, args: ["checkout", branch] });
+        expect((await store.frontier.set({ repo: stack.repo, baseRepo: BASE_REPO })).prs.map(row => row.pr)).toEqual([10, 13, 11, 14]);
+      }
+    } });
   });
 
   it("rejects a selected fork pull request before writing", async () => {
@@ -284,20 +251,20 @@ describe("frontier resolution", () => {
     await withFakeGh({
       directory,
       files: {
-        pulls: {
+        table: pullRequestTable({
           ...chainPulls(stack),
           [prFile("head", "stack/open")]: ghRows([
             {
               number: 77,
               state: "open",
               head: "stack/open",
-              base: "stack/closed",
+              base: "main",
               sha: stack.openSha,
               owner: "alice",
               headRepo: "service",
             },
           ]),
-        },
+        }),
       },
       operation: async () => {
         await expect(
@@ -315,7 +282,7 @@ describe("frontier resolution", () => {
     await withFakeGh({
       directory,
       files: {
-        pulls: {
+        table: pullRequestTable({
           ...chainPulls(stack),
           [prFile("base", "stack/open")]: ghRows([
             {
@@ -328,7 +295,7 @@ describe("frontier resolution", () => {
               headRepo: "service",
             },
           ]),
-        },
+        }),
       },
       operation: async () => {
         await expect(
@@ -346,7 +313,7 @@ describe("frontier resolution", () => {
     await withFakeGh({
       directory,
       files: {
-        pulls: {
+        table: pullRequestTable({
           ...chainPulls(stack),
           [prFile("base", "stack/open")]: ghRows([
             {
@@ -364,7 +331,7 @@ describe("frontier resolution", () => {
               sha: stack.draftSha,
             },
           ]),
-        },
+        }),
       },
       operation: async () => {
         await expect(
@@ -384,9 +351,13 @@ describe("frontier resolution", () => {
     await withFakeGh({
       directory,
       files: {
-        pulls: {
+        table: pullRequestTable({
           ...chainPulls(stack),
-          [prFile("head", "stack/closed")]: ghRows([
+          [prFile("base", "stack/open")]: ghRows([
+          { number: 13, state: "open", head: "stack/closed", base: "stack/open", sha: stack.closedSha },
+          { number: 14, state: "open", head: "stack/draft", base: "stack/open", sha: stack.draftSha },
+        ]),
+        [prFile("head", "stack/closed")]: ghRows([
             {
               number: 13,
               state: "open",
@@ -395,7 +366,7 @@ describe("frontier resolution", () => {
               sha: stack.closedSha,
             },
           ]),
-        },
+        }),
       },
       operation: async () => {
         await expect(
@@ -415,7 +386,7 @@ describe("frontier resolution", () => {
     await withFakeGh({
       directory,
       files: {
-        pulls: {
+        table: pullRequestTable(chainPulls(stack)), overrides: {
           ...chainPulls(stack),
           [prFile("head", "stack/merged")]: ghRows([
             {
@@ -453,7 +424,7 @@ describe("frontier resolution", () => {
     await withFakeGh({
       directory,
       files: {
-        pulls: {
+        table: pullRequestTable(chainPulls(stack)), overrides: {
           ...chainPulls(stack),
           [prFile("head", "stack/open")]: saturated,
         },
@@ -475,7 +446,7 @@ describe("frontier resolution", () => {
     await withFakeGh({
       directory,
       files: {
-        pulls: {
+        table: pullRequestTable({
           ...chainPulls(stack),
           [prFile("head", "stack/open")]: ghRows([
             {
@@ -486,7 +457,7 @@ describe("frontier resolution", () => {
               sha: published,
             },
           ]),
-        },
+        }),
       },
       operation: async () => {
         await expect(
@@ -523,7 +494,7 @@ describe("frontier resolution", () => {
     await withFakeGh({
       directory,
       files: {
-        pulls: {
+        table: pullRequestTable({
           ...chainPulls(stack),
           [prFile("head", "stack/open")]: ghRows([
             {
@@ -541,7 +512,7 @@ describe("frontier resolution", () => {
               sha: stack.openSha,
             },
           ]),
-        },
+        }),
       },
       operation: async () => {
         const frontier = await store.frontier.set({
@@ -562,7 +533,7 @@ describe("frontier resolution", () => {
     await withFakeGh({
       directory,
       files: {
-        pulls: {
+        table: pullRequestTable({
           [prFile("head", "stack/open")]: ghRows([
             {
               number: 11,
@@ -579,7 +550,7 @@ describe("frontier resolution", () => {
               sha: stack.openSha,
             },
           ]),
-        },
+        }),
       },
       operation: async () => {
         await expect(
@@ -642,7 +613,7 @@ describe("frontier resolution", () => {
     await withFakeGh({
       directory,
       files: {
-        pulls: {
+        table: pullRequestTable(chainPulls(stack)), overrides: {
           [prFile("head", "stack/open")]: "this line is not JSON\n",
         },
       },
@@ -658,7 +629,7 @@ describe("frontier resolution", () => {
     await withFakeGh({
       directory,
       files: {
-        pulls: {
+        table: pullRequestTable(chainPulls(stack)), overrides: {
           [prFile("head", "stack/open")]: `${JSON.stringify([
             { number: 11, state: "OPEN" },
           ])}\n`,
@@ -676,7 +647,7 @@ describe("frontier resolution", () => {
     await withFakeGh({
       directory,
       files: {
-        pulls: {
+        table: pullRequestTable(chainPulls(stack)), overrides: {
           [prFile("head", "stack/open")]: `${JSON.stringify([
             {
               number: 11,
@@ -701,7 +672,7 @@ describe("frontier resolution", () => {
     await withFakeGh({
       directory,
       files: {
-        pulls: {
+        table: pullRequestTable(chainPulls(stack)), overrides: {
           [prFile("head", "stack/open")]: `${JSON.stringify([
             {
               number: 77,

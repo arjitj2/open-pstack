@@ -307,7 +307,6 @@ describe("orch CLI", () => {
     expect(frontierHelp.stdout).toContain("--repo <dir>");
     expect(frontierHelp.stdout).toContain("--base-repo <owner/name>");
     expect(frontierHelp.stdout).toContain("--trunk <branch>");
-    expect(frontierHelp.stdout).toContain("--head-owner <login>");
     expect(frontierHelp.stdout).toContain("--prs <n,...>");
 
     const directory = await makeDirectory();
@@ -394,6 +393,5 @@ describe("orch CLI", () => {
     });
     expect(missingLedger.stderr).toBe("");
   });
-
 
 });

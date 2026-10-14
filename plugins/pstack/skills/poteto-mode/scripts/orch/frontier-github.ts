@@ -28,6 +28,7 @@ export function frontierPrStateOrNull(
 }
 
 const GITHUB_PULL_REQUEST_LIMIT = 1000;
+const GITHUB_BRANCH_LIMIT = 100;
 const GITHUB_PULL_REQUEST_FIELDS = [
   "number",
   "state",
@@ -39,12 +40,11 @@ const GITHUB_PULL_REQUEST_FIELDS = [
   "isCrossRepository",
 ].join(",");
 
-interface GitHubContext {
+export interface GitHubContext {
   readonly checkout: string;
   readonly baseRepo: string;
   readonly trunk: string;
   readonly trunkSource: "explicit" | "repository-default";
-  readonly headOwner?: string;
 }
 
 interface PullRequestFields {
@@ -56,7 +56,7 @@ interface PullRequestFields {
   readonly headSha: string;
 }
 
-type GitHubPullRequest = PullRequestFields &
+export type GitHubPullRequest = PullRequestFields &
   (
     | { readonly kind: "same-repository" }
     | { readonly kind: "cross-repository"; readonly headRepo: string }
@@ -164,12 +164,10 @@ function resolveGitHubContext({
   checkout,
   baseRepo,
   trunk,
-  headOwner,
 }: {
   checkout: string;
   baseRepo?: string;
   trunk?: string;
-  headOwner?: string;
 }): GitHubContext {
   if (baseRepo !== undefined && !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(baseRepo)) {
     throw new UserError(
@@ -183,7 +181,6 @@ function resolveGitHubContext({
       baseRepo: repository.baseRepo,
       trunk,
       trunkSource: "explicit",
-      ...(headOwner === undefined ? {} : { headOwner }),
     };
   }
   if (repository.defaultBranch === null) {
@@ -196,7 +193,6 @@ function resolveGitHubContext({
     baseRepo: repository.baseRepo,
     trunk: repository.defaultBranch,
     trunkSource: "repository-default",
-    ...(headOwner === undefined ? {} : { headOwner }),
   };
 }
 
@@ -308,20 +304,17 @@ function listPullRequests({
   });
 }
 
-function ownerMatches(
-  context: GitHubContext,
-  row: GitHubPullRequest
-): boolean {
-  return context.headOwner === undefined ||
-    row.owner.toLowerCase() === context.headOwner.toLowerCase();
-}
-
 function forkPullRequestError(
   row: CrossRepositoryPullRequest
 ): UserError {
   return new UserError(
     `PR #${row.pr} has head ${row.headRepo}:${row.branch} in a fork; GitHub base refs do not identify fork-local stack parents, so fork stacks need an explicit ordered ancestry contract this command does not support yet. No frontier was written; resolve from a same-repository submitted base chain. --prs only checks discovery and cannot supply that ancestry.`
   );
+}
+
+function singlePullRequestOrUndefined<T extends GitHubPullRequest>(rows: readonly T[]): T | undefined {
+  const opens = rows.filter(row => row.state === "OPEN");
+  return opens.length === 1 ? opens[0] : rows.length === 1 ? rows[0] : undefined;
 }
 
 function requireSinglePullRequest<T extends GitHubPullRequest>({
@@ -335,13 +328,7 @@ function requireSinglePullRequest<T extends GitHubPullRequest>({
   branch: string;
   hint: string;
 }): T {
-  const opens = rows.filter((row) => row.state === "OPEN");
-  const row =
-    opens.length === 1
-      ? opens[0]
-      : rows.length === 1
-        ? rows[0]
-        : undefined;
+  const row = singlePullRequestOrUndefined(rows);
   if (row !== undefined) {
     return row;
   }
@@ -357,7 +344,7 @@ function requireSinglePullRequest<T extends GitHubPullRequest>({
   );
 }
 
-interface GitHubGraph {
+export interface GitHubGraph {
   readonly heads: ReadonlyMap<string, readonly GitHubPullRequest[]>;
   readonly children: ReadonlyMap<string, readonly GitHubPullRequest[]>;
 }
@@ -365,31 +352,23 @@ interface GitHubGraph {
 function discoverGraph(context: GitHubContext, current: string): GitHubGraph {
   const heads = new Map<string, readonly GitHubPullRequest[]>();
   const children = new Map<string, readonly GitHubPullRequest[]>();
-  const observed = new Map<number, GitHubPullRequest>();
   const pending = [current];
-  const remember = (rows: readonly GitHubPullRequest[]): void => {
-    for (const row of rows) {
-      const prior = observed.get(row.pr);
-      if (prior !== undefined && JSON.stringify(prior) !== JSON.stringify(row)) {
-        throw new UserError(`PR #${row.pr} changed during discovery; retry before writing the frontier`);
-      }
-      observed.set(row.pr, row);
-    }
-  };
   while (pending.length > 0) {
     const branch = pending.pop();
     if (branch === undefined || branch === context.trunk || heads.has(branch)) {
       continue;
     }
+    if (heads.size >= GITHUB_BRANCH_LIMIT) {
+      throw new UserError(`discovery exceeded ${GITHUB_BRANCH_LIMIT} branches; check --trunk and resolve an unambiguous submitted component. No frontier was written`);
+    }
     const headRows = listPullRequests({ context, query: { kind: "head", branch } });
     const baseRows = listPullRequests({ context, query: { kind: "base", branch } });
-    remember(headRows);
-    remember(baseRows);
     heads.set(branch, headRows);
     children.set(branch, baseRows);
-    for (const row of headRows) {
-      if (row.kind === "same-repository") pending.push(row.base);
-    }
+    const canonical = singlePullRequestOrUndefined(headRows.filter(
+      (row): row is SameRepositoryPullRequest => row.kind === "same-repository"
+    ));
+    if (canonical !== undefined) pending.push(canonical.base);
     for (const row of baseRows) {
       if (row.kind === "same-repository") pending.push(row.branch);
     }
@@ -397,13 +376,50 @@ function discoverGraph(context: GitHubContext, current: string): GitHubGraph {
   return { heads, children };
 }
 
-function planFrontier({
+function validateGraphObservations(graph: GitHubGraph): void {
+  const { heads, children } = graph;
+  const observed = new Map<number, string>();
+  const remember = (rows: readonly GitHubPullRequest[]): void => {
+    for (const row of rows) {
+      const identity = JSON.stringify([
+        row.kind, row.state, row.branch, row.base,
+        row.owner.toLowerCase(), row.headSha.toLowerCase(),
+        row.kind === "cross-repository" ? row.headRepo.toLowerCase() : null,
+      ]);
+      const prior = observed.get(row.pr);
+      if (prior !== undefined && prior !== identity) {
+        throw new UserError(`PR #${row.pr} changed during discovery; retry before writing the frontier`);
+      }
+      observed.set(row.pr, identity);
+    }
+  };
+  for (const rows of [...heads.values(), ...children.values()]) remember(rows);
+  for (const rows of heads.values()) {
+    for (const row of rows) {
+      if (row.kind === "same-repository" && children.has(row.base) &&
+          !(children.get(row.base) ?? []).some(child => child.pr === row.pr)) {
+        throw new UserError(`PR #${row.pr} changed during discovery; retry before writing the frontier`);
+      }
+    }
+  }
+  for (const rows of children.values()) {
+    for (const row of rows) {
+      if (row.kind === "same-repository" &&
+          !(heads.get(row.branch) ?? []).some(head => head.pr === row.pr)) {
+        throw new UserError(`PR #${row.pr} changed during discovery; retry before writing the frontier`);
+      }
+    }
+  }
+}
+
+export function planFrontier({
   context, current, graph,
 }: {
   context: GitHubContext;
   current: string;
   graph: GitHubGraph;
 }): readonly SameRepositoryPullRequest[] {
+  validateGraphObservations(graph);
   const candidates = new Map<string, readonly SameRepositoryPullRequest[]>();
   const selected = new Map<string, SameRepositoryPullRequest>();
   for (const [branch, rows] of graph.heads) {
@@ -411,14 +427,11 @@ function planFrontier({
       (row): row is SameRepositoryPullRequest => row.kind === "same-repository"
     );
     candidates.set(branch, sameRepositoryRows);
-    const opens = sameRepositoryRows.filter(row => row.state === "OPEN");
-    const row = opens.length === 1 ? opens[0] : sameRepositoryRows.length === 1 ? sameRepositoryRows[0] : undefined;
+    const row = singlePullRequestOrUndefined(sameRepositoryRows);
     if (row !== undefined) selected.set(branch, row);
   }
-  const required = (branch: string, first = false): SameRepositoryPullRequest => {
-    const rows = first
-      ? (graph.heads.get(branch) ?? []).filter(row => ownerMatches(context, row))
-      : candidates.get(branch) ?? [];
+  const required = (branch: string): SameRepositoryPullRequest => {
+    const rows = candidates.get(branch) ?? [];
     if (rows.length === 0) {
       const fork = (graph.heads.get(branch) ?? []).find(
         (row): row is CrossRepositoryPullRequest => row.kind === "cross-repository"
@@ -427,14 +440,18 @@ function planFrontier({
     }
     const row = requireSinglePullRequest({
       rows, context, branch,
-      hint: first ? "clarify the branch's PR history or pass --head-owner" : "clarify the branch's PR history",
+      hint: "resolve competing open PRs or retarget the active child away from ambiguous terminal history",
     });
-    if (row.kind === "cross-repository") throw forkPullRequestError(row);
     return row;
   };
   const active = new Set<string>();
   for (const [branch, rows] of candidates) {
     if (rows.some(row => row.state === "OPEN")) active.add(branch);
+  }
+  for (const [branch, rows] of graph.children) {
+    if (rows.some(row => row.kind === "cross-repository" && row.state === "OPEN")) {
+      active.add(branch);
+    }
   }
   for (;;) {
     const before = active.size;
@@ -447,29 +464,25 @@ function planFrontier({
     }
     if (active.size === before) break;
   }
-  const canonicalChildren = (branch: string): readonly SameRepositoryPullRequest[] => {
-    const branches = new Set<string>();
-    for (const [head, rows] of candidates) {
-      if (!active.has(head)) continue;
-      const row = selected.get(head);
-      const possible = row === undefined ? rows : [row];
-      if (possible.some(candidate => candidate.base === branch)) branches.add(head);
+  const childHeads = new Map<string, Set<string>>();
+  for (const [head, rows] of candidates) {
+    const row = selected.get(head);
+    for (const candidate of row === undefined ? rows : [row]) {
+      const heads = childHeads.get(candidate.base) ?? new Set<string>();
+      heads.add(head);
+      childHeads.set(candidate.base, heads);
     }
-    return [...branches].sort().map(head => required(head));
-  };
-  const first = required(current, true);
+  }
+  const canonicalChildren = (branch: string): readonly SameRepositoryPullRequest[] =>
+    [...(childHeads.get(branch) ?? [])].filter(head => active.has(head)).sort().map(head => required(head));
+  const first = required(current);
   const chain: SameRepositoryPullRequest[] = [first];
   const seenBranches = new Set<string>([current]);
-  const seenPrs = new Set<number>([first.pr]);
   const add = (row: SameRepositoryPullRequest, prepend: boolean): void => {
     if (seenBranches.has(row.branch)) {
       throw new UserError(`pull request base chain loops at branch ${row.branch}`);
     }
-    if (seenPrs.has(row.pr)) {
-      throw new UserError(`pull request base chain repeats PR #${row.pr}`);
-    }
     seenBranches.add(row.branch);
-    seenPrs.add(row.pr);
     if (prepend) chain.unshift(row); else chain.push(row);
   };
   let bottom = first;
@@ -491,7 +504,7 @@ function planFrontier({
   }
   for (const [index, parent] of chain.entries()) {
     const rows = graph.children.get(parent.branch) ?? [];
-    const fork = rows.find((row): row is CrossRepositoryPullRequest => row.kind === "cross-repository" && row.state === "OPEN" && ownerMatches(context, row));
+    const fork = rows.find((row): row is CrossRepositoryPullRequest => row.kind === "cross-repository" && row.state === "OPEN");
     if (fork !== undefined) throw forkPullRequestError(fork);
     const expected = chain[index + 1];
     const children = canonicalChildren(parent.branch);
@@ -542,12 +555,10 @@ export function resolveFrontier({
   checkout,
   baseRepo,
   trunk,
-  headOwner,
 }: {
   checkout: string;
   baseRepo?: string;
   trunk?: string;
-  headOwner?: string;
 }): {
   readonly prs: readonly FrontierPr[];
   readonly resolution: GitHubResolution;
@@ -556,16 +567,12 @@ export function resolveFrontier({
     checkout,
     baseRepo,
     trunk,
-    headOwner,
-  });
+    });
   const resolution: GitHubResolution = {
     kind: "github-base-chain",
     baseRepo: context.baseRepo,
     trunk: context.trunk,
     trunkSource: context.trunkSource,
-    ...(context.headOwner === undefined
-      ? {}
-      : { headOwner: context.headOwner }),
   };
   const current = currentBranch(context.checkout);
   if (current === context.trunk) {

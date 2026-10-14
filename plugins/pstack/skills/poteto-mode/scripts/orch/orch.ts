@@ -83,7 +83,6 @@ interface FrontierSetOptions {
   readonly repo?: string;
   readonly baseRepo?: string;
   readonly trunk?: string;
-  readonly headOwner?: string;
   readonly allowEmpty?: boolean;
   readonly prs?: readonly number[];
 }
@@ -503,11 +502,7 @@ function createProgram(io: Io): Command {
       "--trunk <branch>",
       "stack trunk (default: the base repository's default branch)"
     )
-    .option(
-      "--head-owner <login>",
-      "restrict discovery to pull requests with this head owner"
-    )
-    .option("--allow-empty", "explicitly allow replacing a populated frontier with an empty one")
+    .option("--allow-empty", "explicitly allow empty or terminal-only replacement after verifying previous PR states")
     .option(
       "--prs <n,...>",
       "optional expected pull request order pin",
@@ -522,7 +517,6 @@ function createProgram(io: Io): Command {
             repo: frontierRepo(options),
             baseRepo: options.baseRepo,
             trunk: options.trunk,
-            headOwner: options.headOwner,
             allowEmpty: options.allowEmpty,
             prs: options.prs,
           }),
