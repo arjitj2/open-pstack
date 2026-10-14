@@ -4,6 +4,12 @@ This file records what each version of the Open Pstack package changed. Versions
 
 Entries describe package versions. Published release checkpoints have tag links; installation follows `main` unless pinned. Validation belongs to the linked pull requests. Older reports remain available through immutable links.
 
+## 1.16.1 improves Ketchup media and explanations
+
+Cursor baseline: [0.15.24](https://github.com/cursor/plugins/tree/1e5c90a4b6f249917bd21fe361b3a2a7deb741b8/pstack). Candidate 0.15.25 content is undergoing validation before baseline advancement. [Issue #131](https://github.com/arjitj2/open-pstack/issues/131). Validation and incorporated baseline are pending.
+
+Ketchup leads with existing pictures, draws diagrams only when they explain a relationship or choice, uses summary bullets instead of status-only boxes, and keeps action items as plain bullets. Its prose limit excludes visuals but counts tables. The portable skill retains human-message anchoring, read-only scope, explicit UI authorization and evidence-versus-proposal distinctions. Autopilot borrows the formatting without changing workflow authority. No new provider or model policy is introduced.
+
 ## 1.16.0 adds expert task framing and GitHub frontier discovery
 
 Cursor baseline: [0.15.24](https://github.com/cursor/plugins/tree/1e5c90a4b6f249917bd21fe361b3a2a7deb741b8/pstack). [Issue #126](https://github.com/arjitj2/open-pstack/issues/126). [PR #127](https://github.com/arjitj2/open-pstack/pull/127). Tag [v1.16.0](https://github.com/arjitj2/open-pstack/releases/tag/v1.16.0).
