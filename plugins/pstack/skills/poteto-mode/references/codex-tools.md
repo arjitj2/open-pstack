@@ -36,7 +36,7 @@ Before every native `spawn_agent`, run `pstack-worker-contract prepare --parent 
 
 poteto-mode's Subagents section sets Claude-specific defaults (`subagent_type: "poteto-agent"`, `run_in_background: true`). On Codex:
 
-- There is no `poteto-agent` subagent type. Route an ad-hoc subagent through poteto-mode's style by dispatching a `spawn_agent` whose instructions tell it to read the `poteto-mode` skill in full first.
+- There is no `poteto-agent` subagent type. Route an ad-hoc subagent through poteto-mode's style by dispatching a `spawn_agent` whose instructions supply the absolute installed `poteto-mode/SKILL.md` path and require it to read that exact file in full first. Bundled leaf skills live at `../<leaf-name>/SKILL.md` relative to that skill directory.
 - `spawn_agent` calls already run concurrently with your turn, so `run_in_background: true` has no separate flag. Issue the dispatch and continue.
 - There is no `comment-sicko` subagent type either. The **no-comments** skill spawns it on Claude Code; on Codex dispatch a `spawn_agent` whose instructions tell it to read `agents/comment-sicko.md` in full first.
 - Claude Code runs every subagent on this machine, so the **swarm** skill's workers and the fan-out playbooks (`orchestrate`, `autopilot-full`, `autopilot-stack`) isolate writers with worktrees. The same holds on Codex.
@@ -60,6 +60,15 @@ Some triggers name skills that ship with Claude Code, not pstack. They do not ex
 ## Vendored scripts
 
 `skills/poteto-mode/scripts/` ships the `watch-pr` PR watcher, the `orch` store CLI, `worktree-audit.sh`, and `runner/pstack-runner`. They are plain bun and bash, so they run the same on Codex; invoke them through `shell`. The external runner additionally needs the assigned `claude`, `codex`, `grok`, `devin`, `cursor-agent`, or `opencode` executable already authenticated. It rejects a Codex provider when Codex is the parent because that lane belongs on native `spawn_agent`. The other scripts need `bun`, `gh`, (for stack work) `gt`, and (for `worktree-audit.sh`) `jq` and `rg`. `worktree-audit.sh` reads Claude Code transcripts under `~/.claude/projects/`; point it at your runtime's transcript directory instead when you run it elsewhere.
+
+## Active conversation and evidence
+
+For current-chat workflows such as Reflect and Ketchup, identify the active conversation from host metadata before reading history. Never search unrelated chats to fill a gap.
+
+- Claude Code keeps per-project JSONL transcripts under `~/.claude/projects/<encoded-cwd>/`, including flat `<id>.jsonl` and nested `<id>/<id>.jsonl` layouts. Use the confirmed session ID; `<parent>/subagents/<child>.jsonl` is a child transcript. Read user and assistant text from the record's `message` fields, and check event provenance rather than treating every user-role record as human-authored.
+- Codex can expose a current-thread reader or a confirmed session path under `~/.codex/sessions/`. Prefer the thread reader when available. With a confirmed JSONL session, use its session metadata and event type to select the active thread, then read message content and provenance from each record's payload. Do not assume Claude's `message.content[0].text` schema or scan the entire sessions directory. When identity or history is unavailable, use a labeled digest of confirmed current-chat context and state the gap.
+- Skill-use evidence can come from either host's skill load event, a file read, or a native subagent prompt naming the skill. Resolve the path actually shown in the active transcript, including project or user `.agents/skills/`, `.codex/skills/`, `.claude/skills/`, and installed plugin paths. A catalog listing alone proves visibility, not use.
+- For Why and Reflect, discover tools from the active host's live catalog and exposed tool-search or MCP discovery methods. Use resource discovery only where that host supports it. A configured server or source-playbook example does not prove availability. Keep MCP-dependent lanes native with their assigned live tools and a no-write prompt posture.
 
 ## Instructions file
 

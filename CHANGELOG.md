@@ -4,6 +4,16 @@ This file records what each version of the Open Pstack package changed. Versions
 
 Entries describe package versions. Published release checkpoints have tag links; installation follows `main` unless pinned. Validation belongs to the linked pull requests. Older reports remain available through immutable links.
 
+## 1.15.0 adopts goal restatement and concise visual catch-up
+
+Cursor baseline: [0.15.23](https://github.com/cursor/plugins/tree/c86f349b102feb91f1966f8a6a60882a4e601b50/pstack). [Issue #117](https://github.com/arjitj2/open-pstack/issues/117). [PR #118](https://github.com/arjitj2/open-pstack/pull/118). Tag [v1.15.0](https://github.com/arjitj2/open-pstack/releases/tag/v1.15.0).
+
+Adds manual `in-your-own-words` goal restatement and a short, read-only `ketchup` catch-up with small grounded visuals. Keeps actual-human anchoring, pending decisions, explicit UI authorization and evidence gaps. Adds the proposal of a cheap always-on signal after a deep debugging investigation.
+
+Shortens engineering prompts while preserving provider routing, completed-worker handoffs, meaningful negative tests and portable transcript evidence. Updates paged review-state aggregation, fenced-plan validation, scoped worktree auditing and verification-skill readiness from empty data, including missing-seed failures.
+
+Real Codex and Claude checks exercise the changed contracts; PR #118 records exact-package evidence and limits. Generated analysis remains subject to the recorded wording and attribution caveats. Same-model fixtures do not establish provider diversity, the architecture run does not prove blind candidate evaluation, and stand-in readiness checks do not verify broader target setup. Claude's protected skill-directory write required an authorized parent installation before its generated skill was invoked and driven. Existing supported manifests remain in place while additional root-format discovery is deferred.
+
 ## 1.14.0 restores compatible OpenCode V1 and generalizes V2 support
 
 Cursor baseline: [0.15.15](https://github.com/cursor/plugins/tree/df581122cde17e6e27686b5a448bde23e4ad4318/pstack). [Issue #122](https://github.com/arjitj2/open-pstack/issues/122). [PR #123](https://github.com/arjitj2/open-pstack/pull/123). Tag [v1.14.0](https://github.com/arjitj2/open-pstack/releases/tag/v1.14.0).

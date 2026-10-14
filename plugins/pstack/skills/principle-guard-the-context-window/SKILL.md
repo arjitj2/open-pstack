@@ -6,8 +6,6 @@ user-invocable: false
 
 # Guard the Context Window
 
-The context window is finite and non-renewable within a session. Every token should be worth its cost.
-
 **Why:** Context overflow degrades reasoning quality, creates compression artifacts, and halts progress.
 
 **Pattern:**

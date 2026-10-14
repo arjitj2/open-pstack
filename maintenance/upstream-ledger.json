@@ -135,9 +135,185 @@
       "subject": "feat(pstack): drop Sol, default to Opus xhigh and Grok (#511)",
       "reason": "Retain neutral help wording but exclude removal of Sol, changed provider/panel defaults, automatic effort increases, associated panel-count prose, test fixture rename, and Cursor guide edits. Provider and setup owner trees remain byte-identical to the previous release; both hosts read preserved SWE-2/Sol saved routes without writes.",
       "evidence": "https://github.com/arjitj2/open-pstack/pull/116"
+    },
+    {
+      "commit": "00b14f1df36b32a8dd1529324a3a459f6563b127",
+      "date": "2026-10-10",
+      "status": "adapted",
+      "subject": "refactor(pstack): distill skill prompts to cut tokens (#538)",
+      "reason": "Adapt portable prompt distillation while retaining provider dispatch, completion ordering, meaningful negative tests and portable transcript evidence.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/118"
+    },
+    {
+      "commit": "978ca6e9c0e012047cd5058b8e829240336e704e",
+      "date": "2026-10-10",
+      "status": "adapted",
+      "subject": "feat(pstack): add /ketchup skill (#539)",
+      "reason": "Adapt manual Ketchup with actual human anchor, automated-event exclusion, read-only scoped status and genuine user decisions.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/118"
+    },
+    {
+      "commit": "ea32d9562a1c9f077d7cdd3be53d07383eb18866",
+      "date": "2026-10-11",
+      "status": "adapted",
+      "subject": "feat(pstack): show /ketchup decisions as before/after visuals (#570)",
+      "reason": "Adapt grounded in-reply comparisons and later small-visual requirements; no inferred UI permission, invented screens/numbers, generated files or new task side effects.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/118"
+    },
+    {
+      "commit": "08bd59b37834550f5e8fa0bb5e8852204a7534cf",
+      "date": "2026-10-11",
+      "status": "adapted",
+      "subject": "refactor(pstack): cut unneeded sections from seven skills (#571)",
+      "reason": "Adapt redundant prompt cuts while retaining unique structural and epistemic constraints and approved ownership boundaries.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/118"
+    },
+    {
+      "commit": "de2dba6ffa001bc3c97acf1f58bc7ab29d5fdc7a",
+      "date": "2026-10-12",
+      "status": "excluded",
+      "subject": "fix(pstack): rename Comment Sicko agent id so Grok can spawn it (#486)",
+      "reason": "Exclude already-covered Comment Sicko ID change.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/118"
+    },
+    {
+      "commit": "87c810326a9a1dc727651b7d9bbfc5a116d68582",
+      "date": "2026-10-11",
+      "status": "adopted",
+      "subject": "fix(pstack): respect fenced code blocks in plan checks (#536)",
+      "reason": "Adopt fence parsing intent and regressions while preserving complete portable checker suite.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/118"
+    },
+    {
+      "commit": "ff8f83da30af53de945acd0e1dc10a7b21a3187f",
+      "date": "2026-10-12",
+      "status": "adapted",
+      "subject": "fix(watch-pr): paginate review threads instead of reading only the first 100 (#484)",
+      "reason": "Adapt paged review aggregation with later-page blockers, global Bugbot counts and fail-closed malformed/repeated cursors.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/118"
+    },
+    {
+      "commit": "bc697d0a5a163cec979e362b601e36f5616083fd",
+      "date": "2026-10-11",
+      "status": "adopted",
+      "subject": "fix(pstack): drop \"Must always apply.\" from unslop description (#572)",
+      "reason": "Adopt description correction; explicit callers and stable body rules remain.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/118"
+    },
+    {
+      "commit": "cf9a111eaf1eda5724abb607ef4c446ced843d65",
+      "date": "2026-10-11",
+      "status": "adapted",
+      "subject": "fix(pstack): worktree-audit checks MERGED against the default branch, not origin/main (#574)",
+      "reason": "Adapt default/explicit merge-base audit, parent-owned explicit refspec fetch and scoped transcript input.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/118"
+    },
+    {
+      "commit": "2bd5dd4f22ef958435082c417c027079f8f4ddb7",
+      "date": "2026-10-11",
+      "status": "adapted",
+      "subject": "fix(pstack): make the /poteto-mode chat the runner, poteto-agent a delegate (#575)",
+      "reason": "Adapt parent-runner/delegate distinction with portable role dispatch and parent Git/account ownership.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/118"
+    },
+    {
+      "commit": "e5a02f8fb0409c2db7eb06eae9078b235a2b5009",
+      "date": "2026-10-11",
+      "status": "excluded",
+      "subject": "feat(pstack): add Agent Plugins v1 root manifest (#576)",
+      "reason": "Exclude the additional Agent Plugins v1 root manifest pending actual new-format discovery validation; retain the existing supported Codex and Claude manifests.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/118"
+    },
+    {
+      "commit": "c49b37a2c0e7bede60a71ad7322e3f12c337a3da",
+      "date": "2026-10-12",
+      "status": "adapted",
+      "subject": "fix(pstack): create-verification-skill readiness means the app is usable (#573)",
+      "reason": "Adapt usable-from-empty readiness, required seed failure, host-correct generated-skill directories and explicit stand-in setup gaps.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/118"
+    },
+    {
+      "commit": "1b6d44ff26d4e242f4e8f68c391e6d2f7ca16def",
+      "date": "2026-10-12",
+      "status": "excluded",
+      "subject": "chore(pstack): bump to 0.15.20 (#581)",
+      "reason": "Exclude literal Cursor version; distribution uses its own release numbering.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/118"
+    },
+    {
+      "commit": "364a77eb358f16292410a7295fd8d103fb7dd40e",
+      "date": "2026-10-12",
+      "status": "adapted",
+      "subject": "fix(pstack): tell agents where bundled leaf skills live (#577)",
+      "reason": "Adapt bundled sibling leaf paths and absolute installed Poteto skill pointer in delegate contracts.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/118"
+    },
+    {
+      "commit": "997ffc7fe26bdaa6478a14e7f5b8d5f9ed747102",
+      "date": "2026-10-12",
+      "status": "excluded",
+      "subject": "chore(pstack): bump to 0.15.21 (#584)",
+      "reason": "Exclude literal Cursor version; record it only as source content baseline after validation.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/118"
+    },
+    {
+      "commit": "b93e8117880f695bc49ef7b1ef72c09bfcc7c1de",
+      "date": "2026-10-13",
+      "status": "adapted",
+      "subject": "fix(pstack): let poteto-agent find poteto-mode, drop ignored frontmatter, document the / menu (#597)",
+      "reason": "Retain parent-supplied active installation paths and bundled-leaf pointers instead of searching Cursor caches for the highest version; ignored frontmatter is already absent and host slash-menu instructions remain portable.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/118"
+    },
+    {
+      "commit": "7d8d9091e59a1fe9600bb317a1b7f69a31daa349",
+      "date": "2026-10-13",
+      "status": "adapted",
+      "subject": "feat(pstack): add /in-your-own-words to play back the goal before work (#602)",
+      "reason": "Adapt manual goal-restatement skill with shared upstream body and Codex implicit-invocation metadata.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/118"
+    },
+    {
+      "commit": "d00ba6ee9b26ff3bb084b8a5051ff6436860cbdf",
+      "date": "2026-10-13",
+      "status": "adapted",
+      "subject": "feat(pstack): shorten /ketchup replies and build them on real visuals (#595)",
+      "reason": "Adapt concise small in-reply visuals while preserving actual-human anchoring, read-only scope, explicit UI authorization and evidence gaps.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/118"
+    },
+    {
+      "commit": "36cecbf2b5089b275254d59cb4612d6f96f00fbd",
+      "date": "2026-10-13",
+      "status": "adopted",
+      "subject": "feat(pstack): propose a cheap always-on signal after a deep debugging dig (#604)",
+      "reason": "Adopt proposal of a cheap always-on signal when debugging required a deep dig; do not automatically implement instrumentation.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/118"
+    },
+    {
+      "commit": "3177dab5d4057724e6a02a198596664707795444",
+      "date": "2026-10-13",
+      "status": "excluded",
+      "subject": "chore(pstack): bump to 0.15.22 (#605)",
+      "reason": "Exclude literal Cursor release numbering; source version is recorded independently of distribution version.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/118"
+    },
+    {
+      "commit": "dbf49813a39c1a5389c5e28cb8e4c1c2379e2454",
+      "date": "2026-10-13",
+      "status": "adopted",
+      "subject": "refactor(pstack): reword /in-your-own-words around goals and the problem (#606)",
+      "reason": "Adopt goal-and-problem restatement wording unchanged.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/118"
+    },
+    {
+      "commit": "c86f349b102feb91f1966f8a6a60882a4e601b50",
+      "date": "2026-10-13",
+      "status": "adapted",
+      "subject": "refactor(pstack): make /ketchup read like /bro in 150 words (#609)",
+      "reason": "Adapt under150word plain-voice visual catch-up, retaining portable evidence/proposal/unknown boundaries and scope. Observed Claude label imprecision remains an explicit P3 output limitation.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/118"
     }
   ],
-  "reviewed_through": "df581122cde17e6e27686b5a448bde23e4ad4318",
+  "reviewed_through": "c86f349b102feb91f1966f8a6a60882a4e601b50",
   "schema": 1,
   "source": {
     "path": "pstack/",

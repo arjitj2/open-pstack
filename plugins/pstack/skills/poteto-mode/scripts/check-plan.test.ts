@@ -644,4 +644,62 @@ describe("check-plan", () => {
     expect(result.stdout).toContain("1 PR sections, 0 problems");
     expect(result.stderr).toBe("");
   });
+
+  describe("markdown fences", () => {
+    it("accepts indented fences and closers longer than the opener", () => {
+      for (const text of [
+        "   ```markdown\n     ## Example only\n```\n",
+        "```markdown\n## Example only\n````\n",
+      ]) {
+        expect(problemsOf(skeleton + "\n" + text)).toEqual([]);
+      }
+    });
+
+    it("keeps mismatched, shorter, or suffixed closers inside an open fence", () => {
+      for (const text of [
+        "```markdown\n~~~\n## Example only\n```",
+        "````markdown\n```\n## Example only\n``` markdown\n````",
+      ]) {
+        expect(problemsOf(skeleton + "\n" + text)).toEqual([]);
+      }
+    });
+
+    it("accepts tilde fences, including backticks in a tilde info string", () => {
+      expect(
+        problemsOf(skeleton + "\n~~~markdown `info`\n## Example only\n ~~~\n")
+      ).toEqual([]);
+    });
+
+    it("rejects headings outside a proper close", () => {
+      for (const suffix of ["  ", "\t"]) {
+        const problems = problemsOf(
+          skeleton +
+            "\n```markdown\n## Example only\n```" +
+            suffix +
+            "\n## Example only\n"
+        );
+        expect(problems.join("\n")).toContain("Example only");
+      }
+    });
+
+    it("still checks content after a genuine closer", () => {
+      const problems = problemsOf(skeleton + "\n```\nfoo: x\n```\nfoo: x\n");
+      expect(problems.join("\n")).toContain("mid-sentence colon");
+    });
+
+    it("does not treat a backtick inside a backtick info string as an opener", () => {
+      const problems = problemsOf(
+        skeleton + "\n``` `code`\n## Example only\n```\n"
+      );
+      expect(problems.join("\n")).toContain("Example only");
+    });
+
+    it("fails closed when a fence swallows required sections", () => {
+      const problems = problemsOf(
+        replaceOnce(skeleton, "## Close the program", "```\n## Close the program")
+      );
+      expect(problems.length).toBeGreaterThan(0);
+      expect(problems.join("\n")).toContain("Close the program");
+    });
+  });
 });

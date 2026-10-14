@@ -57,7 +57,7 @@ How `poteto-mode` stays in effect depends on the parent:
 - On Codex the routing is opt-in. Once the user trusts the plugin's `SessionStart` entry in `/hooks`, new tasks route the same way. Untrusted or disabled, nothing routes: select the skill for each task.
 - There is no mode to toggle on. Routing and explicit selection are the persistence. Mid-chat, "new task" makes the mode match a fresh playbook.
 
-For ad-hoc native helpers, Claude Code can use `poteto-agent`; Codex has no such agent type and instead passes instructions to read `poteto-mode`. Configured roles must use [provider dispatch](../poteto-mode/references/provider-dispatch.md), preserving their selected models and effort. See the [Codex tool mapping](../poteto-mode/references/codex-tools.md#subagent-policy) for host details.
+For ad-hoc native helpers, Claude Code can use `poteto-agent` — a step delegate, not the playbook runner; the chat that receives `/poteto-mode` runs the playbook itself. Codex has no such agent type and instead passes instructions to read `poteto-mode`. Configured roles must use [provider dispatch](../poteto-mode/references/provider-dispatch.md), preserving their selected models and effort. See the [Codex tool mapping](../poteto-mode/references/codex-tools.md#subagent-policy) for host details.
 
 ## Pick a skill
 
@@ -70,6 +70,8 @@ The default answer is `poteto-mode`, which runs most of the others when its step
 | Know why code is shaped this way, or where a number came from | [`why`](../why/SKILL.md) |
 | Understand a change or subsystem, explained plainly | [`teach`](../teach/SKILL.md) |
 | Catch up on their own recent work on a topic | [`recall`](../recall/SKILL.md) |
+| Check the agent understood the goal and underlying problem before work starts | [`in-your-own-words`](../in-your-own-words/SKILL.md), invoked manually in either host |
+| Catch up on this chat in short plain sentences and small visuals, without starting queued work | [`ketchup`](../ketchup/SKILL.md), invoked manually as `/pstack:ketchup` in Claude Code or `$pstack:ketchup` or the skill picker in Codex |
 | Know what a small diff could break outside itself | [`blast-radius`](../blast-radius/SKILL.md) |
 | Settle types and module shape before code that crosses a function boundary | [`architect`](../architect/SKILL.md) |
 | Get several attempts at one brief, merged into the best one | [`arena`](../arena/SKILL.md) |
@@ -108,7 +110,7 @@ Close calls:
 - `arena` gives every worker the same brief and merges the best parts. `swarm` splits work into slices or a race and returns one report.
 - `architect` implements right after it settles the design. Add "with checkpoint" to review the design before it writes code.
 - `interrogate` reviews the diff. `blast-radius` looks for breakage outside the diff and proves the one fact that makes the change safe.
-- `recall` rebuilds context across recent sessions. Resuming one specific task or branch is the Session pickup playbook.
+- `recall` rebuilds context across recent sessions. `ketchup` is a manual, read-only catch-up for this chat since the last actual human message before invocation. Heartbeats and agent notifications do not reset its anchor. It reports pending human decisions and current status through available readers, using UI only with explicit authorization, and leaves queued work pending. Resuming one specific task or branch is the Session pickup playbook.
 - A PR-status request under `poteto-mode` runs the Babysit playbook. The bundled `babysit` skill is the standalone form of the same job outside a run.
 - `figure-it-out` designs one rigorous run. The Orchestrate playbook runs a program that spans days and many PRs. The Autonomous run playbook drives one task to a finish condition.
 
