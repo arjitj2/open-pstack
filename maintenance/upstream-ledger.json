@@ -315,26 +315,34 @@
     {
       "commit": "ce649c03ac3b75b6ae80cbd15b7e2c536caedb5a",
       "date": "2026-10-13",
-      "status": "pending",
-      "subject": "feat(pstack): match subagent effort to the job, drop Graphite from orchestrate, and cut playbooks to principles (#613)"
+      "status": "adapted",
+      "subject": "feat(pstack): match subagent effort to the job, drop Graphite from orchestrate, and cut playbooks to principles (#613)",
+      "reason": "Replace Graphite frontier resolution with an explicitly pinned GitHub base-chain walk and fix owner-approval gate classification. Preserve saved efforts and approved recovery; exclude nearest-family or speed substitutions, weaker shipping/autopilot rewrites and untested Origin paths. Both installed hosts exercised actual same-repo GitHub discovery and explicit fork rejection; multi-PR topology is covered at the labeled gh boundary.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/127"
     },
     {
       "commit": "8043881e5cbb962f8948d1a1f8f8e28089d67c9a",
       "date": "2026-10-13",
-      "status": "pending",
-      "subject": "pstack: autopilot loops catch the operator up with /ketchup (#616)"
+      "status": "adapted",
+      "subject": "pstack: autopilot loops catch the operator up with /ketchup (#616)",
+      "reason": "Use Ketchup response formatting for automatic autopilot updates without implicitly loading the manual read-only skill or abandoning the authorized workflow. Both installed hosts retained unsupported fixture status and unchanged execution authority.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/127"
     },
     {
       "commit": "79afd75d5bd51383fbb526b72f36db03180b8301",
       "date": "2026-10-13",
-      "status": "pending",
-      "subject": "feat(pstack): add /sharpen (#615)"
+      "status": "adapted",
+      "subject": "feat(pstack): add /sharpen (#615)",
+      "reason": "Add manual Sharpen in the shared tree with namespaced invocation, Codex explicit-invocation metadata, user constraints and an outside check. Codex read the actual installed skill; Claude registered and accepted a leading slash invocation. Both delivered control-checked fixture reports.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/127"
     },
     {
       "commit": "1e5c90a4b6f249917bd21fe361b3a2a7deb741b8",
       "date": "2026-10-14",
-      "status": "pending",
-      "subject": "chore(pstack): bump to 0.15.24 (#617)"
+      "status": "adapted",
+      "subject": "chore(pstack): bump to 0.15.24 (#617)",
+      "reason": "Record Cursor version0.15.24 while retaining independent distribution version1.16.0; version-only source metadata does not replace portable manifests.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/127"
     }
   ],
   "reviewed_through": "1e5c90a4b6f249917bd21fe361b3a2a7deb741b8",

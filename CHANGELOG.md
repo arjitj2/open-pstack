@@ -6,9 +6,11 @@ Entries describe package versions. Published release checkpoints have tag links;
 
 ## 1.16.0 adds expert task framing and GitHub frontier discovery
 
-Cursor baseline: [0.15.23](https://github.com/cursor/plugins/tree/c86f349b102feb91f1966f8a6a60882a4e601b50/pstack). [Issue #126](https://github.com/arjitj2/open-pstack/issues/126). Adoption through 0.15.24 remains under validation on this branch.
+Cursor baseline: [0.15.24](https://github.com/cursor/plugins/tree/1e5c90a4b6f249917bd21fe361b3a2a7deb741b8/pstack). [Issue #126](https://github.com/arjitj2/open-pstack/issues/126). [PR #127](https://github.com/arjitj2/open-pstack/pull/127). Tag [v1.16.0](https://github.com/arjitj2/open-pstack/releases/tag/v1.16.0).
 
-Adds manual `sharpen`, concise automatic audit summaries, and fixes owner-approval review-gate classification. GitHub frontier discovery replaces the Graphite dependency while preserving explicit repository identity and failing clearly for unsupported fork ancestry.
+Adds manual `sharpen`, concise automatic audit summaries, and fixes owner-approval review-gate classification. GitHub frontier discovery replaces the Graphite dependency with explicit repository identity, published-head checks, and clear unsupported-fork failures. Orchestration joins strict typechecking. Saved model choices, recovery chains and guarded shipping remain unchanged.
+
+Codex and Claude exercised the installed candidate against a real same-repository PR and unchanged real fork PR. Both preserved the frontier on fork rejection. Multi-PR topology and owner-gate policy use labeled synthetic boundaries; these are not live multi-PR or Gate-service claims. Manual Sharpen and summary-format evidence carries forward only by exact contract hashes. All923tests pass locally in serial execution and Linux CI passes the parallel suite. Local default-parallel attempts retained timeout and loopback-fixture failures.
 
 ## 1.15.0 adopts goal restatement and concise visual catch-up
 
