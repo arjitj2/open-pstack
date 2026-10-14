@@ -6,6 +6,8 @@ The orchestrate CLI lets an operator persist work-unit progress and consume work
 
 - `orch-unit`: add, update, and reopen a work unit.
 - `orch-inbox`: peek without consuming, drain, and confirm the inbox is empty.
+- `orch-frontier`: resolve the GitHub pull request base chain into `frontier.json`. Covered by the `orch` test suite's fake-`gh` PATH fixture against a real local git stack; that is a labeled boundary check, not live GitHub integration.
+- `orch-frontier-refresh`: plan the complete discovered graph, retaining linear terminal bridges and rejecting competing active paths before persisting, retain published heads for terminal PRs, and require explicit `--allow-empty` intent before replacing active work with empty or terminal-only discovery.
 
 ## How to get to it (user POV)
 
@@ -51,4 +53,4 @@ All commands must exit zero. `orch-get` is a fresh process that sees the saved s
 - Never omit both `--store` and `ORCH_STORE`, and never point them at an active program's store.
 - `status` writes `status.md`; it is not a read-only doctor.
 - Do not use `--force` to steal another process's lock.
-- Frontier operations need Graphite/GitHub and are outside this local smoke.
+- Frontier operations walk the GitHub PR base chain through `gh` and resolve the target from GitHub CLI checkout context, with `--base-repo <owner/name>` or `ORCH_BASE_REPO` as an override. The shipped proof is the fake-`gh` test boundary; they are outside this local smoke.

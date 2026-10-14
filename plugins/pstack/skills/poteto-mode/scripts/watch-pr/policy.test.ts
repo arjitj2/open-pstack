@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { WatcherQueryError } from "./github.ts";
+import { parseFastCheck, WatcherQueryError } from "./github.ts";
 import {
   applyQueueSnapshot,
   assessGitHubMerge,
@@ -417,4 +417,22 @@ it("uses the specified retry floor and cap", () => {
   expect(queryBackoffSeconds(1, 1)).toBe(60);
   expect(queryBackoffSeconds(1, 2)).toBe(120);
   expect(queryBackoffSeconds(60, 4)).toBe(300);
+});
+
+it("does not turn owner approval ACTION_REQUIRED into a CI blocker", async () => {
+  const gate = parseFastCheck({
+    name: "Code Review Gate",
+    state: "ACTION_REQUIRED",
+    bucket: "fail",
+  });
+  const snapshot = await readSnapshot({
+    reader: fakeReader({ fastPath: { kind: "checks", checks: [gate] } }),
+    context: context(91),
+    pendingHistory: "include",
+    allowDraft: false,
+  });
+  expect(snapshot.kind).toBe("open");
+  if (snapshot.kind !== "open") throw new Error("expected open snapshot");
+  expect(snapshot.ci.kind).not.toBe("ci-failing");
+  expect(classifyPr(snapshot).kind).not.toBe("blocker");
 });

@@ -237,22 +237,20 @@ export function parseFastCheck(value: unknown): T.Check {
   const details = checkDetails(object, "name");
   const state = string(object.state, "check.state").toUpperCase();
   const bucket = string(object.bucket, "check.bucket");
-  if (
-    bucket === "fail" ||
-    ["FAILURE", "ERROR", "ACTION_REQUIRED"].includes(state)
-  )
+  if (state === "ACTION_REQUIRED")
+    return classifyOwnerApprovalGate("failed", details, state);
+  if (bucket === "fail" || ["FAILURE", "ERROR"].includes(state))
     return { ...details, kind: "failed", reportedState: state };
-  if (bucket === "pending") return pendingOrGate(details, state);
+  if (bucket === "pending")
+    return classifyOwnerApprovalGate("pending", details, state);
   if (bucket === "pass")
     return { ...details, kind: "passed", reportedState: state };
   if (bucket === "skipping")
     return { ...details, kind: "skipped", reportedState: state };
   return { ...details, kind: "failed", reportedState: state };
 }
-// The owner-approval gate is excluded from pending everywhere, so the rule has
-// one home. Classifying it as pending on either read path makes the watcher
-// wait on a human, which is the behaviour #172004 removed from the Python.
-function pendingOrGate(
+function classifyOwnerApprovalGate(
+  kind: "pending" | "failed",
   details: {
     readonly name: string;
     readonly description: string;
@@ -268,7 +266,7 @@ function pendingOrGate(
         name: "Code Review Gate",
         reportedState,
       }
-    : { ...details, kind: "pending", reportedState };
+    : { ...details, kind, reportedState };
 }
 export function mapRollupNode(value: unknown): T.Check | null {
   const object = record(value, "rollup node");
@@ -288,22 +286,19 @@ export function mapRollupNode(value: unknown): T.Check | null {
         ? object.conclusion.toUpperCase()
         : "";
     if (status !== "COMPLETED")
-      return pendingOrGate({ ...details, link }, "PENDING");
+      return classifyOwnerApprovalGate("pending", { ...details, link }, "PENDING");
     if (conclusion === "SUCCESS")
       return { ...details, link, kind: "passed", reportedState: "SUCCESS" };
     if (conclusion === "NEUTRAL" || conclusion === "SKIPPED")
       return { ...details, link, kind: "skipped", reportedState: conclusion };
-    return {
-      ...details,
-      link,
-      kind: "failed",
-      reportedState: conclusion === "ACTION_REQUIRED" ? conclusion : "FAILURE",
-    };
+    if (conclusion === "ACTION_REQUIRED")
+      return classifyOwnerApprovalGate("failed", { ...details, link }, conclusion);
+    return { ...details, link, kind: "failed", reportedState: "FAILURE" };
   }
   const state =
     typeof object.state === "string" ? object.state.toUpperCase() : "";
   if (state === "PENDING" || state === "EXPECTED")
-    return pendingOrGate({ ...details, link }, "PENDING");
+    return classifyOwnerApprovalGate("pending", { ...details, link }, "PENDING");
   return state === "SUCCESS"
     ? { ...details, link, kind: "passed", reportedState: state }
     : { ...details, link, kind: "failed", reportedState: state || "FAILURE" };

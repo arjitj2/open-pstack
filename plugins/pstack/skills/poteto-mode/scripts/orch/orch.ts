@@ -81,6 +81,9 @@ interface GateResolveOptions {
 
 interface FrontierSetOptions {
   readonly repo?: string;
+  readonly baseRepo?: string;
+  readonly trunk?: string;
+  readonly allowEmpty?: boolean;
   readonly prs?: readonly number[];
 }
 
@@ -169,7 +172,11 @@ function frontierLine(value: Frontier): string {
               `${row.branches}#${row.pr}@${row.sha}:${row.state}`
           )
           .join(",");
-  return `generation=${value.generation} prs=${prs} lowest-unmerged=${value.lowestUnmerged ?? "none"}`;
+  const resolution =
+    value.resolution === undefined
+      ? ""
+      : ` base-repo=${value.resolution.baseRepo} trunk=${value.resolution.trunk}`;
+  return `generation=${value.generation} prs=${prs} lowest-unmerged=${value.lowestUnmerged ?? "none"}${resolution}`;
 }
 
 function statusLines(report: StatusReport): string {
@@ -472,15 +479,30 @@ function createProgram(io: Io): Command {
 
   const frontier = program
     .command("frontier")
-    .description("manage the Graphite stack frontier")
+    .description("manage the pull request stack frontier")
     .action(() => requireSubcommand(program));
-  leaf(frontier, "set", "discover the Graphite stack and set the frontier")
+  leaf(
+    frontier,
+    "set",
+    "resolve the GitHub pull request base chain and set the frontier"
+  )
     .addOption(
       new Option(
         "--repo <dir>",
         "repository directory (or ORCH_REPO)"
       ).env("ORCH_REPO")
     )
+    .addOption(
+      new Option(
+        "--base-repo <owner/name>",
+        "GitHub target repository override (or ORCH_BASE_REPO; default: gh checkout context)"
+      ).env("ORCH_BASE_REPO")
+    )
+    .option(
+      "--trunk <branch>",
+      "stack trunk (default: the base repository's default branch)"
+    )
+    .option("--allow-empty", "explicitly allow empty or terminal-only replacement after verifying previous PR states")
     .option(
       "--prs <n,...>",
       "optional expected pull request order pin",
@@ -493,6 +515,9 @@ function createProgram(io: Io): Command {
         (store) =>
           store.frontier.set({
             repo: frontierRepo(options),
+            baseRepo: options.baseRepo,
+            trunk: options.trunk,
+            allowEmpty: options.allowEmpty,
             prs: options.prs,
           }),
         frontierLine

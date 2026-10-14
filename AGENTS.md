@@ -22,7 +22,7 @@ Do not add an implicit runtime timeout or a weaker-model fallback. The only perm
 
 Provider adapters must support compatible patch and minor versions using a documented version range and checks for the capabilities they require. A tested version is evidence, not an exact-version allowlist. Reject a version only for a concrete incompatibility or missing required capability, with an actionable explanation. An exact-version restriction requires a documented incompatibility reason and explicit user approval before implementation. Keep tested versions separate from the supported range, and verify more than one available version when changing provider compatibility.
 
-A major plugin version requires explicit user approval of the version choice before implementation or publication. General authorization to implement, merge, release, or roll out does not authorize a major-version bump.
+The repository owner chooses release versions. Before changing a candidate version or publishing a release, propose the exact version and explain whether the change warrants a patch, minor, or major release; wait for explicit approval. A major plugin version always requires explicit approval before implementation or publication. General authorization to catch up, implement, merge, release, or roll out does not approve a version choice. Implementation and validation may continue while the choice is pending; version-dependent merge, publication, and rollout must wait.
 
 ## Default delivery workflow
 

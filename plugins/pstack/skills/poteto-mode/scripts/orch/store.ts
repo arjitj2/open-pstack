@@ -1,4 +1,3 @@
-import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import type { Dirent } from "node:fs";
 import {
@@ -13,6 +12,20 @@ import {
   writeFile,
 } from "node:fs/promises";
 import { basename, dirname, join, resolve } from "node:path";
+import {
+  NotFoundError,
+  UsageError,
+  UserError,
+  isRecord,
+  isUnknownArray,
+} from "./boundary.ts";
+import {
+  frontierPrStateOrNull,
+  resolveFrontier,
+} from "./frontier-github.ts";
+
+export { NotFoundError, UsageError, UserError } from "./boundary.ts";
+export type { NotFoundOutput } from "./boundary.ts";
 
 const UNIT_HEADER = "id\ttrack\tstate\tbranch\tpr\tsha\tbrief";
 const LEDGER_HEADER = "pr\tsha\tverdict\tevidence\tverifier\tts";
@@ -85,10 +98,18 @@ export interface FrontierPr {
   readonly state: FrontierPrState;
 }
 
+export interface GitHubResolution {
+  readonly kind: "github-base-chain";
+  readonly baseRepo: string;
+  readonly trunk: string;
+  readonly trunkSource: "explicit" | "repository-default";
+}
+
 export interface Frontier {
   readonly generation: number;
   readonly prs: readonly FrontierPr[];
   readonly lowestUnmerged: number | null;
+  readonly resolution?: GitHubResolution;
 }
 
 export interface StandingLine {
@@ -167,6 +188,9 @@ export interface ResolveGateParams {
 
 export interface SetFrontierParams {
   readonly repo: string;
+  readonly baseRepo?: string;
+  readonly trunk?: string;
+  readonly allowEmpty?: boolean;
   readonly prs?: readonly number[];
 }
 
@@ -219,22 +243,6 @@ export interface Store {
   readonly close: () => Promise<void>;
 }
 
-export interface NotFoundOutput {
-  readonly compact: string;
-  readonly json: unknown;
-}
-
-export class UserError extends Error {}
-export class UsageError extends UserError {}
-export class NotFoundError extends UserError {
-  public constructor(
-    message: string,
-    public readonly output?: NotFoundOutput
-  ) {
-    super(message);
-  }
-}
-
 function errorCode(error: unknown): string | null {
   if (
     error !== null &&
@@ -245,18 +253,6 @@ function errorCode(error: unknown): string | null {
     return error.code;
   }
   return null;
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === "object" && !Array.isArray(value);
-}
-
-function isUnknownArray(value: unknown): value is readonly unknown[] {
-  return Array.isArray(value);
 }
 
 function verdictOrNull(value: string): Verdict | null {
@@ -272,11 +268,12 @@ function verdictOrNull(value: string): Verdict | null {
   }
 }
 
-function frontierPrStateOrNull(value: unknown): FrontierPrState | null {
+function gitHubTrunkSourceOrNull(
+  value: unknown
+): "explicit" | "repository-default" | null {
   switch (value) {
-    case "OPEN":
-    case "MERGED":
-    case "CLOSED":
+    case "explicit":
+    case "repository-default":
       return value;
     default:
       return null;
@@ -692,6 +689,30 @@ function parseFrontier(raw: string): Frontier {
   ) {
     throw new UserError("frontier.json has an invalid shape");
   }
+  let resolution: GitHubResolution | undefined;
+  if (value.resolution !== undefined) {
+    const raw = value.resolution;
+    const trunkSource = isRecord(raw)
+      ? gitHubTrunkSourceOrNull(raw.trunkSource)
+      : null;
+    if (
+      !isRecord(raw) ||
+      raw.kind !== "github-base-chain" ||
+      typeof raw.baseRepo !== "string" ||
+      raw.baseRepo.length === 0 ||
+      typeof raw.trunk !== "string" ||
+      raw.trunk.length === 0 ||
+      trunkSource === null
+    ) {
+      throw new UserError("frontier.json has an invalid resolution");
+    }
+    resolution = {
+      kind: "github-base-chain",
+      baseRepo: raw.baseRepo,
+      trunk: raw.trunk,
+      trunkSource,
+    };
+  }
   const prs: FrontierPr[] = [];
   for (const row of value.prs) {
     const state = isRecord(row)
@@ -720,6 +741,7 @@ function parseFrontier(raw: string): Frontier {
     generation: value.generation,
     prs,
     lowestUnmerged: value.lowestUnmerged,
+    ...(resolution === undefined ? {} : { resolution }),
   };
 }
 
@@ -905,6 +927,10 @@ function statusMarkdown(
   gateRows: readonly Gate[],
   currentSummary: StatusSummary
 ): string {
+  const resolutionLine =
+    currentFrontier.resolution === undefined
+      ? ""
+      : `Resolution: ${currentFrontier.resolution.kind} ${currentFrontier.resolution.baseRepo} trunk ${currentFrontier.resolution.trunk} (${currentFrontier.resolution.trunkSource})\n`;
   return `# Orchestrate status
 
 Generated: ${new Date().toISOString()}
@@ -931,7 +957,7 @@ ${table(
 
 Generation: ${currentFrontier.generation}
 Lowest unmerged: ${currentFrontier.lowestUnmerged ?? "none"}
-
+${resolutionLine}
 ${table(
   ["Branch", "PR", "SHA", "State"],
   currentFrontier.prs.map((row) => [
@@ -967,204 +993,6 @@ function countLine(value: Counts): string {
     : entries.map(([name, count]) => `${name}=${count}`).join(", ");
 }
 
-const OPEN_GT_PR_STATUSES = new Set([
-  "Trunk branch locked",
-  "Changes requested",
-  "Waiting on PRs in this stack to merge",
-  "Waiting on downstack merge state",
-  "Draft",
-  "Required checks failed",
-  "Undergoing failure detection",
-  "Merge queue failed on current head commit",
-  "Handed off to merge queue...",
-  "Waiting on downstack",
-  "Merge conflicts",
-  "Needs reviewers",
-  "Needs approvals",
-  "Needs restack",
-  "Queued to merge...",
-  "Ready to merge",
-  "Ready to merge as stack",
-  "Rebasing...",
-  "Waiting on CI...",
-  "Stale, needs rebase onto trunk",
-  "Unresolved comments",
-  "Waiting on required CI",
-  "Waiting to merge...",
-]);
-
-interface GtPullRequest {
-  readonly pr: number;
-  readonly state: FrontierPrState;
-}
-
-interface GtFrontierEntry extends GtPullRequest {
-  readonly branches: string;
-}
-
-function parseGtPullRequest({
-  branch,
-  detail,
-}: {
-  branch: string;
-  detail: string;
-}): GtPullRequest {
-  const match =
-    /^(?:\[origin\] )?PR #([1-9]\d*)(?: \(([^)\r\n]+)\))?(?: .+)?$/.exec(
-      detail
-    );
-  const pr = Number(match?.[1] ?? 0);
-  if (match === null || !Number.isSafeInteger(pr)) {
-    throw new UserError(
-      `gt info output has an invalid PR row for branch ${branch}: ${detail}`
-    );
-  }
-  const status = match[2];
-  if (status === "Merged") {
-    return { pr, state: "MERGED" };
-  }
-  if (status === "Closed") {
-    return { pr, state: "CLOSED" };
-  }
-  if (status === undefined || OPEN_GT_PR_STATUSES.has(status)) {
-    return { pr, state: "OPEN" };
-  }
-  throw new UserError(
-    `gt info output has an unknown PR state for branch ${branch}: ${status}`
-  );
-}
-
-function parseGtBranches(raw: string): readonly string[] {
-  const branches: string[] = [];
-  const lines = raw.replace(/\r/g, "").split("\n");
-  for (const [index, line] of lines.entries()) {
-    if (line.length === 0) {
-      continue;
-    }
-    const branchMatch =
-      /^(?:│ )*[◯◉] +([^\s]+)((?: \([^()\r\n]*\))*)$/.exec(line);
-    if (branchMatch === null) {
-      throw new UserError(
-        `gt log short output has an unparseable line ${index + 1}: ${JSON.stringify(line)}`
-      );
-    }
-    const branch = branchMatch[1] ?? "";
-    if (branches.includes(branch)) {
-      throw new UserError(
-        `gt log short output contains duplicate branch ${branch}`
-      );
-    }
-    branches.push(branch);
-  }
-  const trunk = branches[0];
-  if (trunk === undefined) {
-    throw new UserError("gt log short output did not contain a stack");
-  }
-  return branches.slice(1);
-}
-
-function graphitePullRequest({
-  branch,
-  repo,
-}: {
-  branch: string;
-  repo: string;
-}): GtPullRequest {
-  let raw: string;
-  try {
-    raw = execFileSync("gt", ["--no-interactive", "info", branch], {
-      cwd: repo,
-      encoding: "utf8",
-      env: { ...process.env, NO_COLOR: "1" },
-      stdio: ["ignore", "pipe", "pipe"],
-    });
-  } catch (error) {
-    throw new UserError(
-      `gt info ${branch} failed: ${errorMessage(error)}`
-    );
-  }
-  const rows = raw
-    .replace(/\r/g, "")
-    .split("\n")
-    .filter(
-      (line) =>
-        line.startsWith("PR #") || line.startsWith("[origin] PR #")
-    );
-  if (rows.length === 0) {
-    throw new UserError(
-      `gt info output branch ${branch} has no pull request; this clone's gt metadata may predate the submit, so resolve the frontier from the stacker's clone or after gt sync`
-    );
-  }
-  if (rows.length > 1) {
-    throw new UserError(
-      `gt info output contains multiple PRs for branch ${branch}`
-    );
-  }
-  return parseGtPullRequest({ branch, detail: rows[0] ?? "" });
-}
-
-function graphiteFrontier(repo: string): readonly GtFrontierEntry[] {
-  let raw: string;
-  try {
-    raw = execFileSync(
-      "gt",
-      ["--no-interactive", "log", "short", "--stack", "--reverse"],
-      {
-        cwd: repo,
-        encoding: "utf8",
-        env: { ...process.env, NO_COLOR: "1" },
-        stdio: ["ignore", "pipe", "pipe"],
-      }
-    );
-  } catch (error) {
-    throw new UserError(
-      `gt log short --stack --reverse failed: ${errorMessage(error)}`
-    );
-  }
-  const result = parseGtBranches(raw).map((branch) => ({
-    branches: branch,
-    ...graphitePullRequest({ branch, repo }),
-  }));
-  if (new Set(result.map((row) => row.pr)).size !== result.length) {
-    throw new UserError("gt info output contains duplicate pull requests");
-  }
-  return result;
-}
-
-function branchSha({
-  branch,
-  repo,
-}: {
-  branch: string;
-  repo: string;
-}): string {
-  let raw: string;
-  try {
-    raw = execFileSync("git", ["rev-parse", branch], {
-      cwd: repo,
-      encoding: "utf8",
-      env: process.env,
-      stdio: ["ignore", "pipe", "pipe"],
-    });
-  } catch (error) {
-    throw new UserError(
-      `git rev-parse ${branch} failed: ${errorMessage(error)}`
-    );
-  }
-  const sha = raw.trim();
-  if (!/^[0-9a-f]{40,64}$/i.test(sha)) {
-    throw new UserError(`git rev-parse ${branch} returned an invalid SHA`);
-  }
-  return sha;
-}
-
-function resolveFrontier(repo: string): readonly FrontierPr[] {
-  return graphiteFrontier(repo).map((row) => ({
-    ...row,
-    sha: branchSha({ branch: row.branches, repo }),
-  }));
-}
-
 function validateFrontierPin({
   actual,
   expected,
@@ -1184,14 +1012,14 @@ function validateFrontierPin({
   const extra = actual.filter((pr) => !expectedSet.has(pr));
   const drift: string[] = [];
   if (missing.length > 0) {
-    drift.push(`missing from gt: ${missing.join(",")}`);
+    drift.push(`missing from resolved chain: ${missing.join(",")}`);
   }
   if (extra.length > 0) {
-    drift.push(`extra in gt: ${extra.join(",")}`);
+    drift.push(`extra in resolved chain: ${extra.join(",")}`);
   }
   if (missing.length === 0 && extra.length === 0) {
     drift.push(
-      `order differs: expected ${expected.join(",")}; gt ${actual.join(",")}`
+      `order differs: expected ${expected.join(",")}; resolved ${actual.join(",")}`
     );
   }
   throw new UserError(`frontier pin mismatch: ${drift.join("; ")}`);
@@ -1484,6 +1312,11 @@ export function openStore(
       set: async (params) => {
         await beginWrite();
         const repo = resolve(requiredLine(params.repo, "repo directory"));
+        const baseRepo = params.baseRepo === undefined ? undefined : requiredLine(params.baseRepo, "base repository");
+        const trunk =
+          params.trunk === undefined
+            ? undefined
+            : requiredLine(params.trunk, "trunk branch");
         const pin =
           params.prs === undefined
             ? undefined
@@ -1492,17 +1325,29 @@ export function openStore(
           throw new UserError("--prs must not contain duplicates");
         }
         const old = await readFrontier(store);
-        const prs = resolveFrontier(repo);
+        const resolved = resolveFrontier({
+          checkout: repo,
+          baseRepo,
+          trunk,
+        });
+        const lowestUnmerged = resolved.prs.find(row => row.state === "OPEN")?.pr ?? null;
+        const losesActiveWork = old.lowestUnmerged !== null && lowestUnmerged === null;
+        if ((losesActiveWork || (old.prs.length > 0 && resolved.prs.length === 0)) && params.allowEmpty !== true) {
+          throw new UserError(
+            "refusing to replace a populated frontier with empty or terminal-only discovery; resolve from the current active stack, or pass --allow-empty after checking the previous PR states"
+          );
+        }
         if (pin !== undefined) {
           validateFrontierPin({
-            actual: prs.map((row) => row.pr),
+            actual: resolved.prs.map((row) => row.pr),
             expected: pin,
           });
         }
         const value: Frontier = {
           generation: old.generation + 1,
-          prs,
-          lowestUnmerged: prs.find((row) => row.state === "OPEN")?.pr ?? null,
+          prs: resolved.prs,
+          lowestUnmerged,
+          resolution: resolved.resolution,
         };
         await atomicWrite(
           join(store, "frontier.json"),
