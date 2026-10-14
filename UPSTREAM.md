@@ -10,13 +10,13 @@ This page records the current Cursor baseline and the maintainer procedure for r
 | --- | --- |
 | Repository | `https://github.com/cursor/plugins.git` |
 | Path | `pstack/` |
-| Commit | `df581122cde17e6e27686b5a448bde23e4ad4318` |
-| Upstream version | `0.15.15` |
+| Commit | `c86f349b102feb91f1966f8a6a60882a4e601b50` |
+| Upstream version | `0.15.23` |
 | open-pstack version | `1.15.0` |
 
 The table records the packaged version on `main` and the Cursor content it incorporates, minus the exclusions below. Detecting or reviewing a newer Cursor commit does not advance this baseline. Cursor's version identifies the imported content. The open-pstack version identifies the cross-harness package, and its numbers are independent of Cursor and Eric's port.
 
-The upstream README at this baseline is [cursor/plugins `pstack/README.md` @ df581122](https://github.com/cursor/plugins/blob/df581122cde17e6e27686b5a448bde23e4ad4318/pstack/README.md). [CHANGELOG.md](CHANGELOG.md) records the baseline of each release, and [NOTICE.md](NOTICE.md) records provenance.
+The upstream README at this baseline is [cursor/plugins `pstack/README.md` @ c86f349b](https://github.com/cursor/plugins/blob/c86f349b102feb91f1966f8a6a60882a4e601b50/pstack/README.md). [CHANGELOG.md](CHANGELOG.md) records the baseline of each release, and [NOTICE.md](NOTICE.md) records provenance.
 
 ## Upstream-only exclusions
 
@@ -28,6 +28,9 @@ The upstream README at this baseline is [cursor/plugins `pstack/README.md` @ df5
 - The `4e5b1cf` help workflow uses this distribution’s owning documents, namespaced invocation, native/external routes, and host startup controls. Cursor Custom Modes, excluded `make-bot-ui`, and Cursor-only guide edits are not applied.
 - The `2cbf585` guide-only refresh stays upstream; this distribution links Lauren's guide and keeps portable prompting guidance in `poteto-help`.
 - The `df58112` model and effort changes are excluded. This distribution retains Sol as a first-run family, its existing provider-qualified panel and role defaults, and confirmed budget ceilings that do not raise lower saved efforts. Cursor's model availability and two-model panel do not define access in Codex or Claude Code. Its accompanying panel-count prose, test fixture rename, and guide edits stay with that excluded model change; neutral help wording is retained.
+- The `e5a02f8` Agent Plugins v1 root manifest is deferred until its new-format discovery is validated. Existing tested Codex and Claude manifests remain the supported package entry points; this is not a claim that either host is incompatible with the additional format.
+- The `b93e811` fallback search through Cursor plugin caches is replaced by the parent supplying its active installed skill path and bundled sibling-leaf paths. Choosing the highest cached version could select an unverified candidate. Cursor-only menu wording and already-absent ignored frontmatter need no separate portable mechanism.
+- Cursor version-only changes retain this distribution's independent release numbering. `ketchup` keeps current-chat anchoring, read-only status checks, explicit UI authorization and evidence/proposal distinctions while adopting the short small-visual format. Goal restatement is manual-only in both hosts.
 - The Claude manifest does not take the logo field from `efa2a53` because Claude Code has no schema for it. The Codex manifest exposes the shared asset instead.
 
 Earlier exclusions include Cursor's Benny automation, tutorial and sticky-mode UI, Cursor-only agent metadata, and Team Kit tools covered by host built-ins or bundled skills. The [historical port record](https://github.com/arjitj2/open-pstack/blob/5f0bb42dea46344c2f1961ebeebaeee135b49778/docs/reference.md#whats-deliberately-not-ported) records those source revisions.
