@@ -70,7 +70,8 @@ The default answer is `poteto-mode`, which runs most of the others when its step
 | Know why code is shaped this way, or where a number came from | [`why`](../why/SKILL.md) |
 | Understand a change or subsystem, explained plainly | [`teach`](../teach/SKILL.md) |
 | Catch up on their own recent work on a topic | [`recall`](../recall/SKILL.md) |
-| Catch up on this chat and understand decisions still waiting on them, without starting queued work | [`ketchup`](../ketchup/SKILL.md), invoked manually as `/pstack:ketchup` in Claude Code or `$pstack:ketchup` or the skill picker in Codex |
+| Check the agent understood the goal and underlying problem before work starts | [`in-your-own-words`](../in-your-own-words/SKILL.md), invoked manually in either host |
+| Catch up on this chat in short plain sentences and small visuals, without starting queued work | [`ketchup`](../ketchup/SKILL.md), invoked manually as `/pstack:ketchup` in Claude Code or `$pstack:ketchup` or the skill picker in Codex |
 | Know what a small diff could break outside itself | [`blast-radius`](../blast-radius/SKILL.md) |
 | Settle types and module shape before code that crosses a function boundary | [`architect`](../architect/SKILL.md) |
 | Get several attempts at one brief, merged into the best one | [`arena`](../arena/SKILL.md) |

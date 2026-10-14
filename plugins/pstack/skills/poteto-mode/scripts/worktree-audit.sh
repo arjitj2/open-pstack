@@ -1,13 +1,4 @@
 #!/usr/bin/env bash
-# Worktree prune audit. Classifies every git worktree by size, merge
-# state, uncommitted work, remote/PR state, and the most recent chat that
-# operated in it. Emits a table sorted by size with a suggested bucket. Never
-# deletes anything; deletion stays a human-gated step in the playbook. The
-# audit does run a best-effort `git fetch` so merge checks see fresh refs;
-# that ref mutation belongs to the owning session, never a read-only worker.
-#
-# Usage: worktree-audit.sh [-b <pr-base-ref>] [--transcript-root <directory>] [repo-path]
-#   (repo-path defaults to the current repo's toplevel)
 set -u
 
 usage() { echo "Usage: worktree-audit.sh [-b <pr-base-ref>] [--transcript-root <directory>] [repo-path]" >&2; }
@@ -44,8 +35,6 @@ cd "$repo" || exit 1
 git rev-parse --git-dir >/dev/null 2>&1 || {
 	echo "error: $repo is not a git repository" >&2; exit 1; }
 
-# The audit base is the branch PRs merge into: the remote default branch,
-# or an explicit -b/--base for PRs targeting another branch.
 if [ -z "$base" ]; then
 	base=$(git symbolic-ref --short -q refs/remotes/origin/HEAD 2>/dev/null || true)
 	if [ -z "$base" ]; then
