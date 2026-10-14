@@ -10,7 +10,9 @@ Cursor baseline: [0.15.24](https://github.com/cursor/plugins/tree/1e5c90a4b6f249
 
 Adds manual `sharpen`, concise automatic audit summaries, and fixes owner-approval review-gate classification. GitHub frontier discovery replaces the Graphite dependency with explicit repository identity, published-head checks, and clear unsupported-fork failures. Orchestration joins strict typechecking. Saved model choices, recovery chains and guarded shipping remain unchanged.
 
-Codex and Claude exercised the installed candidate against a real same-repository PR and unchanged real fork PR. Both preserved the frontier on fork rejection. Multi-PR topology and owner-gate policy use labeled synthetic boundaries; these are not live multi-PR or Gate-service claims. Manual Sharpen and summary-format evidence carries forward only by exact contract hashes. All923tests pass locally in serial execution and Linux CI passes the parallel suite. Local default-parallel attempts retained timeout and loopback-fixture failures.
+`orch frontier set` now requires `--base-repo <owner/name>` or `ORCH_BASE_REPO` and no longer reads Graphite. Existing orchestration commands must supply that identity. Fork-local ancestry remains unsupported.
+
+Codex and Claude exercised the installed candidate against a real same-repository PR and unchanged real fork PR. Both preserved the frontier on fork rejection. Multi-PR topology and owner-gate policy use labeled synthetic boundaries; these are not live multi-PR or Gate-service claims. Manual Sharpen and summary-format evidence carries forward only by exact contract hashes. The full test suite passes locally in serial execution and Linux CI passes the parallel suite. Local default-parallel attempts retained timeout and loopback-fixture failures.
 
 ## 1.15.0 adopts goal restatement and concise visual catch-up
 

@@ -84,6 +84,7 @@ interface FrontierSetOptions {
   readonly baseRepo: string;
   readonly trunk?: string;
   readonly headOwner?: string;
+  readonly allowEmpty?: boolean;
   readonly prs?: readonly number[];
 }
 
@@ -492,9 +493,11 @@ function createProgram(io: Io): Command {
         "repository directory (or ORCH_REPO)"
       ).env("ORCH_REPO")
     )
-    .requiredOption(
-      "--base-repo <owner/name>",
-      "GitHub repository the stack's pull requests target"
+    .addOption(
+      new Option(
+        "--base-repo <owner/name>",
+        "GitHub repository the stack's pull requests target (or ORCH_BASE_REPO)"
+      ).env("ORCH_BASE_REPO").makeOptionMandatory()
     )
     .option(
       "--trunk <branch>",
@@ -504,6 +507,7 @@ function createProgram(io: Io): Command {
       "--head-owner <login>",
       "restrict discovery to pull requests with this head owner"
     )
+    .option("--allow-empty", "explicitly allow replacing a populated frontier with an empty one")
     .option(
       "--prs <n,...>",
       "optional expected pull request order pin",
@@ -519,6 +523,7 @@ function createProgram(io: Io): Command {
             baseRepo: options.baseRepo,
             trunk: options.trunk,
             headOwner: options.headOwner,
+            allowEmpty: options.allowEmpty,
             prs: options.prs,
           }),
         frontierLine

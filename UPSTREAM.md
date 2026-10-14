@@ -32,7 +32,6 @@ The upstream README at this baseline is [cursor/plugins `pstack/README.md` @ 1e5
 - The `b93e811` fallback search through Cursor plugin caches is replaced by the parent supplying its active installed skill path and bundled sibling-leaf paths. Choosing the highest cached version could select an unverified candidate. Cursor-only menu wording and already-absent ignored frontmatter need no separate portable mechanism.
 - Cursor version-only changes retain this distribution's independent release numbering. `ketchup` keeps current-chat anchoring, read-only status checks, explicit UI authorization and evidence/proposal distinctions while adopting the short small-visual format. Goal restatement is manual-only in both hosts.
 - The Claude manifest does not take the logo field from `efa2a53` because Claude Code has no schema for it. The Codex manifest exposes the shared asset instead.
-
 - The `ce649c0` job-specific effort, speed and nearest-family substitutions remain excluded under the saved descriptor and recovery policy. GitHub frontier discovery replaces Graphite, requires explicit base-repository identity and rejects unsupported fork ancestry before writing. Untested Origin CLI mappings are excluded. Shipping and autopilot retain the port’s expected-head, queue-disarm, captured-lease and no-implicit-deadline rules.
 - The `8043881` automatic catch-up uses Ketchup’s response format without implicitly invoking its manual read-only workflow. The `79afd75` Sharpen skill preserves manual invocation in both hosts and explicit user constraints.
 
