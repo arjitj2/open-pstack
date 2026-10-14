@@ -50,6 +50,41 @@ async function expectSetRejected({
 }
 
 describe("frontier topology boundaries", () => {
+  it("rejects a selected open child missing from its later base response", async () => {
+    const { directory, store } = await initializedStore();
+    const stack = await makeGitStack(directory);
+    await expectSetRejected({
+      directory, store, stack,
+      pulls: {
+        ...chainPulls(stack),
+        [prFile("base", "stack/closed")]: ghRows([]),
+      },
+      error: "changed during discovery",
+    });
+  });
+
+  it("retains the same terminal chain from each submitted checkout", async () => {
+    const { directory, store } = await initializedStore();
+    const stack = await makeGitStack(directory);
+    const pulls = {
+      ...chainPulls(stack),
+      [prFile("base", "stack/merged")]: ghRows([
+        { number: 13, state: "closed", head: "stack/closed", base: "stack/merged", sha: stack.closedSha },
+      ]),
+      [prFile("base", "stack/closed")]: ghRows([
+        { number: 11, state: "open", head: "stack/open", base: "stack/closed", sha: stack.openSha },
+      ]),
+    };
+    await withFakeGh({ directory, files: { pulls }, operation: async () => {
+      const first = await store.frontier.set({ repo: stack.repo, baseRepo: BASE_REPO });
+      for (const branch of ["stack/merged", "stack/closed", "stack/open", "stack/draft"]) {
+        git({ repo: stack.repo, args: ["checkout", branch] });
+        const refreshed = await store.frontier.set({ repo: stack.repo, baseRepo: BASE_REPO });
+        expect(refreshed.prs).toEqual(first.prs);
+      }
+    } });
+  });
+
   it("retains active descendants when a child branch also has closed history", async () => {
     const { directory, store } = await initializedStore();
     const stack = await makeGitStack(directory);
@@ -82,6 +117,37 @@ describe("frontier topology boundaries", () => {
         expect(second.prs).toEqual(first.prs);
       },
     });
+  });
+
+  it("ignores obsolete terminal aliases above a deeper reused branch", async () => {
+    const { directory, store } = await initializedStore();
+    const stack = await makeGitStack(directory);
+    git({ repo: stack.repo, args: ["checkout", "-b", "stack/further", "stack/draft"] });
+    await writeFile(join(stack.repo, "further.txt"), "Further fixture unit\n");
+    git({ repo: stack.repo, args: ["add", "further.txt"] });
+    git({ repo: stack.repo, args: ["commit", "-m", "Further fixture unit"] });
+    const furtherSha = git({ repo: stack.repo, args: ["rev-parse", "HEAD"] });
+    const pulls = {
+      ...chainPulls(stack),
+      [prFile("head", "stack/draft")]: ghRows([
+        { number: 14, state: "open", head: "stack/draft", base: "stack/open", sha: stack.draftSha },
+        { number: 25, state: "closed", head: "stack/draft", base: "stack/closed", sha: "f".repeat(40) },
+      ]),
+      [prFile("base", "stack/closed")]: ghRows([
+        { number: 11, state: "open", head: "stack/open", base: "stack/closed", sha: stack.openSha },
+        { number: 25, state: "closed", head: "stack/draft", base: "stack/closed", sha: "f".repeat(40) },
+      ]),
+      [prFile("base", "stack/draft")]: ghRows([
+        { number: 26, state: "open", head: "stack/further", base: "stack/draft", sha: furtherSha },
+      ]),
+    };
+    await withFakeGh({ directory, files: { pulls }, operation: async () => {
+      for (const branch of ["stack/closed", "stack/open", "stack/draft", "stack/further"]) {
+        git({ repo: stack.repo, args: ["checkout", branch] });
+        const frontier = await store.frontier.set({ repo: stack.repo, baseRepo: BASE_REPO });
+        expect(frontier.prs.map(row => row.pr)).toEqual([10, 13, 11, 14, 26]);
+      }
+    } });
   });
 
   it("does not erase a populated frontier from trunk without explicit intent", async () => {
@@ -144,7 +210,7 @@ describe("frontier topology boundaries", () => {
           { number: 16, state: "open", head: "stack/side", base: "stack/merged", sha: stack.draftSha },
         ]),
       },
-      error: "stack is not linear: branch stack/side also targets stack/merged",
+      error: "stack is not linear: branches stack/closed, stack/side all target stack/merged",
     });
   });
 
@@ -272,7 +338,7 @@ describe("frontier topology boundaries", () => {
     expect((await store.frontier.show()).generation).toBe(0);
   });
 
-  it("rejects an open descendant stranded behind a closed child", async () => {
+  it("rejects a competing active path behind a closed child", async () => {
     const { directory, store } = await initializedStore();
     const stack = await makeGitStack(directory);
 
@@ -283,6 +349,7 @@ describe("frontier topology boundaries", () => {
       pulls: {
         ...chainPulls(stack),
         [prFile("base", "stack/open")]: ghRows([
+          { number: 14, state: "draft", head: "stack/draft", base: "stack/open", sha: stack.draftSha },
           {
             number: 15,
             state: "closed",
@@ -302,12 +369,12 @@ describe("frontier topology boundaries", () => {
         ]),
       },
       error:
-        "open PR #20 on branch stack/stranded descends from closed PR #15 on branch stack/abandoned",
+        "stack is not linear: branches stack/abandoned, stack/draft all target stack/open",
     });
     expect((await store.frontier.show()).generation).toBe(0);
   });
 
-  it("rejects an open descendant behind multiple terminal links", async () => {
+  it("rejects a competing active path behind multiple terminal links", async () => {
     const { directory, store } = await initializedStore();
     const stack = await makeGitStack(directory);
 
@@ -318,6 +385,7 @@ describe("frontier topology boundaries", () => {
       pulls: {
         ...chainPulls(stack),
         [prFile("base", "stack/open")]: ghRows([
+          { number: 14, state: "draft", head: "stack/draft", base: "stack/open", sha: stack.draftSha },
           {
             number: 15,
             state: "closed",
@@ -346,7 +414,7 @@ describe("frontier topology boundaries", () => {
         ]),
       },
       error:
-        "open PR #22 on branch stack/stranded descends from closed PR #15 on branch stack/abandoned",
+        "stack is not linear: branches stack/abandoned, stack/draft all target stack/open",
     });
     expect((await store.frontier.show()).generation).toBe(0);
   });

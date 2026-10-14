@@ -1,3 +1,4 @@
+import { isRecord } from "./boundary.ts";
 import {
   chmod,
   mkdir,
@@ -206,7 +207,7 @@ fi
 printf '%s\\n' "$*" >> "$fixture/calls.txt"
 case "\${1:-} \${2:-}" in
   "repo view")
-    if [ "\${3:-}" != "__BASE_REPO__" ]; then
+    if [ "\${3:-}" != "__BASE_REPO__" ] && [ "\${3:-}" != "--json" ]; then
       printf 'gh repo view got wrong repository: %s\\n' "\${3:-}" >&2
       exit 2
     fi
@@ -298,6 +299,30 @@ export async function withFakeGh<T>({
         defaultBranchRef: { name: "main" },
       })}\n`
   );
+  const catalogue = new Map<number, Record<string, unknown>>();
+  for (const contents of Object.values(files.pulls ?? {})) {
+    let rows: unknown;
+    try { rows = JSON.parse(contents); } catch { continue; }
+    if (!Array.isArray(rows)) continue;
+    for (const row of rows) {
+      if (isRecord(row) && typeof row.number === "number" && !catalogue.has(row.number)) {
+        catalogue.set(row.number, row);
+      }
+    }
+  }
+  const rows = [...catalogue.values()];
+  const defaults = new Map<string, readonly Record<string, unknown>[]>();
+  for (const row of rows) {
+    if (typeof row.headRefName === "string") {
+      defaults.set(prFile("head", row.headRefName), rows.filter(candidate => candidate.headRefName === row.headRefName));
+    }
+    if (typeof row.baseRefName === "string") {
+      defaults.set(prFile("base", row.baseRefName), rows.filter(candidate => candidate.baseRefName === row.baseRefName));
+    }
+  }
+  for (const [name, rows] of defaults) {
+    await writeFile(join(fixture, name), JSON.stringify(rows));
+  }
   for (const [name, contents] of Object.entries(files.pulls ?? {})) {
     await writeFile(join(fixture, name), contents);
   }

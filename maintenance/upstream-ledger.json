@@ -317,7 +317,7 @@
       "date": "2026-10-13",
       "status": "adapted",
       "subject": "feat(pstack): match subagent effort to the job, drop Graphite from orchestrate, and cut playbooks to principles (#613)",
-      "reason": "Replace Graphite frontier resolution with an explicitly pinned GitHub base-chain walk and fix owner-approval gate classification. Preserve saved efforts and approved recovery; exclude nearest-family or speed substitutions, weaker shipping/autopilot rewrites and untested Origin paths. Both installed hosts exercised actual same-repo GitHub discovery and explicit fork rejection; multi-PR topology is covered at the labeled gh boundary.",
+      "reason": "Replace Graphite frontier resolution with a GitHub base-chain walk with an optional order pin and fix owner-approval gate classification. Preserve saved efforts and approved recovery; exclude nearest-family or speed substitutions, weaker shipping/autopilot rewrites and untested Origin paths. Both installed hosts exercised actual same-repo GitHub discovery and explicit fork rejection; multi-PR topology is covered at the labeled gh boundary.",
       "evidence": "https://github.com/arjitj2/open-pstack/pull/127"
     },
     {
@@ -341,7 +341,7 @@
       "date": "2026-10-14",
       "status": "adapted",
       "subject": "chore(pstack): bump to 0.15.24 (#617)",
-      "reason": "Record Cursor version0.15.24 while retaining independent distribution version1.16.0; version-only source metadata does not replace portable manifests.",
+      "reason": "Record Cursor version 0.15.24 while retaining independent distribution version 1.16.0; version-only source metadata does not replace portable manifests.",
       "evidence": "https://github.com/arjitj2/open-pstack/pull/127"
     }
   ],

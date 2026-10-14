@@ -8,9 +8,9 @@ Entries describe package versions. Published release checkpoints have tag links;
 
 Cursor baseline: [0.15.24](https://github.com/cursor/plugins/tree/1e5c90a4b6f249917bd21fe361b3a2a7deb741b8/pstack). [Issue #126](https://github.com/arjitj2/open-pstack/issues/126). [PR #127](https://github.com/arjitj2/open-pstack/pull/127). Tag [v1.16.0](https://github.com/arjitj2/open-pstack/releases/tag/v1.16.0).
 
-Adds manual `sharpen`, concise automatic audit summaries, and fixes owner-approval review-gate classification. GitHub frontier discovery replaces the Graphite dependency with explicit repository identity, published-head checks, and clear unsupported-fork failures. Orchestration joins strict typechecking. Saved model choices, recovery chains and guarded shipping remain unchanged.
+Adds manual `sharpen`, concise automatic audit summaries, and fixes owner-approval review-gate classification. GitHub frontier discovery replaces the Graphite dependency with recorded repository identity, published-head checks, and clear unsupported-fork failures. Orchestration joins strict typechecking. Saved model choices, recovery chains and guarded shipping remain unchanged.
 
-`orch frontier set` now requires `--base-repo <owner/name>` or `ORCH_BASE_REPO` and no longer reads Graphite. Existing orchestration commands must supply that identity. Fork-local ancestry remains unsupported.
+`orch frontier set` keeps the existing command syntax and no longer reads Graphite. By default, GitHub CLI resolves the repository context from the selected checkout; `--base-repo <owner/name>` or `ORCH_BASE_REPO` overrides it. Discovery records the canonical identity and retains linear terminal ancestry across checkout branches. Fork-local ancestry remains unsupported.
 
 Codex and Claude exercised the installed candidate against a real same-repository PR and unchanged real fork PR. Both preserved the frontier on fork rejection. Multi-PR topology and owner-gate policy use labeled synthetic boundaries; these are not live multi-PR or Gate-service claims. Manual Sharpen and summary-format evidence carries forward only by exact contract hashes. The full test suite passes locally in serial execution and Linux CI passes the parallel suite. Local default-parallel attempts retained timeout and loopback-fixture failures.
 

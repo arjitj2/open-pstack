@@ -11,12 +11,41 @@ import {
   makeDirectory,
   makeGitStack,
   prFile,
+  runCli,
+  useStore,
   withFakeGh,
 } from "./frontier-fixture.ts";
 
 afterEach(cleanupFixtures);
 
 describe("frontier resolution", () => {
+  it("keeps frontier set compatible without a base repository argument", async () => {
+    const { directory, store } = await initializedStore();
+    const stack = await makeGitStack(directory);
+    await store.close();
+    await withFakeGh({ directory, files: { pulls: chainPulls(stack) }, operation: async () => {
+      const env = { ...process.env };
+      delete env.ORCH_BASE_REPO;
+      const result = runCli(["--store", directory, "frontier", "set", "--repo", stack.repo], env);
+      expect(result).toMatchObject({ code: 0, stderr: "" });
+      const refreshed = await useStore(directory).frontier.show();
+      expect(refreshed.prs.map(row => row.pr)).toEqual([10, 13, 11, 14]);
+      expect(refreshed.resolution?.baseRepo).toBe(BASE_REPO);
+    } });
+  });
+
+  it("uses ORCH_BASE_REPO as the repository identity override", async () => {
+    const { directory, store } = await initializedStore();
+    const stack = await makeGitStack(directory);
+    await store.close();
+    await withFakeGh({ directory, files: { pulls: chainPulls(stack) }, operation: async callsPath => {
+      const result = runCli(["--store", directory, "frontier", "set", "--repo", stack.repo], { ...process.env, ORCH_BASE_REPO: BASE_REPO });
+      expect(result).toMatchObject({ code: 0, stderr: "" });
+      expect((await useStore(directory).frontier.show()).resolution?.baseRepo).toBe(BASE_REPO);
+      expect(await readFile(callsPath, "utf8")).toContain(`repo view ${BASE_REPO} --json`);
+    } });
+  });
+
   it("resolves the GitHub base chain and validates an optional pin", async () => {
     const { directory, store } = await initializedStore();
     const stack = await makeGitStack(directory);
@@ -379,7 +408,7 @@ describe("frontier resolution", () => {
     });
   });
 
-  it("rejects a base chain that repeats a pull request", async () => {
+  it("rejects contradictory identities for a repeated pull request", async () => {
     const { directory, store } = await initializedStore();
     const stack = await makeGitStack(directory);
 
@@ -402,7 +431,7 @@ describe("frontier resolution", () => {
       operation: async () => {
         await expect(
           store.frontier.set({ repo: stack.repo, baseRepo: BASE_REPO })
-        ).rejects.toThrow("pull request base chain repeats PR #11");
+        ).rejects.toThrow("PR #11 changed during discovery");
         expect((await store.frontier.show()).generation).toBe(0);
       },
     });

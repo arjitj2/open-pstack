@@ -315,16 +315,6 @@ describe("orch CLI", () => {
     expect(invalid.code).toBe(1);
     expect(invalid.stderr).toContain("required option '--track <track>'");
 
-    const missingBaseRepo = runCli([
-      "--store",
-      directory,
-      "frontier",
-      "set",
-      "--repo",
-      directory,
-    ]);
-    expect(missingBaseRepo.code).toBe(1);
-    expect(missingBaseRepo.stderr).toContain("--base-repo");
   });
 
   it("accepts ORCH_STORE and emits complete JSON", async () => {
@@ -405,25 +395,5 @@ describe("orch CLI", () => {
     expect(missingLedger.stderr).toBe("");
   });
 
-  it("accepts ORCH_BASE_REPO for the required base repository", async () => {
-    const directory = await makeDirectory();
-    const without = runCli([
-      "--store",
-      directory,
-      "frontier",
-      "set",
-      "--repo",
-      directory,
-    ]);
-    expect(without.code).toBe(1);
-    expect(without.stderr).toContain("--base-repo");
 
-    const withEnv = runCli(
-      ["--store", directory, "frontier", "set"],
-      { ...process.env, ORCH_BASE_REPO: BASE_REPO }
-    );
-    expect(withEnv.code).toBe(1);
-    expect(withEnv.stderr).toContain("ORCH_REPO");
-    expect(withEnv.stderr).not.toContain("--base-repo");
-  });
 });

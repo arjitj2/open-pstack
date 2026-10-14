@@ -81,7 +81,7 @@ interface GateResolveOptions {
 
 interface FrontierSetOptions {
   readonly repo?: string;
-  readonly baseRepo: string;
+  readonly baseRepo?: string;
   readonly trunk?: string;
   readonly headOwner?: string;
   readonly allowEmpty?: boolean;
@@ -496,8 +496,8 @@ function createProgram(io: Io): Command {
     .addOption(
       new Option(
         "--base-repo <owner/name>",
-        "GitHub repository the stack's pull requests target (or ORCH_BASE_REPO)"
-      ).env("ORCH_BASE_REPO").makeOptionMandatory()
+        "GitHub target repository override (or ORCH_BASE_REPO; default: gh checkout context)"
+      ).env("ORCH_BASE_REPO")
     )
     .option(
       "--trunk <branch>",

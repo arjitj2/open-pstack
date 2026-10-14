@@ -113,18 +113,18 @@ function gitHubRepository({
   baseRepo,
 }: {
   checkout: string;
-  baseRepo: string;
+  baseRepo?: string;
 }): {
   readonly baseRepo: string;
   readonly defaultBranch: string | null;
 } {
-  const command = `gh repo view ${baseRepo}`;
+  const command = `gh repo view ${baseRepo ?? "(checkout context)"}`;
   const raw = runTool({
     command: "gh",
     args: [
       "repo",
       "view",
-      baseRepo,
+      ...(baseRepo === undefined ? [] : [baseRepo]),
       "--json",
       "nameWithOwner,defaultBranchRef",
     ],
@@ -140,7 +140,7 @@ function gitHubRepository({
   if (
     !isRecord(value) ||
     typeof value.nameWithOwner !== "string" ||
-    value.nameWithOwner.length === 0 ||
+    ! /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(value.nameWithOwner) ||
     (ref !== null &&
       (!isRecord(ref) ||
         typeof ref.name !== "string" ||
@@ -148,7 +148,7 @@ function gitHubRepository({
   ) {
     throw new UserError(`${command} output has invalid repository metadata`);
   }
-  if (value.nameWithOwner.toLowerCase() !== baseRepo.toLowerCase()) {
+  if (baseRepo !== undefined && value.nameWithOwner.toLowerCase() !== baseRepo.toLowerCase()) {
     throw new UserError(
       `gh repo view resolved ${baseRepo} to a different repository ${value.nameWithOwner}; pass that repository explicitly if it is intended`
     );
@@ -167,11 +167,11 @@ function resolveGitHubContext({
   headOwner,
 }: {
   checkout: string;
-  baseRepo: string;
+  baseRepo?: string;
   trunk?: string;
   headOwner?: string;
 }): GitHubContext {
-  if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(baseRepo)) {
+  if (baseRepo !== undefined && !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(baseRepo)) {
     throw new UserError(
       "--base-repo must name a GitHub repository as owner/name"
     );
@@ -347,7 +347,7 @@ function requireSinglePullRequest<T extends GitHubPullRequest>({
   }
   if (rows.length === 0) {
     throw new UserError(
-      `branch ${branch} has no pull request in ${context.baseRepo}; open one with gh pr create, or resolve the frontier from a branch whose chain is fully submitted`
+      `branch ${branch} has no pull request in ${context.baseRepo}; if this is the stack root, pass --trunk; otherwise submit it with gh pr create or resolve from a fully submitted chain`
     );
   }
   throw new UserError(
@@ -357,144 +357,153 @@ function requireSinglePullRequest<T extends GitHubPullRequest>({
   );
 }
 
-function headPullRequest({
-  context,
-  branch,
-}: {
-  context: GitHubContext;
-  branch: string;
-}): GitHubPullRequest {
-  const rows = listPullRequests({
-    context,
-    query: { kind: "head", branch },
-  }).filter((row) => ownerMatches(context, row));
-  return requireSinglePullRequest({
-    rows,
-    context,
-    branch,
-    hint: "clarify the branch's PR history or pass --head-owner",
-  });
+interface GitHubGraph {
+  readonly heads: ReadonlyMap<string, readonly GitHubPullRequest[]>;
+  readonly children: ReadonlyMap<string, readonly GitHubPullRequest[]>;
 }
 
-function sameRepositoryParentPullRequest({
-  context,
-  branch,
-}: {
-  context: GitHubContext;
-  branch: string;
-}): SameRepositoryPullRequest {
-  const candidates = listPullRequests({
-    context,
-    query: { kind: "head", branch },
-  });
-  const rows = candidates.filter(
-    (row): row is SameRepositoryPullRequest =>
-      row.kind === "same-repository"
-  );
-  if (rows.length === 0) {
-    const fork = candidates.find(
-      (row): row is CrossRepositoryPullRequest =>
-        row.kind === "cross-repository"
-    );
-    if (fork !== undefined) {
-      throw forkPullRequestError(fork);
+function discoverGraph(context: GitHubContext, current: string): GitHubGraph {
+  const heads = new Map<string, readonly GitHubPullRequest[]>();
+  const children = new Map<string, readonly GitHubPullRequest[]>();
+  const observed = new Map<number, GitHubPullRequest>();
+  const pending = [current];
+  const remember = (rows: readonly GitHubPullRequest[]): void => {
+    for (const row of rows) {
+      const prior = observed.get(row.pr);
+      if (prior !== undefined && JSON.stringify(prior) !== JSON.stringify(row)) {
+        throw new UserError(`PR #${row.pr} changed during discovery; retry before writing the frontier`);
+      }
+      observed.set(row.pr, row);
     }
-  }
-  return requireSinglePullRequest({
-    rows,
-    context,
-    branch,
-    hint: "clarify the branch's PR history",
-  });
-}
-
-function rejectStrandedDescendants({
-  context,
-  terminal,
-  knownBranches,
-}: {
-  context: GitHubContext;
-  terminal: {
-    readonly branch: string;
-    readonly pr: number;
-    readonly state: "CLOSED" | "MERGED";
   };
-  knownBranches: ReadonlySet<string>;
-}): void {
-  const pending = [terminal.branch];
-  const visited = new Set(knownBranches);
   while (pending.length > 0) {
     const branch = pending.pop();
-    if (branch === undefined || visited.has(branch)) {
+    if (branch === undefined || branch === context.trunk || heads.has(branch)) {
       continue;
     }
-    visited.add(branch);
-    const rows = listPullRequests({
-      context,
-      query: { kind: "base", branch },
-    });
-    for (const row of rows) {
-      if (row.state === "OPEN") {
-        if (row.kind === "cross-repository") {
-          throw forkPullRequestError(row);
-        }
-        throw new UserError(
-          `open PR #${row.pr} on branch ${row.branch} descends from ${terminal.state.toLowerCase()} PR #${terminal.pr} on branch ${terminal.branch}; retarget the active descendants or resolve from their submitted chain. No frontier was written.`
-        );
-      }
-      if (row.kind === "same-repository") {
-        pending.push(row.branch);
-      }
+    const headRows = listPullRequests({ context, query: { kind: "head", branch } });
+    const baseRows = listPullRequests({ context, query: { kind: "base", branch } });
+    remember(headRows);
+    remember(baseRows);
+    heads.set(branch, headRows);
+    children.set(branch, baseRows);
+    for (const row of headRows) {
+      if (row.kind === "same-repository") pending.push(row.base);
+    }
+    for (const row of baseRows) {
+      if (row.kind === "same-repository") pending.push(row.branch);
     }
   }
+  return { heads, children };
 }
 
-function openChild({
-  context,
-  branch,
-  knownBranches,
+function planFrontier({
+  context, current, graph,
 }: {
   context: GitHubContext;
-  branch: string;
-  knownBranches: ReadonlySet<string>;
-}): SameRepositoryPullRequest | undefined {
-  const rows = listPullRequests({
-    context,
-    query: { kind: "base", branch },
-  });
-  const opens = rows.filter((row) => row.state === "OPEN");
-  const fork = opens.find(
-    (row): row is CrossRepositoryPullRequest =>
-      row.kind === "cross-repository"
-  );
-  if (fork !== undefined) {
-    throw forkPullRequestError(fork);
-  }
-  const children = opens.filter(
-    (row): row is SameRepositoryPullRequest =>
-      row.kind === "same-repository" && ownerMatches(context, row)
-  );
-  if (children.length > 1) {
-    throw new UserError(
-      `stack is not linear: branches ${children
-        .map((row) => row.branch)
-        .join(", ")} all target ${branch}`
+  current: string;
+  graph: GitHubGraph;
+}): readonly SameRepositoryPullRequest[] {
+  const candidates = new Map<string, readonly SameRepositoryPullRequest[]>();
+  const selected = new Map<string, SameRepositoryPullRequest>();
+  for (const [branch, rows] of graph.heads) {
+    const sameRepositoryRows = rows.filter(
+      (row): row is SameRepositoryPullRequest => row.kind === "same-repository"
     );
+    candidates.set(branch, sameRepositoryRows);
+    const opens = sameRepositoryRows.filter(row => row.state === "OPEN");
+    const row = opens.length === 1 ? opens[0] : sameRepositoryRows.length === 1 ? sameRepositoryRows[0] : undefined;
+    if (row !== undefined) selected.set(branch, row);
   }
-  const submittedBranches = new Set([
-    ...knownBranches,
-    ...children.map((row) => row.branch),
-  ]);
-  for (const row of rows) {
-    if (row.state !== "OPEN" && row.kind === "same-repository") {
-      rejectStrandedDescendants({
-        context,
-        terminal: { branch: row.branch, pr: row.pr, state: row.state },
-        knownBranches: submittedBranches,
-      });
+  const required = (branch: string, first = false): SameRepositoryPullRequest => {
+    const rows = first
+      ? (graph.heads.get(branch) ?? []).filter(row => ownerMatches(context, row))
+      : candidates.get(branch) ?? [];
+    if (rows.length === 0) {
+      const fork = (graph.heads.get(branch) ?? []).find(
+        (row): row is CrossRepositoryPullRequest => row.kind === "cross-repository"
+      );
+      if (fork !== undefined) throw forkPullRequestError(fork);
+    }
+    const row = requireSinglePullRequest({
+      rows, context, branch,
+      hint: first ? "clarify the branch's PR history or pass --head-owner" : "clarify the branch's PR history",
+    });
+    if (row.kind === "cross-repository") throw forkPullRequestError(row);
+    return row;
+  };
+  const active = new Set<string>();
+  for (const [branch, rows] of candidates) {
+    if (rows.some(row => row.state === "OPEN")) active.add(branch);
+  }
+  for (;;) {
+    const before = active.size;
+    for (const branch of active) {
+      const row = selected.get(branch);
+      const bases = row === undefined ? candidates.get(branch) ?? [] : [row];
+      for (const candidate of bases) {
+        if (candidate.base !== context.trunk) active.add(candidate.base);
+      }
+    }
+    if (active.size === before) break;
+  }
+  const canonicalChildren = (branch: string): readonly SameRepositoryPullRequest[] => {
+    const branches = new Set<string>();
+    for (const [head, rows] of candidates) {
+      if (!active.has(head)) continue;
+      const row = selected.get(head);
+      const possible = row === undefined ? rows : [row];
+      if (possible.some(candidate => candidate.base === branch)) branches.add(head);
+    }
+    return [...branches].sort().map(head => required(head));
+  };
+  const first = required(current, true);
+  const chain: SameRepositoryPullRequest[] = [first];
+  const seenBranches = new Set<string>([current]);
+  const seenPrs = new Set<number>([first.pr]);
+  const add = (row: SameRepositoryPullRequest, prepend: boolean): void => {
+    if (seenBranches.has(row.branch)) {
+      throw new UserError(`pull request base chain loops at branch ${row.branch}`);
+    }
+    if (seenPrs.has(row.pr)) {
+      throw new UserError(`pull request base chain repeats PR #${row.pr}`);
+    }
+    seenBranches.add(row.branch);
+    seenPrs.add(row.pr);
+    if (prepend) chain.unshift(row); else chain.push(row);
+  };
+  let bottom = first;
+  while (bottom.base !== context.trunk) {
+    const parent = required(bottom.base);
+    add(parent, true);
+    bottom = parent;
+  }
+  let tip = first;
+  for (;;) {
+    const children = canonicalChildren(tip.branch);
+    if (children.length > 1) {
+      throw new UserError(`stack is not linear: branches ${children.map(row => row.branch).join(", ")} all target ${tip.branch}`);
+    }
+    const child = children[0];
+    if (child === undefined) break;
+    add(child, false);
+    tip = child;
+  }
+  for (const [index, parent] of chain.entries()) {
+    const rows = graph.children.get(parent.branch) ?? [];
+    const fork = rows.find((row): row is CrossRepositoryPullRequest => row.kind === "cross-repository" && row.state === "OPEN" && ownerMatches(context, row));
+    if (fork !== undefined) throw forkPullRequestError(fork);
+    const expected = chain[index + 1];
+    const children = canonicalChildren(parent.branch);
+    const competing = children.find(row => row.pr !== expected?.pr);
+    if (competing !== undefined) {
+      throw new UserError(`stack is not linear: branches ${[expected?.branch ?? parent.branch, competing.branch].sort().join(", ")} all target ${parent.branch}`);
+    }
+    if (expected !== undefined && !rows.some(row => row.pr === expected.pr)) {
+      throw new UserError(`PR #${expected.pr} changed during discovery; retry before writing the frontier`);
     }
   }
-  return children[0];
+  return chain;
 }
 
 function currentBranch(repo: string): string {
@@ -536,7 +545,7 @@ export function resolveFrontier({
   headOwner,
 }: {
   checkout: string;
-  baseRepo: string;
+  baseRepo?: string;
   trunk?: string;
   headOwner?: string;
 }): {
@@ -562,73 +571,8 @@ export function resolveFrontier({
   if (current === context.trunk) {
     return { prs: [], resolution };
   }
-  const visitedBranches = new Set<string>([current]);
-  const visitedPrs = new Set<number>();
-  const first = headPullRequest({ context, branch: current });
-  if (first.kind === "cross-repository") {
-    throw forkPullRequestError(first);
-  }
-  visitedPrs.add(first.pr);
-  const chain: SameRepositoryPullRequest[] = [first];
-  let bottom = first;
-  while (bottom.base !== context.trunk) {
-    if (visitedBranches.has(bottom.base)) {
-      throw new UserError(
-        `pull request base chain loops at branch ${bottom.base}`
-      );
-    }
-    visitedBranches.add(bottom.base);
-    const parent = sameRepositoryParentPullRequest({ context, branch: bottom.base });
-    if (visitedPrs.has(parent.pr)) {
-      throw new UserError(
-        `pull request base chain repeats PR #${parent.pr}`
-      );
-    }
-    visitedPrs.add(parent.pr);
-    chain.unshift(parent);
-    bottom = parent;
-  }
-  const knownBranches = new Set([context.trunk, ...visitedBranches]);
-  for (let index = 0; index < chain.length - 1; index += 1) {
-    const parent = chain[index];
-    const selected = chain[index + 1];
-    if (parent === undefined || selected === undefined) {
-      throw new UserError("incomplete resolved base chain");
-    }
-    const child = openChild({ context, branch: parent.branch, knownBranches });
-    if (child !== undefined &&
-        (child.pr !== selected.pr || child.branch !== selected.branch)) {
-      throw new UserError(
-        `stack is not linear: branch ${child.branch} also targets ${parent.branch}, alongside selected branch ${selected.branch}`
-      );
-    }
-    if (child !== undefined &&
-        (child.state !== selected.state || child.headSha.toLowerCase() !== selected.headSha.toLowerCase())) {
-      throw new UserError(`PR #${selected.pr} changed during discovery; retry before writing the frontier`);
-    }
-  }
-  let tip = current;
-  for (;;) {
-    const child = openChild({ context, branch: tip, knownBranches });
-    if (child === undefined) {
-      break;
-    }
-    if (visitedBranches.has(child.branch)) {
-      throw new UserError(
-        `pull request base chain loops at branch ${child.branch}`
-      );
-    }
-    if (visitedPrs.has(child.pr)) {
-      throw new UserError(
-        `pull request base chain repeats PR #${child.pr}`
-      );
-    }
-    visitedBranches.add(child.branch);
-    knownBranches.add(child.branch);
-    visitedPrs.add(child.pr);
-    chain.push(child);
-    tip = child.branch;
-  }
+  const graph = discoverGraph(context, current);
+  const chain = planFrontier({ context, current, graph });
   const prs = chain.map((row) => {
     const sha = row.state === "OPEN"
       ? branchSha({ branch: row.branch, repo: context.checkout })

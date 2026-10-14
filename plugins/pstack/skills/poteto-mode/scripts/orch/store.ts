@@ -189,7 +189,7 @@ export interface ResolveGateParams {
 
 export interface SetFrontierParams {
   readonly repo: string;
-  readonly baseRepo: string;
+  readonly baseRepo?: string;
   readonly trunk?: string;
   readonly headOwner?: string;
   readonly allowEmpty?: boolean;
@@ -1318,7 +1318,7 @@ export function openStore(
       set: async (params) => {
         await beginWrite();
         const repo = resolve(requiredLine(params.repo, "repo directory"));
-        const baseRepo = requiredLine(params.baseRepo, "base repository");
+        const baseRepo = params.baseRepo === undefined ? undefined : requiredLine(params.baseRepo, "base repository");
         const trunk =
           params.trunk === undefined
             ? undefined
