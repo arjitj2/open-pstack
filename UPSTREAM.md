@@ -12,7 +12,7 @@ This page records the current Cursor baseline and the maintainer procedure for r
 | Path | `pstack/` |
 | Commit | `c86f349b102feb91f1966f8a6a60882a4e601b50` |
 | Upstream version | `0.15.23` |
-| open-pstack version | `1.15.0` |
+| open-pstack version | `1.16.0` |
 
 The table records the packaged version on `main` and the Cursor content it incorporates, minus the exclusions below. Detecting or reviewing a newer Cursor commit does not advance this baseline. Cursor's version identifies the imported content. The open-pstack version identifies the cross-harness package, and its numbers are independent of Cursor and Eric's port.
 

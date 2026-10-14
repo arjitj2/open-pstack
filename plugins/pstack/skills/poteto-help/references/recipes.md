@@ -5,6 +5,7 @@ Swap in the real paths, skills, and done checks. Informal wording works. Recipes
 ## Understand
 
 - `/in-your-own-words <long or messy ask>`
+- `/pstack:sharpen <your task>` in Claude Code, or `$pstack:sharpen <your task>` in Codex.
 
 - `pstack:poteto-mode read <thread>. restate the underlying issue in your own words, in plain english.`
 - `pstack:poteto-mode investigate why <symptom>. give me what we know, what data you used, and your best hypotheses. don't change any code yet.`

@@ -4,6 +4,12 @@ This file records what each version of the Open Pstack package changed. Versions
 
 Entries describe package versions. Published release checkpoints have tag links; installation follows `main` unless pinned. Validation belongs to the linked pull requests. Older reports remain available through immutable links.
 
+## 1.16.0 adds expert task framing and GitHub frontier discovery
+
+Cursor baseline: [0.15.23](https://github.com/cursor/plugins/tree/c86f349b102feb91f1966f8a6a60882a4e601b50/pstack). [Issue #126](https://github.com/arjitj2/open-pstack/issues/126). Adoption through 0.15.24 remains under validation on this branch.
+
+Adds manual `sharpen`, concise automatic audit summaries, and fixes owner-approval review-gate classification. GitHub frontier discovery replaces the Graphite dependency while preserving explicit repository identity and failing clearly for unsupported fork ancestry.
+
 ## 1.15.0 adopts goal restatement and concise visual catch-up
 
 Cursor baseline: [0.15.23](https://github.com/cursor/plugins/tree/c86f349b102feb91f1966f8a6a60882a4e601b50/pstack). [Issue #117](https://github.com/arjitj2/open-pstack/issues/117). [PR #118](https://github.com/arjitj2/open-pstack/pull/118). Tag [v1.15.0](https://github.com/arjitj2/open-pstack/releases/tag/v1.15.0).
