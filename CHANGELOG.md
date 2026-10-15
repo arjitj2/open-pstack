@@ -6,7 +6,7 @@ Entries describe package versions. Published release checkpoints have tag links;
 
 ## 1.16.2 removes denied Devin file tools
 
-Cursor baseline: [0.15.25](https://github.com/cursor/plugins/tree/6ce45c59b9301a638c1fe1a7b8dc2a82b650898f/pstack). [Issue #137](https://github.com/arjitj2/open-pstack/issues/137).
+Cursor baseline: [0.15.25](https://github.com/cursor/plugins/tree/6ce45c59b9301a638c1fe1a7b8dc2a82b650898f/pstack). [Issue #137](https://github.com/arjitj2/open-pstack/issues/137). [PR #138](https://github.com/arjitj2/open-pstack/pull/138). Tag [v1.16.2](https://github.com/arjitj2/open-pstack/releases/tag/v1.16.2).
 
 Removes direct `edit` and `write` tools from Devin worker inventories while retaining permission denies. Writers continue to edit and run checks through sandboxed `exec`. Scoped direct tools remain preferred once [Devin CLI supports unattended file edits with sandboxed commands](https://github.com/CognitionAI/devin-cli/issues/24).
 
