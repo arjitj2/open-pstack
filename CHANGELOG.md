@@ -4,6 +4,12 @@ This file records what each version of the Open Pstack package changed. Versions
 
 Entries describe package versions. Published release checkpoints have tag links; installation follows `main` unless pinned. Validation belongs to the linked pull requests. Older reports remain available through immutable links.
 
+## 1.17.1 adopts evidence-based principle guidance
+
+Cursor baseline: [0.15.25](https://github.com/cursor/plugins/tree/6ce45c59b9301a638c1fe1a7b8dc2a82b650898f/pstack). [Issue #140](https://github.com/arjitj2/open-pstack/issues/140). Candidate e5136d8 content is being validated before baseline advancement.
+
+Attack-the-premise tests the shared assumption directly instead of prescribing a census for every problem. Root-cause guidance distinguishes a legitimate missing state from an invalid state produced earlier. Idempotency uses observed state and evidence across interruption points rather than a fixed PID-lock recipe. Test-quality guidance asks whether a test catches a broken contract and survives a harmless refactor, preserving legitimate absence, external payload and invariant checks. Correct and Poteto summaries use the same reasoning.
+
 ## 1.17.0 adds sandboxed OpenCode worker checks
 
 Cursor baseline: [0.15.25](https://github.com/cursor/plugins/tree/6ce45c59b9301a638c1fe1a7b8dc2a82b650898f/pstack). [Issue #134](https://github.com/arjitj2/open-pstack/issues/134). [PR #139](https://github.com/arjitj2/open-pstack/pull/139). Tag [v1.17.0](https://github.com/arjitj2/open-pstack/releases/tag/v1.17.0).
