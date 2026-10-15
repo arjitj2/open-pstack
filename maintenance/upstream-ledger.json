@@ -367,9 +367,17 @@
       "subject": "pstack: restate four overspecified principles as reasoning, not rules (#633)",
       "reason": "Adopt the four principle bodies and Correct/Poteto summaries with portable metadata and legitimate absence/invariant safeguards. Native host controls exercise premise falsification, legitimate guards versus invalid producers, retry/crash reasoning and behavior/refactor checks. Cursor README/guide changes remain pinned source context rather than duplicate port guides. Cursor version stays 0.15.25; independently release compatible patch 1.17.1.",
       "evidence": "https://github.com/arjitj2/open-pstack/pull/142"
+    },
+    {
+      "commit": "99743e9c151c8537cbbf1f98bb38f34ef3368453",
+      "date": "2026-10-15",
+      "status": "adapted",
+      "subject": "refactor(pstack): cut marginal sections from four skills (#634)",
+      "reason": "Adopt the shortened migration/type principles, lead-judgment reference and Swarm with portable metadata and existing parent-owned dispatch/recovery retained. Both real hosts retain six demonstrated defects, external API compatibility, semantic-ID compiler rejection and explicit incomplete synthetic coverage. Cursor README table edits remain pinned source context rather than a duplicate guide. No provider runtime or saved model policy changes.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/149"
     }
   ],
-  "reviewed_through": "e5136d82418d2db3165ea1050d17577cd618cc05",
+  "reviewed_through": "99743e9c151c8537cbbf1f98bb38f34ef3368453",
   "schema": 1,
   "source": {
     "path": "pstack/",

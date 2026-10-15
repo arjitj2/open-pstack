@@ -6,7 +6,7 @@ Entries describe package versions. Published release checkpoints have tag links;
 
 ## 1.17.3 shortens review and coordination guidance
 
-Cursor baseline: [0.15.25](https://github.com/cursor/plugins/tree/e5136d82418d2db3165ea1050d17577cd618cc05/pstack). [Issue #148](https://github.com/arjitj2/open-pstack/issues/148). Candidate 99743e9 content is under validation.
+Cursor baseline: [0.15.25](https://github.com/cursor/plugins/tree/99743e9c151c8537cbbf1f98bb38f34ef3368453/pstack). [Issue #148](https://github.com/arjitj2/open-pstack/issues/148). [PR #149](https://github.com/arjitj2/open-pstack/pull/149). Tag [v1.17.3](https://github.com/arjitj2/open-pstack/releases/tag/v1.17.3).
 
 Shortens the migration and type-system principles, the Interrogate judgment reference, and Swarm. Existing dispatch, completion, coverage, model, effort, recovery, and spending restrictions remain in force. The judgment reference no longer suggests limiting valid findings to five.
 
