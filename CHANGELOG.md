@@ -6,9 +6,9 @@ Entries describe package versions. Published release checkpoints have tag links;
 
 ## 1.18.0 adds sandboxed Antigravity worker checks
 
-Cursor baseline: [0.15.25](https://github.com/cursor/plugins/tree/e5136d82418d2db3165ea1050d17577cd618cc05/pstack). [Issue #135](https://github.com/arjitj2/open-pstack/issues/135).
+Cursor baseline: [0.15.25](https://github.com/cursor/plugins/tree/e5136d82418d2db3165ea1050d17577cd618cc05/pstack). [Issue #135](https://github.com/arjitj2/open-pstack/issues/135). [PR #143](https://github.com/arjitj2/open-pstack/pull/143).
 
-Antigravity writers retain direct file editing and gain arbitrary sandboxed commands and native task management. Temporary exclusive hooks bind approval to the assigned workspace, model and conversation; inherited execution-policy customizations are refused without changing user settings. External guard files survive until settlement, native hook errors cannot masquerade as successful delivery, and cleanup preserves replaced files. Read-only behavior, model descriptors, billing guards and parent Git ownership remain unchanged. Installed-parent validation and release publication remain required for this candidate.
+Antigravity writers retain direct file editing and gain arbitrary sandboxed commands and native task management. Temporary exclusive hooks bind approval to the assigned workspace, model and conversation; inherited execution-policy customizations are refused without changing user settings. External guard files survive until settlement, native hook errors cannot masquerade as successful delivery, and cleanup preserves replaced files. Read-only behavior, model descriptors, billing guards and parent Git ownership remain unchanged.
 
 ## 1.17.1 adopts evidence-based principle guidance
 
