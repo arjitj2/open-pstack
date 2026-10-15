@@ -359,9 +359,17 @@
       "subject": "chore(pstack): bump to 0.15.25 (#614)",
       "reason": "Record Cursor 0.15.25 with independent compatible patch 1.16.1 under the standing catch-up release policy; retain supported portable manifests.",
       "evidence": "https://github.com/arjitj2/open-pstack/pull/132"
+    },
+    {
+      "commit": "e5136d82418d2db3165ea1050d17577cd618cc05",
+      "date": "2026-10-15",
+      "status": "adapted",
+      "subject": "pstack: restate four overspecified principles as reasoning, not rules (#633)",
+      "reason": "Adopt the four principle bodies and Correct/Poteto summaries with portable metadata and legitimate absence/invariant safeguards. Native host controls exercise premise falsification, legitimate guards versus invalid producers, retry/crash reasoning and behavior/refactor checks. Cursor README/guide changes remain pinned source context rather than duplicate port guides. Cursor version stays 0.15.25; independently release compatible patch 1.17.1.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/142"
     }
   ],
-  "reviewed_through": "6ce45c59b9301a638c1fe1a7b8dc2a82b650898f",
+  "reviewed_through": "e5136d82418d2db3165ea1050d17577cd618cc05",
   "schema": 1,
   "source": {
     "path": "pstack/",
