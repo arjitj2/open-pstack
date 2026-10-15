@@ -350,15 +350,15 @@
       "status": "adapted",
       "subject": "feat(pstack): have /ketchup explain changes with screenshots, videos, and diagrams (#628)",
       "reason": "Adopt explanatory media-first formatting, plain grouped action bullets, visual choice comparisons and prose-only word limits; preserve portable current-human/read-only/UI permission/evidence guards and available chart-tool mapping. Both native hosts exercised the exact Ketchup contract with provided diagram and absent screenshots; frontend video rendering remains untested.",
-      "evidence": "https://github.com/arjitj2/open-pstack/issues/131"
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/132"
     },
     {
       "commit": "6ce45c59b9301a638c1fe1a7b8dc2a82b650898f",
       "date": "2026-10-14",
       "status": "adapted",
       "subject": "chore(pstack): bump to 0.15.25 (#614)",
-      "reason": "Record Cursor0.15.25 with independent compatiblepatch1.16.1 under standing catch-up release policy; retain supported portable manifests.",
-      "evidence": "https://github.com/arjitj2/open-pstack/issues/131"
+      "reason": "Record Cursor 0.15.25 with independent compatible patch 1.16.1 under the standing catch-up release policy; retain supported portable manifests.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/132"
     }
   ],
   "reviewed_through": "6ce45c59b9301a638c1fe1a7b8dc2a82b650898f",
