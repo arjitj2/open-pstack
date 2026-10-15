@@ -925,7 +925,7 @@ async function executeLane(
       const sandbox = { command: openCode.shell.executable, args: ["-c", "true"], stdin: "none" as const };
       preflightResult = await runProcess(sandbox.command, sandbox, options.cwd, env, "", deadlineAt, cancellation, { reporter, role: "preflight" });
       passed = preflightResult.exitCode === 0 && openCodeFilesUnchanged(openCode);
-      if (!passed) versionError = "OpenCode requires a working shell sandbox. Check sandbox-runtime dependencies and OS support; no unsandboxed execution was attempted.";
+      if (!passed) versionError = "OpenCode requires a working shell sandbox. Check sandbox-runtime dependencies and OS support. On macOS, the parent launcher must be outside any enclosing Seatbelt sandbox. No unsandboxed execution was attempted.";
     }
     let billingRouteBlocked = false;
     if (passed && openCode?.funding.kind === "chatgpt-subscription" && preflightResult.cancelledBy === null && !preflightResult.timedOut) {

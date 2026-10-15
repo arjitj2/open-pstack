@@ -56,6 +56,14 @@ describe.skipIf(process.platform !== "darwin")("OpenCode shell OS boundary", () 
     expect(readFileSync(outside, "utf8")).toBe("unchanged");
     expect(openCodeShellUnchanged(shell)).toBe(true);
   });
+  it("refuses nested Seatbelt startup without executing the command", async () => {
+    const { root, shell } = fixture();
+    const child = Bun.spawn(["/usr/bin/sandbox-exec", "-p", "(version 1) (allow default)", shell.executable, "-c", "printf bypass > bypass"], { cwd: root, stdout: "pipe", stderr: "pipe" });
+    const [exit, stderr] = await Promise.all([child.exited, new Response(child.stderr).text()]);
+    expect(exit).not.toBe(0);
+    expect(stderr).toContain("sandbox_apply");
+    expect(existsSync(join(root, "bypass"))).toBe(false);
+  });
   it("refuses missing required policy without executing the command", async () => {
     const { root, shell } = fixture();
     unlinkSync(Object.keys(shell.files).find(path => path.endsWith(".json"))!);
