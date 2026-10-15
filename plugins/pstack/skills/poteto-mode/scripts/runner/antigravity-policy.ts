@@ -125,18 +125,22 @@ export function createWriterBoundary(input: { root: string; agentPath: string; m
   const cleanup = (): void => {
     if (cleaned) return;
     cleaned = true;
-    assertControl();
     const lost: string[] = [];
+    let ownsDirectory = false;
+    try { assertControl(); ownsDirectory = true; } catch { lost.push(directory); }
     for (const source of [...owned].reverse()) {
+      if (!ownsDirectory && source.path !== hookPath) continue;
       try {
         if (JSON.stringify(policyIdentity(source.path)) !== JSON.stringify(source.identity)) { lost.push(source.path); continue; }
         unlinkSync(source.path);
       } catch { lost.push(source.path); }
     }
-    for (const control of controls) {
-      try { if (controlOwned(control)) unlinkSync(control.path); else lost.push(control.path); } catch (error) { if (code(error) !== "ENOENT") lost.push(control.path); }
+    if (ownsDirectory) {
+      for (const control of controls) {
+        try { if (controlOwned(control)) unlinkSync(control.path); else lost.push(control.path); } catch (error) { if (code(error) !== "ENOENT") lost.push(control.path); }
+      }
+      try { assertControl(); rmdirSync(directory); } catch { lost.push(directory); }
     }
-    try { assertControl(); rmdirSync(directory); } catch { lost.push(directory); }
     if (lost.length) throw new OutputValidationError(`Antigravity cleanup lost ownership: ${lost.join(", ")}`);
   };
   const writeOwned = (path: string, content: string): void => { writeFileSync(path, content, { flag: "wx", mode: 0o600 }); owned.push({ path, identity: policyIdentity(path) }); };
