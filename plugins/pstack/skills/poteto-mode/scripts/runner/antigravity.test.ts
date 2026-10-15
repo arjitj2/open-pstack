@@ -230,7 +230,7 @@ describe("Antigravity external lanes", () => {
   });
 
   it("surfaces native hook failures despite final SUCCESS and permits ordinary check failures", async () => {
-    for (const error of ["denied by pre-tool hook: policy", "JSON hook jsonhook__test failed: missing", "failed to unmarshal result from hook jsonhook__test via protojson: malformed"]) {
+    for (const error of ["tool call denied by pre-tool hook: policy", "denied by pre-tool hook: policy", "JSON hook jsonhook__test failed: missing", "failed to unmarshal result from hook jsonhook__test via protojson: malformed"]) {
       fixture({tool:"run_command",toolError:error + " CANARY_ARGUMENTS"});
       const opts = options({mode:"isolated-write",receiptPath:join(scratch,`hook-${error.length}.json`),outputPath:join(scratch,`hook-${error.length}.txt`)});
       const result = await runLane(opts);

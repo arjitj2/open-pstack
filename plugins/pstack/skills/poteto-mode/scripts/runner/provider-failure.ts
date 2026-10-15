@@ -50,7 +50,7 @@ export function antigravityHookDenial(stdout: string): ToolDenial | null {
     const error = object(step?.tool_info)?.error;
     const message = typeof error === "string" ? error : object(error)?.message;
     if (typeof message !== "string") continue;
-    if (/^(?:denied by pre-tool hook:|JSON hook [^\n]* failed:|failed to unmarshal result from hook jsonhook__[^\n]* via protojson:)/.test(message)) {
+    if (/^(?:(?:tool call )?denied by pre-tool hook:|JSON hook [^\n]* failed:|failed to unmarshal result from hook jsonhook__[^\n]* via protojson:)/.test(message)) {
       return { verified: true, cause: "permission", tool: typeof step?.tool_name === "string" ? step.tool_name : null, requestedAction: null, evidence: "Antigravity native tool error reported a hook denial or hook execution failure" };
     }
   }
