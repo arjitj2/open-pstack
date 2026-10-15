@@ -4,6 +4,17 @@ This is Arjit Jaiswal's independently maintained distribution. Cursor is the con
 
 Track all durable work in this repository's GitHub Issues. Do not create a parallel Linear queue. Read `UPSTREAM.md` before changing upstream-derived content.
 
+## Issue writing
+
+Write GitHub issue titles, bodies, and new comments in [ASD-STE100 Simplified Technical English](https://www.asd-ste100.org/). Apply the same rules to generated issue text.
+
+Use approved vocabulary and permitted technical terms. Give each technical term one meaning. Write one topic per sentence. Use direct commands for instructions. Limit instruction sentences to 20 words and descriptive sentences to 25 words.
+
+Keep code, commands, identifiers, URLs, and quoted diagnostic messages unchanged. Mark source titles and other unchanged source text as quotations. Do not rewrite historical comments.
+
+State the problem, required work, and completion conditions. Link to detailed evidence instead of copying investigation logs. Preserve restrictions and unresolved requirements when combining issues.
+
+
 Cursor's `cursor/plugins/pstack` tree is the content upstream. Keep one shared skill tree for Claude Code and Codex; adapt harness primitives at the existing mapping boundaries instead of forking skills or adding compatibility layers. The parent harness freezes the model sheet for a run and owns every provider-routing decision. Children do not detect or reroute themselves.
 
 The default branch `main` is the public installation source and must remain ready for users. Keep unfinished package changes on PR branches. Validate changed behavior before merge, and bump the plugin version when packaged behavior changes, including shared skills and provider instructions. A version string is an update signal, not a barrier that hides unversioned changes from new installs. GitHub release tags document tested checkpoints and provide rollback; they are not an installation prerequisite.

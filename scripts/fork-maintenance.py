@@ -42,7 +42,7 @@ BOT_EMAIL = "open-pstack-maintenance@users.noreply.github.com"
 SHA_RE = re.compile(r"[0-9a-f]{40}")
 STATUSES = {"pending", "adopted", "adapted", "excluded"}
 FINAL_STATUSES = {"adopted", "adapted", "excluded"}
-DEFAULT_REPORT = "Maintenance monitoring is active. The next weekly run will publish the full report."
+DEFAULT_REPORT = "The maintenance checks are active. The next weekly run will produce the full report."
 MAX_PROPOSAL_BODY = 60_000
 PROPOSAL_BODY_OVERHEAD = 1024
 
@@ -466,7 +466,7 @@ def collect_alerts(result, eric_ok):
         for threshold in (21, 7):
             if age >= threshold:
                 alerts.append(("lag:%s:%d" % (item["sha"], threshold),
-                               "Cursor change [%s](https://github.com/%s/commit/%s) has waited at least %d days: %s."
+                               "Review Cursor change [%s](https://github.com/%s/commit/%s). It has waited at least %d days. Source title: \"%s\"."
                                % (item["sha"][:8], CURSOR, item["sha"], threshold, item["subject"])))
                 break
     if eric_ok:
@@ -478,18 +478,18 @@ def collect_alerts(result, eric_ok):
                 paths = set(changed_paths(sha))
                 if paths & custom and re.search(r"\b(fix|fixes|fixed|bug|regression|security)\b", subject, re.I):
                     alerts.append(("fix:" + sha,
-                                   "Likely relevant upstream fix [%s](https://github.com/%s/commit/%s): %s. Title/path heuristic only; review applicability."
+                                   "Check upstream change [%s](https://github.com/%s/commit/%s). Source title: \"%s\". Its title and file paths suggest a related fix. Confirm that the change applies."
                                    % (sha[:8], UPSTREAM, sha, subject)))
         except subprocess.CalledProcessError:
             print("warning: Eric advisory history could not be compared; continuing", file=sys.stderr)
     if result.get("status") == "closed":
         pr = result["pr"]
         alerts.append(("closed-proposal:" + result["branch"],
-                       "Closed unmerged proposal [#%s](%s) exists for `%s`. Review it before re-proposing; automation will not duplicate it."
+                       "Proposal [#%s](%s) for `%s` is closed without merge. Review the proposal before you create another proposal. The script will not create a duplicate."
                        % (pr["number"], pr.get("html_url", ""), result["branch"])))
     if result.get("status") == "refused":
         alerts.append(("drift:" + result["branch"] + ":" + result.get("remote", "")[:12],
-                       "Proposal branch `%s` differs from the deterministic automation commit; preserving human work. Inspect manually."
+                       "Proposal branch `%s` differs from the generated commit. The script kept the existing work. Inspect the branch."
                        % result["branch"]))
     return alerts
 
@@ -553,19 +553,19 @@ def maintainer_activity(number):
         if timestamp:
             candidates.append((timestamp, user.get("login", "maintainer"), entry.get("html_url", "")))
     if not candidates:
-        return "No non-generated maintainer comment/review identified."
+        return "The check found no maintainer comment or review that it could identify as manually written."
     timestamp, login, url = max(candidates)
-    return "Latest apparently non-generated maintainer activity: [%s, %s](%s)." % (login, timestamp[:10], url)
+    return "Latest maintainer entry that appears manually written: [%s, %s](%s)." % (login, timestamp[:10], url)
 
 
 def build_report(ledger, baseline, outstanding, new, eric_ok):
     now = datetime.now(timezone.utc)
     pending = len(outstanding) - len(new)
     rows = ["### Upstream maintenance",
-            "Open-pstack incorporates Cursor [`%s`](https://github.com/%s/commit/%s) (the `Commit` row of UPSTREAM.md) and has catalogued review through `%s`."
+            "Open Pstack includes Cursor changes through [`%s`](https://github.com/%s/commit/%s). The review ledger lists changes through `%s`."
             % (baseline[:12], CURSOR, baseline, ledger["reviewed_through"][:12]),
             "",
-            "Pending review decisions: %d. Source commits awaiting cataloguing on main: %d. Skill instructions count as behavior; classifications are conservative."
+            "Changes that need a decision: %d. Source commits not yet in the main branch ledger: %d. Skill instructions can change behavior."
             % (pending, len(new))]
     aged = []
     for item in outstanding:
@@ -574,25 +574,25 @@ def build_report(ledger, baseline, outstanding, new, eric_ok):
         aged.append(item)
     substantive_ages = [i["age"] for i in aged if i["substantive"]]
     oldest = max(substantive_ages, default=0)
-    severity = "overdue review" if oldest >= 21 else "attention" if oldest >= 7 else "within threshold"
-    rows.append("Oldest substantive lag: %d days (%s)." % (oldest, severity) if substantive_ages
-                else "No outstanding substantive lag.")
+    severity = "Review is overdue" if oldest >= 21 else "Review is due" if oldest >= 7 else "The review limit has not been reached"
+    rows.append("Oldest change that can affect behavior, age in days: %d. %s." % (oldest, severity) if substantive_ages
+                else "The check found no pending changes classified as behavior changes.")
     for item in aged:
-        kind = "substantive" if item["substantive"] else "prose only"
-        rows.append("- [`%s`](https://github.com/%s/commit/%s) (%s; %d days; %s; %s): %s"
+        kind = "Can affect behavior" if item["substantive"] else "Text only"
+        rows.append("- [`%s`](https://github.com/%s/commit/%s). Date: %s. Age in days: %d. %s. Status: %s. Source title: \"%s\"."
                     % (item["sha"][:8], CURSOR, item["sha"], item["timestamp"][:10], item["age"], kind, item["kind"], item["subject"]))
-    rows += ["", "### Our upstream contributions (advisory)"]
+    rows += ["", "### Contribution status"]
     if eric_ok:
         try:
             for number in (70, 73, 74):
                 pr = api("repos/" + UPSTREAM + "/pulls/" + str(number))
                 status = "merged" if pr.get("merged_at") else pr["state"]
-                rows.append("- [#%d](%s): %s — %s. %s" % (number, pr["html_url"], status, pr["title"], maintainer_activity(number)))
+                rows.append("- [#%d](%s). Status: %s. Source title: \"%s\". %s" % (number, pr["html_url"], status, pr["title"], maintainer_activity(number)))
         except Exception as exc:
-            rows.append("Eric advisory unavailable this run: %s" % exc)
+            rows.append("The contribution check failed. Diagnostic: `%s`" % exc)
     else:
-        rows.append("Eric advisory fetch failed this run; contribution status not reported.")
-    rows += ["", "Seven days of substantive lag merits attention; 21 days merits an overdue review. Inactivity without new Cursor changes is not a warning. Automated review activity is not evidence of a maintainer response."]
+        rows.append("The fetch from Eric Litman's repository failed. Contribution status is unavailable.")
+    rows += ["", "Review changes that can affect behavior after seven days. Review is overdue after 21 days. No pending changes means no delay warning. An automatic review does not prove that a maintainer responded."]
     return "\n".join(rows)
 
 
