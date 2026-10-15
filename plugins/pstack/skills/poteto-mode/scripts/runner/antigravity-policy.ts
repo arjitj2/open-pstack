@@ -6,8 +6,12 @@ import { fileURLToPath } from "node:url";
 import { OutputValidationError, UsageError } from "./types.ts";
 
 export class AntigravityPolicyError extends UsageError {
-  constructor(readonly source: string, readonly key: string) {
-    super(`Antigravity unsupported policy ${source}: ${key}; disable this customization before running a writer`);
+  readonly source: string;
+  readonly key: string;
+  constructor(source: string, key: string) {
+    super(`Antigravity unsupported policy ${source.slice(0, 512)}: ${key.slice(0, 128)}; disable this customization before running a writer`);
+    this.source = source.slice(0, 512);
+    this.key = key.slice(0, 128);
   }
 }
 
@@ -20,14 +24,21 @@ function policyIdentity(path: string): Identity {
   try {
     realAncestry(path);
     const stat = lstatSync(path);
-    if (!stat.isFile() && !stat.isDirectory()) throw new UsageError(`Antigravity policy source must not be a symlink: ${path}`);
+    if (!stat.isFile() && !stat.isDirectory()) throw new AntigravityPolicyError(path, "unsupported source type");
     return { kind: "present", dev: stat.dev, ino: stat.ino, digest: createHash("sha256").update(stat.isFile() ? readFileSync(path) : JSON.stringify(readdirSync(path).sort())).digest("hex") };
-  } catch (error) { if (code(error) === "ENOENT") return { kind: "absent" }; throw error; }
+  } catch (error) {
+    if (code(error) === "ENOENT") return { kind: "absent" };
+    if (error instanceof AntigravityPolicyError) throw error;
+    throw new AntigravityPolicyError(path, "unreadable policy source");
+  }
 }
 function realAncestry(path: string): void {
   let current = resolve(path);
   while (true) {
-    try { if (lstatSync(current).isSymbolicLink()) throw new UsageError(`Antigravity policy ancestry must be real: ${current}`); } catch (error) { if (code(error) !== "ENOENT") throw error; }
+    try { if (lstatSync(current).isSymbolicLink()) throw new AntigravityPolicyError(current, "ancestry must be real"); } catch (error) {
+      if (error instanceof AntigravityPolicyError) throw error;
+      if (code(error) !== "ENOENT") throw new AntigravityPolicyError(current, "unreadable policy ancestry");
+    }
     const parent = dirname(current);
     if (parent === current) return;
     current = parent;
@@ -38,8 +49,11 @@ function json(path: string): Record<string, unknown> {
     realAncestry(path);
     const value: unknown = JSON.parse(readFileSync(path, "utf8"));
     if (object(value)) return value;
-  } catch { throw new UsageError(`Antigravity cannot establish policy from ${path}; remove unsupported or unreadable configuration`); }
-  throw new UsageError(`Antigravity malformed policy: ${path}`);
+  } catch (error) {
+    if (error instanceof AntigravityPolicyError) throw error;
+    throw new AntigravityPolicyError(path, "malformed or unreadable JSON");
+  }
+  throw new AntigravityPolicyError(path, "malformed JSON object");
 }
 function rejectKey(path: string, key: string): never { throw new AntigravityPolicyError(path, key); }
 function captureSources(root: string, home: string, env: NodeJS.ProcessEnv): Source[] {
@@ -60,7 +74,7 @@ function captureSources(root: string, home: string, env: NodeJS.ProcessEnv): Sou
     if (capture(path).kind === "present") for (const key of Object.keys(json(path))) rejectKey(path, key);
   }
   const project = join(home, ".gemini/config/projects/default-cli-project.json");
-  if (capture(project).kind === "absent") throw new UsageError(`Antigravity requires an established default project at ${project}; create the default CLI project before running a writer`);
+  if (capture(project).kind === "absent") throw new AntigravityPolicyError(project, "missing default project");
   const value = json(project);
   for (const key of Object.keys(value)) if (!["id", "name", "projectResources"].includes(key)) rejectKey(project, key);
   if (value.id !== "default-cli-project" || typeof value.name !== "string" || !object(value.projectResources) || Object.keys(value.projectResources).length !== 0) rejectKey(project, "id/name/projectResources");

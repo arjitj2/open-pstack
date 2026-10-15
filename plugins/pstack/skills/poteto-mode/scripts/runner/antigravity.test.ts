@@ -1,11 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, renameSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { antigravityAgentDefinition, antigravityLaneFiles, antigravitySettingsTakeover, antigravityStdin, antigravityWriterVersion, antigravityTools, createAntigravityLaneFiles } from "./antigravity.ts";
-import { invocationCommand } from "./commands.ts";
 import { parseProviderOutput } from "./parse-output.ts";
-import { runLane, validateOptions } from "./run.ts";
+import { validateOptions } from "./run.ts";
+import type { runLane as runLaneFunction } from "./run.ts";
 import type { RunnerOptions } from "./types.ts";
 
 let scratch = "";
@@ -92,6 +91,26 @@ function options(override: Partial<RunnerOptions> = {}): RunnerOptions {
     timeoutMs: null, apiSpend: "approved", ...override,
   };
 }
+function startLane(opts: RunnerOptions) {
+  const child = Bun.spawn([process.execPath, "--eval", `
+import { runLane } from ${JSON.stringify(new URL("./run.ts", import.meta.url).href)};
+try {
+  console.log(JSON.stringify({ outcome: await runLane(JSON.parse(await Bun.stdin.text())) }));
+} catch (error) {
+  console.log(JSON.stringify({ error: error instanceof Error ? error.message : "fixture lane failed" }));
+  process.exitCode = 1;
+}
+`], { env: process.env, stdin: "pipe", stdout: "pipe", stderr: "pipe" });
+  child.stdin.write(JSON.stringify(opts));
+  child.stdin.end();
+  const result = (async (): Promise<Awaited<ReturnType<typeof runLaneFunction>>> => {
+    const [stdout, stderr, exitCode] = await Promise.all([new Response(child.stdout).text(), new Response(child.stderr).text(), child.exited]);
+    if (exitCode !== 0) throw Error(stdout || stderr || `fixture lane exited ${exitCode}`);
+    return JSON.parse(stdout).outcome;
+  })();
+  return { child, result };
+}
+function runLane(opts: RunnerOptions): ReturnType<typeof runLaneFunction> { return startLane(opts).result; }
 function fixture(value: object): void { writeFileSync(join(scratch, "fixture.json"), JSON.stringify(value)); }
 interface ObservedInvocation {
   readonly args: string[];
@@ -269,6 +288,40 @@ describe("Antigravity external lanes", () => {
     }
   });
 
+  it.each(["malformed", "symlink", "missing-project"])("identifies %s policy sources before invoking a writer", async kind => {
+    const config = join(scratch, ".gemini/config/config.json");
+    const project = join(scratch, ".gemini/config/projects/default-cli-project.json");
+    const privateValue = "PRIVATE_MALFORMED_POLICY_VALUE";
+    if (kind === "malformed") writeFileSync(config, `{${privateValue}`);
+    else if (kind === "symlink") {
+      const target = join(scratch, "private-config.json");
+      writeFileSync(target, privateValue);
+      symlinkSync(target, config);
+    } else rmSync(project);
+    const opts = options({mode:"isolated-write"});
+    const result = await runLane(opts);
+    expect(result.receipt).toMatchObject({status:"child-failed",processStarted:false,failurePhase:"preflight"});
+    expect(result.receipt.error?.evidence).toContain(kind === "missing-project" ? project : config);
+    expect(result.receipt.error?.evidence).toContain(kind === "malformed" ? "malformed or unreadable JSON" : kind === "symlink" ? "ancestry must be real" : "missing default project");
+    expect(JSON.stringify(result.receipt)).not.toContain(privateValue);
+    expect(existsSync(join(scratch,"observed.json"))).toBe(false);
+    expect(existsSync(opts.outputPath)).toBe(false);
+    expect(existsSync(join(opts.cwd,".agents"))).toBe(false);
+  });
+
+  it("bounds untrusted policy key diagnostics without copying setting values", async () => {
+    const key = `customPolicy${"x".repeat(2048)}PRIVATE_KEY_SUFFIX`;
+    const config = join(scratch, ".gemini/config/config.json");
+    writeFileSync(config, JSON.stringify({[key]: "PRIVATE_POLICY_SETTING_VALUE"}));
+    const result = await runLane(options({mode:"isolated-write"}));
+    expect(result.receipt.status).toBe("child-failed");
+    expect(result.receipt.error?.evidence).toContain(config);
+    expect(result.receipt.error?.evidence).toContain("customPolicy");
+    expect(result.receipt.error?.evidence.length).toBeLessThanOrEqual(672);
+    for (const canary of ["PRIVATE_KEY_SUFFIX", "PRIVATE_POLICY_SETTING_VALUE"]) expect(JSON.stringify(result.receipt)).not.toContain(canary);
+    expect(existsSync(join(scratch,"observed.json"))).toBe(false);
+  });
+
   it("keeps ownership-loss cleanup from leaving a complete receipt", async () => {
     fixture({replaceHook:true});
     const opts = options({mode:"isolated-write"});
@@ -308,10 +361,10 @@ describe("Antigravity external lanes", () => {
   it("cleans a worktree agent file after handled cancellation", async () => {
     fixture({delay:1000});
     const opts = options({mode:"isolated-write"});
-    const run = runLane(opts);
+    const run = startLane(opts);
     while (!existsSync(join(scratch,"observed.json"))) await Bun.sleep(10);
-    process.emit("SIGTERM");
-    const result = await run;
+    run.child.kill("SIGTERM");
+    const result = await run.result;
     expect(result.receipt.status).toBe("cancelled");
     expect(existsSync(antigravityLaneFiles(opts).agentPath)).toBe(false);
     expect(existsSync(opts.outputPath)).toBe(false);
@@ -345,7 +398,7 @@ describe("Antigravity external lanes", () => {
 
   it("preserves replaced empty agent directories and reports their lost ownership", () => {
     const opts = options({mode:"isolated-write"});
-    const lane = createAntigravityLaneFiles(opts);
+    const lane = createAntigravityLaneFiles(opts, scratch);
     const path = lane.files.directory;
     renameSync(path,`${path}-original`); mkdirSync(path);
     expect(() => lane.assertUnchanged()).toThrow("directory ownership changed");

@@ -54,7 +54,7 @@ export function antigravityAgentDefinition(name: string, mode: AccessMode): stri
   return `---\nname: ${name}\ndescription: One pstack assigned lane\ntools: [${tools}]\nmainAgent: true\nsubagent: false\ncommandExecutionPolicy: ${mode === "read-only" ? "off" : "sandbox"}\n---\nWork only on the assigned task. Do not delegate, use network tools, or change this agent definition or workspace hooks. ${mode === "read-only" ? "Do not run commands." : "Run suitable checks in the sandbox. Prefer foreground commands; use manage_task or native completion to collect background exit results. Stop on denial without retry or workaround."}\n`;
 }
 
-export function createAntigravityLaneFiles(options: RunnerOptions): AntigravityCreatedFiles {
+export function createAntigravityLaneFiles(options: RunnerOptions, home: string = homedir()): AntigravityCreatedFiles {
   const files = antigravityLaneFiles(options);
   if (options.mode === "isolated-write" && (!lstatSync(files.childCwd).isDirectory() || realpathSync(files.childCwd) !== files.childCwd)) {
     throw new UsageError("Antigravity writer cwd must be a real directory");
@@ -101,7 +101,7 @@ export function createAntigravityLaneFiles(options: RunnerOptions): AntigravityC
     writeFileSync(files.agentPath, definition, { flag: "wx", mode: 0o600 });
     const stat = lstatSync(files.agentPath);
     identity = { dev: stat.dev, ino: stat.ino };
-    if (options.mode === "isolated-write") preparation = { kind: "writer", boundary: createWriterBoundary({ root: files.childCwd, agentPath: files.agentPath, model: options.model, tools: antigravityTools(options.mode), writeTools: ANTIGRAVITY_WRITE_TOOLS }) };
+    if (options.mode === "isolated-write") preparation = { kind: "writer", boundary: createWriterBoundary({ home, root: files.childCwd, agentPath: files.agentPath, model: options.model, tools: antigravityTools(options.mode), writeTools: ANTIGRAVITY_WRITE_TOOLS }) };
   } catch (error) {
     if (identity !== null) {
       const stat = lstatSync(files.agentPath);
