@@ -43,6 +43,20 @@ export class ProviderToolDeniedError extends ProviderTerminalError {
   }
 }
 
+export function antigravityHookDenial(stdout: string): ToolDenial | null {
+  for (const event of antigravityEvents(stdout)) {
+    if (event.event !== "step_update") continue;
+    const step = object(event.step_update);
+    const error = object(step?.tool_info)?.error;
+    const message = typeof error === "string" ? error : object(error)?.message;
+    if (typeof message !== "string") continue;
+    if (/^(?:denied by pre-tool hook:|JSON hook [^\n]* failed:|failed to unmarshal result from hook jsonhook__[^\n]* via protojson:)/.test(message)) {
+      return { verified: true, cause: "permission", tool: typeof step?.tool_name === "string" ? step.tool_name : null, requestedAction: null, evidence: "Antigravity native tool error reported a hook denial or hook execution failure" };
+    }
+  }
+  return null;
+}
+
 // Devin's headless rejection frame is provider-owned evidence that a tool
 // call needed a confirmation nobody could give. It proves permission was
 // required without proving which operation was refused, so the tool and
@@ -624,7 +638,7 @@ export function apiCredentialTakeover(
   }
   if (provider === "antigravity") {
     for (const [name, value] of Object.entries(env)) {
-      if (name.startsWith("AGY_GATEWAY_") && truthy(value)) return name;
+      if ((name.startsWith("AGY_GATEWAY_") || name.startsWith("AGY_LLM_GATEWAY_")) && truthy(value)) return name;
     }
   }
   return null;

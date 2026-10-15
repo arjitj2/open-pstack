@@ -1,10 +1,12 @@
 import { createHash } from "node:crypto";
-import { lstatSync, mkdirSync, readFileSync, rmdirSync, rmSync, writeFileSync } from "node:fs";
+import { lstatSync, mkdirSync, readFileSync, realpathSync, rmdirSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { createWriterBoundary, type WriterBoundary } from "./antigravity-policy.ts";
 import { type AccessMode, type Effort, OutputValidationError, type RunnerOptions, UsageError } from "./types.ts";
 
 export const ANTIGRAVITY_READ_TOOLS = ["view_file", "list_dir", "grep_search"] as const;
+export const ANTIGRAVITY_COMMAND_TOOLS = ["run_command", "manage_task"] as const;
 export const ANTIGRAVITY_WRITE_TOOLS = ["write_to_file", "replace_file_content", "multi_replace_file_content"] as const;
 
 export interface AntigravityLaneFiles {
@@ -17,7 +19,14 @@ export interface AntigravityLaneFiles {
 export interface AntigravityCreatedFiles {
   readonly files: AntigravityLaneFiles;
   assertUnchanged(): void;
+  verifySettlement(conversationId: string): void;
   cleanup(): void;
+}
+
+export function antigravityWriterVersion(stdout: string): string | null {
+  const version = stdout.trim();
+  const match = /^1\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/.exec(version);
+  return match !== null && match.slice(1).every(part => Number.isSafeInteger(Number(part))) ? version : null;
 }
 
 export function validateAntigravityModel(model: string, effort: Effort): void {
@@ -37,32 +46,54 @@ export function antigravityLaneFiles(options: RunnerOptions): AntigravityLaneFil
 export function antigravityTools(mode: AccessMode): readonly string[] {
   return mode === "read-only"
     ? ANTIGRAVITY_READ_TOOLS
-    : [...ANTIGRAVITY_READ_TOOLS, ...ANTIGRAVITY_WRITE_TOOLS];
+    : [...ANTIGRAVITY_READ_TOOLS, ...ANTIGRAVITY_WRITE_TOOLS, ...ANTIGRAVITY_COMMAND_TOOLS];
 }
 
 export function antigravityAgentDefinition(name: string, mode: AccessMode): string {
   const tools = antigravityTools(mode).join(", ");
-  return `---\nname: ${name}\ndescription: One pstack assigned lane\ntools: [${tools}]\nmainAgent: true\nsubagent: false\ncommandExecutionPolicy: off\n---\nWork only on the assigned task. Do not delegate, run commands, use network tools, or change this agent definition.\n`;
+  return `---\nname: ${name}\ndescription: One pstack assigned lane\ntools: [${tools}]\nmainAgent: true\nsubagent: false\ncommandExecutionPolicy: ${mode === "read-only" ? "off" : "sandbox"}\n---\nWork only on the assigned task. Do not delegate, use network tools, or change this agent definition or workspace hooks. ${mode === "read-only" ? "Do not run commands." : "Run suitable checks in the sandbox. Prefer foreground commands; use manage_task or native completion to collect background exit results. Stop on denial without retry or workaround."}\n`;
 }
 
 export function createAntigravityLaneFiles(options: RunnerOptions): AntigravityCreatedFiles {
   const files = antigravityLaneFiles(options);
-  if (options.mode === "isolated-write" && !lstatSync(files.childCwd).isDirectory()) {
+  if (options.mode === "isolated-write" && (!lstatSync(files.childCwd).isDirectory() || realpathSync(files.childCwd) !== files.childCwd)) {
     throw new UsageError("Antigravity writer cwd must be a real directory");
   }
   const root = join(files.childCwd, ".agents");
-  const createdDirectories: string[] = [];
+  const createdDirectories: { path: string; dev: number; ino: number }[] = [];
+  const rememberDirectory = (path: string): void => {
+    const stat = lstatSync(path);
+    createdDirectories.push({ path, dev: stat.dev, ino: stat.ino });
+  };
+  const ownsDirectory = (directory: typeof createdDirectories[number]): boolean => {
+    try {
+      const stat = lstatSync(directory.path);
+      return stat.isDirectory() && stat.dev === directory.dev && stat.ino === directory.ino;
+    } catch { return false; }
+  };
+  const removeDirectories = (): string[] => {
+    const lost: string[] = [];
+    for (const directory of [...createdDirectories].reverse()) {
+      if (!ownsDirectory(directory)) { lost.push(directory.path); continue; }
+      try { rmdirSync(directory.path); } catch (error) {
+        if (!(error instanceof Error) || !("code" in error) || (error.code !== "ENOTEMPTY" && error.code !== "EEXIST")) lost.push(directory.path);
+      }
+    }
+    return lost;
+  };
   const definition = antigravityAgentDefinition(files.agentName, options.mode);
   let identity: { dev: number; ino: number } | null = null;
+  let preparation: { kind: "read-only" } | { kind: "writer"; boundary: WriterBoundary } = { kind: "read-only" };
+  let cleaned = false;
   try {
     if (options.mode === "read-only") {
       mkdirSync(files.childCwd, { mode: 0o700 });
-      createdDirectories.push(files.childCwd);
+      rememberDirectory(files.childCwd);
     }
     for (const directory of [root, files.directory]) {
       try {
         mkdirSync(directory, { mode: 0o700 });
-        createdDirectories.push(directory);
+        rememberDirectory(directory);
       } catch (error) {
         if ((error as NodeJS.ErrnoException).code !== "EEXIST" || !lstatSync(directory).isDirectory()) throw error;
       }
@@ -70,13 +101,18 @@ export function createAntigravityLaneFiles(options: RunnerOptions): AntigravityC
     writeFileSync(files.agentPath, definition, { flag: "wx", mode: 0o600 });
     const stat = lstatSync(files.agentPath);
     identity = { dev: stat.dev, ino: stat.ino };
+    if (options.mode === "isolated-write") preparation = { kind: "writer", boundary: createWriterBoundary({ root: files.childCwd, agentPath: files.agentPath, model: options.model, tools: antigravityTools(options.mode), writeTools: ANTIGRAVITY_WRITE_TOOLS }) };
   } catch (error) {
-    for (const directory of createdDirectories.reverse()) {
-      try { rmdirSync(directory); } catch {}
+    if (identity !== null) {
+      const stat = lstatSync(files.agentPath);
+      if (stat.isFile() && stat.dev === identity.dev && stat.ino === identity.ino && readFileSync(files.agentPath, "utf8") === definition) rmSync(files.agentPath);
     }
+    const lost = removeDirectories();
+    if (lost.length) throw new AggregateError([error], `Antigravity preparation failed and directory ownership was lost: ${lost.join(", ")}`);
     throw error;
   }
   const assertUnchanged = (): void => {
+    if (options.mode === "isolated-write" && createdDirectories.some(directory => !ownsDirectory(directory))) throw new OutputValidationError("Antigravity workspace directory ownership changed");
     if (identity === null) throw new OutputValidationError("antigravity agent definition is missing");
     const stat = lstatSync(files.agentPath);
     if (!stat.isFile() || stat.dev !== identity.dev || stat.ino !== identity.ino ||
@@ -86,19 +122,24 @@ export function createAntigravityLaneFiles(options: RunnerOptions): AntigravityC
   };
   return {
     files,
-    assertUnchanged,
+    assertUnchanged() { assertUnchanged(); if (preparation.kind === "writer") preparation.boundary.assertUnchanged(); },
+    verifySettlement(conversationId) { assertUnchanged(); if (preparation.kind === "writer") preparation.boundary.verifySettlement(conversationId); },
     cleanup() {
+      if (cleaned) return;
+      cleaned = true;
       if (options.mode === "read-only") {
         rmSync(files.childCwd, { recursive: true, force: true });
         return;
       }
+      let failure: unknown = null;
+      try { if (preparation.kind === "writer") preparation.boundary.cleanup(); } catch (error) { failure = error; }
       try {
         assertUnchanged();
         rmSync(files.agentPath);
-      } catch {}
-      for (const directory of createdDirectories.reverse()) {
-        try { rmdirSync(directory); } catch {}
-      }
+      } catch (error) { failure ??= error; }
+      const lost = removeDirectories();
+      if (lost.length) failure ??= new OutputValidationError(`Antigravity cleanup lost directory ownership: ${lost.join(", ")}`);
+      if (failure !== null) throw failure;
     },
   };
 }

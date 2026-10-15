@@ -4,6 +4,12 @@ This file records what each version of the Open Pstack package changed. Versions
 
 Entries describe package versions. Published release checkpoints have tag links; installation follows `main` unless pinned. Validation belongs to the linked pull requests. Older reports remain available through immutable links.
 
+## 1.18.0 adds sandboxed Antigravity worker checks
+
+Cursor baseline: [0.15.25](https://github.com/cursor/plugins/tree/e5136d82418d2db3165ea1050d17577cd618cc05/pstack). [Issue #135](https://github.com/arjitj2/open-pstack/issues/135).
+
+Antigravity writers retain direct file editing and gain arbitrary sandboxed commands and native task management. Temporary exclusive hooks bind approval to the assigned workspace, model and conversation; inherited execution-policy customizations are refused without changing user settings. External guard files survive until settlement, native hook errors cannot masquerade as successful delivery, and cleanup preserves replaced files. Read-only behavior, model descriptors, billing guards and parent Git ownership remain unchanged. Installed-parent validation and release publication remain required for this candidate.
+
 ## 1.17.1 adopts evidence-based principle guidance
 
 Cursor baseline: [0.15.25](https://github.com/cursor/plugins/tree/e5136d82418d2db3165ea1050d17577cd618cc05/pstack). [Issue #140](https://github.com/arjitj2/open-pstack/issues/140). [PR #142](https://github.com/arjitj2/open-pstack/pull/142). Tag [v1.17.1](https://github.com/arjitj2/open-pstack/releases/tag/v1.17.1).
