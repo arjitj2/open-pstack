@@ -4,6 +4,12 @@ This file records what each version of the Open Pstack package changed. Versions
 
 Entries describe package versions. Published release checkpoints have tag links; installation follows `main` unless pinned. Validation belongs to the linked pull requests. Older reports remain available through immutable links.
 
+## 1.17.0 adds sandboxed OpenCode worker checks
+
+Cursor baseline: [0.15.25](https://github.com/cursor/plugins/tree/6ce45c59b9301a638c1fe1a7b8dc2a82b650898f/pstack). [Issue #134](https://github.com/arjitj2/open-pstack/issues/134).
+
+OpenCode writers retain file editing and gain shell commands behind a required Anthropic sandbox-runtime boundary. Workers can run failing tests, repair code, and rerun checks. Read-only workers retain file inspection only. Private shell policy stays outside the worktree, startup verifies sandbox availability, and failures never retry unsandboxed. Existing model descriptors, funding checks, V1/V2 version contracts, and parent Git ownership remain in place.
+
 ## 1.16.2 removes denied Devin file tools
 
 Cursor baseline: [0.15.25](https://github.com/cursor/plugins/tree/6ce45c59b9301a638c1fe1a7b8dc2a82b650898f/pstack). [Issue #137](https://github.com/arjitj2/open-pstack/issues/137). [PR #138](https://github.com/arjitj2/open-pstack/pull/138). Tag [v1.16.2](https://github.com/arjitj2/open-pstack/releases/tag/v1.16.2).

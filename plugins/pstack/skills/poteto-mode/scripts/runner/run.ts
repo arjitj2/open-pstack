@@ -1,3 +1,4 @@
+import { createOpenCodeShell, type OpenCodeShell } from "./opencode-shell.ts";
 import {
   closeSync,
   existsSync,
@@ -719,7 +720,8 @@ async function executeLane(
   progress: LaneProgress,
   antigravityCreated: AntigravityCreatedFiles | null,
   reporter: ProgressReporter,
-  prompt: string
+  prompt: string,
+  resources: { openCodeShell?: OpenCodeShell }
 ): Promise<RunResult> {
   const startedAt = new Date(started).toISOString();
   const inherited = childEnvironment(options.provider);
@@ -884,7 +886,8 @@ async function executeLane(
           versionError = selection.message;
         } else {
           detected = selection.version;
-          openCode = openCodeAttempt(options, inherited, detected);
+          if (options.mode === "isolated-write") resources.openCodeShell = createOpenCodeShell(options.cwd);
+          openCode = openCodeAttempt(options, inherited, detected, resources.openCodeShell);
           if (openCode === null) {
             versionError = "OpenCode funding could not be resolved for the selected contract";
           } else {
@@ -918,6 +921,12 @@ async function executeLane(
       : options.provider === "claude"
         ? versionError === null && preflightResult.exitCode === 0
         : preflightPassed(options.provider, options.model, preflightResult, apiKeyAuth);
+    if (passed && openCode?.shell) {
+      const sandbox = { command: openCode.shell.executable, args: ["-c", "true"], stdin: "none" as const };
+      preflightResult = await runProcess(sandbox.command, sandbox, options.cwd, env, "", deadlineAt, cancellation, { reporter, role: "preflight" });
+      passed = preflightResult.exitCode === 0 && openCodeFilesUnchanged(openCode);
+      if (!passed) versionError = "OpenCode requires a working shell sandbox. Check sandbox-runtime dependencies and OS support; no unsandboxed execution was attempted.";
+    }
     let billingRouteBlocked = false;
     if (passed && openCode?.funding.kind === "chatgpt-subscription" && preflightResult.cancelledBy === null && !preflightResult.timedOut) {
       if (cancellation.signal !== null) return finishWithoutChild("cancelled", "before native OAuth preflight");
@@ -944,8 +953,8 @@ async function executeLane(
     let preflightEvidence = passed
       ? options.provider === "opencode"
         ? openCode?.funding.kind === "chatgpt-subscription"
-          ? `${detectedLabel}: private configuration verified; exactly one visible native OpenAI OAuth credential`
-          : `${detectedLabel}: ${openCode?.contract === "v1" ? "effective agent model and tool policy" : "native configuration"} verified; authentication deferred to execution`
+          ? `${detectedLabel}: private configuration verified; exactly one visible native OpenAI OAuth credential${openCode.shell ? "; required shell sandbox startup passed" : ""}`
+          : `${detectedLabel}: ${openCode?.contract === "v1" ? "effective agent model and tool policy" : "native configuration"} verified; authentication deferred to execution${openCode?.shell ? "; required shell sandbox startup passed" : ""}`
         : options.provider === "claude"
           ? `Claude Code ${preflightResult.stdout.trim()} satisfies the writer minimum; authentication deferred to invocation`
           : successfulPreflightEvidence(options.provider, options.model, apiKeyAuth)
@@ -1382,6 +1391,7 @@ export async function runLane(
   let outcome: RunResult | null = null;
   let createdCursorConfig = false;
   let createdOpenCodeConfig = false;
+  const resources: { openCodeShell?: OpenCodeShell } = {};
   let devinConfigCreated = false;
   let devinExportCreated = false;
   let contractPromptCreated = false;
@@ -1455,7 +1465,8 @@ export async function runLane(
         progress,
         antigravityCreated,
         reporter,
-        prompt
+        prompt,
+        resources
       );
       return outcome;
     } catch (error) {
@@ -1506,6 +1517,7 @@ export async function runLane(
     try {
       if (devinConfigCreated) removeIfExists(devinConfigPath(options));
       if (devinExportCreated) rmSync(devinExportDirectory(options), { recursive: true, force: true });
+      if (resources.openCodeShell) rmSync(resources.openCodeShell.directory, { recursive: true, force: true });
       if (createdOpenCodeConfig) rmSync(openCodeDirectory(options), { recursive: true, force: true });
       if (createdCursorConfig) rmSync(cursorConfigDirectory(options), { recursive: true, force: true });
       if (contractPromptCreated) removeIfExists(contractPromptPath(options));

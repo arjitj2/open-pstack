@@ -326,8 +326,15 @@ describe("worker guidance paired with invocation flags", () => {
     expect(reader.workerGuidance).not.toContain("sandboxed `exec`");
   });
 
+  it("gives OpenCode writers sandboxed check guidance", () => {
+    const spec = invocationCommand(options({provider:"opencode",model:"openai/gpt-6.1-sol",effort:"default",mode:"isolated-write"}));
+    expect(spec.workerGuidance).toContain("file tools for edits");
+    expect(spec.workerGuidance).toContain("required sandbox");
+    expect(spec.workerGuidance).toContain("never retry unsandboxed");
+  });
+
   it("directs file-only writers to the run-checks handoff", () => {
-    for (const provider of ["antigravity", "opencode"] as const) {
+    for (const provider of ["antigravity"] as const) {
       const spec = invocationCommand(
         options({ provider, model: "any-model", effort: "default", mode: "isolated-write" })
       );
