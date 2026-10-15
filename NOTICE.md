@@ -32,3 +32,5 @@ Further Cursor adaptations preserve parent-owned delegation, grounded in-reply c
 The `afd51cf6` Ketchup adaptation preserves existing media, explanatory diagrams, plain action bullets and grounded choice comparisons for both hosts, with the port’s read-only and UI-authorization boundaries.
 
 The `e5136d8` principle adaptations replace blanket recipes with evidence about premises, legitimate state, repeatable operations and observable testing contracts, while retaining portable host controls.
+
+The `99743e9` adaptation shortens the migration, type-system, Swarm and lead-review guidance while retaining portable metadata, parent-owned dispatch, saved recovery and compatibility conditions.

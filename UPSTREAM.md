@@ -10,13 +10,13 @@ This page records the current Cursor baseline and the maintainer procedure for r
 | --- | --- |
 | Repository | `https://github.com/cursor/plugins.git` |
 | Path | `pstack/` |
-| Commit | `e5136d82418d2db3165ea1050d17577cd618cc05` |
+| Commit | `99743e9c151c8537cbbf1f98bb38f34ef3368453` |
 | Upstream version | `0.15.25` |
-| open-pstack version | `1.17.2` |
+| open-pstack version | `1.17.3` |
 
 The table records the packaged version on `main` and the Cursor content it incorporates, minus the exclusions below. Detecting or reviewing a newer Cursor commit does not advance this baseline. Cursor's version identifies the imported content. The open-pstack version identifies the cross-harness package, and its numbers are independent of Cursor and Eric's port.
 
-The upstream README at this baseline is [cursor/plugins `pstack/README.md` @ e5136d8](https://github.com/cursor/plugins/blob/e5136d82418d2db3165ea1050d17577cd618cc05/pstack/README.md). [CHANGELOG.md](CHANGELOG.md) records the baseline of each release, and [NOTICE.md](NOTICE.md) records provenance.
+The upstream README at this baseline is [cursor/plugins `pstack/README.md` @ 99743e9](https://github.com/cursor/plugins/blob/99743e9c151c8537cbbf1f98bb38f34ef3368453/pstack/README.md). [CHANGELOG.md](CHANGELOG.md) records the baseline of each release, and [NOTICE.md](NOTICE.md) records provenance.
 
 ## Upstream-only exclusions
 
@@ -58,6 +58,8 @@ When incorporating Cursor content, translate harness primitives at the existing 
 [`codex-tools.md`](plugins/pstack/skills/poteto-mode/references/codex-tools.md) defines the Claude-to-Codex tool mapping. [`provider-dispatch.md`](plugins/pstack/skills/poteto-mode/references/provider-dispatch.md) owns native/external routing, models, permissions, billing, and recovery. Use those references when porting; do not add a second harness-specific skill tree. [NOTICE.md](NOTICE.md) identifies the imported components and port-authored work.
 
 The `e5136d8` principles update keeps shared portable metadata and genuine negative-path/invariant contracts while adopting premise falsification, legitimate-state root causes, state reconciliation and refactor-resistant testing. Cursor-only guide prose stays in the pinned upstream reference.
+
+The `99743e9` content update shortens Swarm, the migration and type principles, and Interrogate's lead judgment. Portable metadata, parent-owned dispatch, saved recovery, coverage requirements and external compatibility conditions remain in force. The upstream README table remains available through the pinned source link above.
 
 ## Decision ledger
 

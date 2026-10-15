@@ -4,6 +4,12 @@ This file records what each version of the Open Pstack package changed. Versions
 
 Entries describe package versions. Published release checkpoints have tag links; installation follows `main` unless pinned. Validation belongs to the linked pull requests. Older reports remain available through immutable links.
 
+## 1.17.3 shortens review and coordination guidance
+
+Cursor baseline: [0.15.25](https://github.com/cursor/plugins/tree/99743e9c151c8537cbbf1f98bb38f34ef3368453/pstack). [Issue #148](https://github.com/arjitj2/open-pstack/issues/148). [PR #149](https://github.com/arjitj2/open-pstack/pull/149). Tag [v1.17.3](https://github.com/arjitj2/open-pstack/releases/tag/v1.17.3).
+
+Shortens the migration and type-system principles, the Interrogate judgment reference, and Swarm. Existing dispatch, completion, coverage, model, effort, recovery, and spending restrictions remain in force. The judgment reference no longer suggests limiting valid findings to five.
+
 ## 1.17.2 adds sandboxed Antigravity worker checks
 
 Cursor baseline: [0.15.25](https://github.com/cursor/plugins/tree/e5136d82418d2db3165ea1050d17577cd618cc05/pstack). [Issue #135](https://github.com/arjitj2/open-pstack/issues/135). [PR #143](https://github.com/arjitj2/open-pstack/pull/143). Release tag `v1.17.2`.
