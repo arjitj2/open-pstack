@@ -30,3 +30,5 @@ Port-authored work includes the plugin and marketplace manifests, Codex tool map
 Further Cursor adaptations preserve parent-owned delegation, grounded in-reply comparisons, usable application readiness, paged review-state aggregation, and portable plan and worktree audit checks. This port adds fail-closed pagination guards and explicit transcript scoping.
 
 The `afd51cf6` Ketchup adaptation preserves existing media, explanatory diagrams, plain action bullets and grounded choice comparisons for both hosts, with the port’s read-only and UI-authorization boundaries.
+
+The `e5136d8` principle adaptations replace blanket recipes with evidence about premises, legitimate state, repeatable operations and observable testing contracts, while retaining portable host controls.
