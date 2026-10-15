@@ -45,7 +45,12 @@ export function devinConfig(options: RunnerOptions) {
   return {
     shell: { setup_complete: true },
     subagents_enabled: false,
-    disabled_tools: options.mode === "read-only" ? ["exec"] : [],
+    // Scoped file tools are preferred but stay disabled until unattended
+    // scoped edits work with sandboxed commands:
+    // https://github.com/CognitionAI/devin-cli/issues/24
+    disabled_tools: options.mode === "read-only"
+      ? ["exec", "edit", "write"]
+      : ["edit", "write"],
     auto_update: false,
     notify: "never",
     read_config_from: {

@@ -60,6 +60,9 @@ if (args[0] === "auth") {
 }
 const config = await Bun.file(args[args.indexOf("--config") + 1]).json();
 if (config.subagents_enabled !== false) throw new Error("recursive agents enabled");
+for (const tool of ["edit", "write"]) {
+  if (!config.disabled_tools?.includes(tool)) throw new Error(tool + " still advertised");
+}
 if (args.includes("--sandbox")) {
   if (config.disabled_tools?.includes("exec")) throw new Error("writer exec disabled");
 } else if (!config.disabled_tools?.includes("exec")) {
@@ -130,12 +133,15 @@ describe("Devin external provider", () => {
     expect(config.subagents_enabled).toBe(false);
     expect(Object.values(config.read_config_from).every(value => value === false)).toBe(true);
     expect(config.permissions.deny).toEqual(expect.arrayContaining(["Write(**)", "exec", "mcp__*"]));
+    expect(config.disabled_tools).toEqual(expect.arrayContaining(["exec", "edit", "write"]));
     const writer = invocationCommand({ ...options, mode: "isolated-write" });
     expect(writer.args).toContain("--sandbox");
     expect(writer.args).not.toContain("--permission-mode");
     const writerConfig = devinConfig({ ...options, mode: "isolated-write" });
     expect(writerConfig.permissions.deny).toEqual(expect.arrayContaining(["edit", "write"]));
     expect(writerConfig.permissions.deny).not.toContain("exec");
+    expect(writerConfig.disabled_tools).toEqual(expect.arrayContaining(["edit", "write"]));
+    expect(writerConfig.disabled_tools).not.toContain("exec");
     expect(writer.args).not.toContain("dangerous");
   });
 
