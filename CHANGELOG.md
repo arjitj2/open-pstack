@@ -6,7 +6,7 @@ Entries describe package versions. Published release checkpoints have tag links;
 
 ## 1.17.0 adds sandboxed OpenCode worker checks
 
-Cursor baseline: [0.15.25](https://github.com/cursor/plugins/tree/6ce45c59b9301a638c1fe1a7b8dc2a82b650898f/pstack). [Issue #134](https://github.com/arjitj2/open-pstack/issues/134).
+Cursor baseline: [0.15.25](https://github.com/cursor/plugins/tree/6ce45c59b9301a638c1fe1a7b8dc2a82b650898f/pstack). [Issue #134](https://github.com/arjitj2/open-pstack/issues/134). [PR #139](https://github.com/arjitj2/open-pstack/pull/139).
 
 OpenCode writers retain file editing and gain shell commands behind a required Anthropic sandbox-runtime boundary. Workers can run failing tests, repair code, and rerun checks. Read-only workers retain file inspection only. Private shell policy stays outside the worktree, startup verifies sandbox availability, and failures never retry unsandboxed. Existing model descriptors, funding checks, V1/V2 version contracts, and parent Git ownership remain in place.
 
