@@ -827,6 +827,13 @@ describe("ambient credential and routing takeover guard", () => {
     expect(apiCredentialTakeover("devin", {})).toBeNull();
   });
 
+  it("guards both Antigravity gateway route families without leaking values", () => {
+    for (const key of ["AGY_GATEWAY_BASE_URL", "AGY_LLM_GATEWAY_ENDPOINT"]) {
+      expect(apiCredentialTakeover("antigravity", {[key]:"secret-route"})).toBe(key);
+      expect(apiCredentialTakeover("antigravity", {[key]:"false"})).toBeNull();
+    }
+  });
+
   it("covers known Claude alternate-auth and provider-selection controls", () => {
     for (const env of [
       { ANTHROPIC_AUTH_TOKEN: "token" },

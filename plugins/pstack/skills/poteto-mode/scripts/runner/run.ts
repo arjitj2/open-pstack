@@ -22,12 +22,14 @@ import { CLAUDE_WRITER_MINIMUM_VERSION, claudeWriterVersionError, invocationComm
 import { nativeLane } from "./native-route.ts";
 import { openCodeAgent, openCodeAttempt, openCodeDirectory, openCodeFilesUnchanged, openCodeFunding, openCodeOAuthPreflightPassed, openCodePreflightPassed, openCodeProbeEnvironment, openCodeSelectVersion, openCodeV1OAuthListPassed, inspectOpenCodeStream, parseOpenCodeExport, OPENCODE_CHATGPT_ENDPOINT, OPENCODE_CHATGPT_SUBSCRIPTION_MODEL, OPENCODE_SUPPORTED_RANGE, OPENCODE_TESTED_VERSIONS, type OpenCodeContract, type OpenCodeTranscript, type OpenCodeVersion, validateOpenCodeModel, type OpenCodeAttempt } from "./opencode.ts";
 import { cursorConfigDirectory, cursorConfig, cursorHasApiKey, cursorUserConfigPath, validateCursorModel } from "./cursor.ts";
-import { antigravityLaneFiles, antigravitySettingsPath, antigravitySettingsTakeover, antigravityStdin, auditAntigravityStream, createAntigravityLaneFiles, validateAntigravityModel, type AntigravityCreatedFiles } from "./antigravity.ts";
+import { AntigravityPolicyError } from "./antigravity-policy.ts";
+import { antigravityLaneFiles, antigravitySettingsPath, antigravitySettingsTakeover, antigravityStdin, antigravityWriterVersion, auditAntigravityStream, createAntigravityLaneFiles, validateAntigravityModel, type AntigravityCreatedFiles } from "./antigravity.ts";
 import { versionedClaudeAlias } from "./model-aliases.ts";
 import { parseProviderOutput, reportedModelMatches } from "./parse-output.ts";
 import {
   ProviderTerminalError,
   ProviderToolDeniedError,
+  antigravityHookDenial,
   apiCredentialTakeover,
   assertQuotaAdapter,
   classifyProcessOutcome,
@@ -728,6 +730,7 @@ async function executeLane(
   let env = options.provider === "opencode" ? openCodeProbeEnvironment(options, inherited) : inherited;
   let openCode: OpenCodeAttempt | null = null;
   let detected: OpenCodeVersion | null = null;
+  let antigravityVersion: string | null = null;
   let activeInvocation: CommandSpec = invocation;
   const laneReceipt = (partial: Parameters<typeof completeReceipt>[1]): RunnerReceipt => completeReceipt(options, partial, openCode?.contract ?? detected?.contract ?? null);
   const apiKeyAuth = options.provider === "cursor" && cursorHasApiKey(env);
@@ -863,7 +866,9 @@ async function executeLane(
     const preflightExecutable = executable;
     let activePreflight: CommandSpec = options.provider === "opencode"
       ? { command: "opencode", args: ["--version"], stdin: "none" }
-      : preflight;
+      : options.provider === "antigravity" && options.mode === "isolated-write"
+        ? { command: "agy", args: ["--version"], stdin: "none" }
+        : preflight;
     progress.preflight = { ...progress.preflight, argv: [preflightExecutable, ...activePreflight.args] };
     let preflightResult = await runProcess(
       preflightExecutable,
@@ -911,16 +916,26 @@ async function executeLane(
         ? claudeWriterVersionError(preflightResult.stdout)
         : `Claude Code version check failed. Install Claude Code ${CLAUDE_WRITER_MINIMUM_VERSION} or newer and check claude --version.`;
     }
+    if (options.provider === "antigravity" && options.mode === "isolated-write") {
+      antigravityVersion = preflightResult.exitCode === 0 ? antigravityWriterVersion(preflightResult.stdout) : null;
+      if (antigravityVersion === null) {
+        versionError = "Antigravity writers require a stable agy 1.x version with the documented sandbox and hook capabilities; check agy --version.";
+      } else if (preflightResult.cancelledBy === null && !preflightResult.timedOut) {
+        activePreflight = preflight;
+        progress.preflight = { ...progress.preflight, argv: [preflightExecutable, ...activePreflight.args] };
+        preflightResult = await runProcess(preflightExecutable, activePreflight, options.cwd, env, "", deadlineAt, cancellation, { reporter, role: "preflight" });
+      }
+    }
     const detectedLabel = detected === null ? "OpenCode" : `OpenCode ${detected.text} (${detected.contract})`;
     const openCodeConfigNote = `${detectedLabel} configuration preflight failed; supported ${OPENCODE_SUPPORTED_RANGE}, tested ${OPENCODE_TESTED_VERSIONS.join(", ")}; configuration output withheld`;
     let rawPreflightEvidence = versionError ?? (options.provider === "opencode"
       ? openCodeConfigNote
       : evidence(`${preflightResult.stdout}\n${preflightResult.stderr}`));
-    let passed = options.provider === "opencode"
+    let passed = versionError === null && (options.provider === "opencode"
       ? versionError === null && preflightResult.exitCode === 0 && openCode !== null && openCodePreflightPassed(preflightResult.stdout, openCode)
       : options.provider === "claude"
         ? versionError === null && preflightResult.exitCode === 0
-        : preflightPassed(options.provider, options.model, preflightResult, apiKeyAuth);
+        : preflightPassed(options.provider, options.model, preflightResult, apiKeyAuth));
     if (passed && openCode?.shell) {
       const sandbox = { command: openCode.shell.executable, args: ["-c", "true"], stdin: "none" as const };
       preflightResult = await runProcess(sandbox.command, sandbox, options.cwd, env, "", deadlineAt, cancellation, { reporter, role: "preflight" });
@@ -948,7 +963,7 @@ async function executeLane(
       stderr: preflightResult.stderr,
       note: versionError ?? (options.provider === "opencode"
         ? billingRouteBlocked ? rawPreflightEvidence : openCodeConfigNote
-        : undefined),
+        : antigravityVersion === null ? undefined : `Antigravity ${antigravityVersion} satisfies stable 1.x; model discovery failed`),
     });
     let preflightEvidence = passed
       ? options.provider === "opencode"
@@ -957,7 +972,7 @@ async function executeLane(
           : `${detectedLabel}: ${openCode?.contract === "v1" ? "effective agent model and tool policy" : "native configuration"} verified; authentication deferred to execution${openCode?.shell ? "; required shell sandbox startup passed" : ""}`
         : options.provider === "claude"
           ? `Claude Code ${preflightResult.stdout.trim()} satisfies the writer minimum; authentication deferred to invocation`
-          : successfulPreflightEvidence(options.provider, options.model, apiKeyAuth)
+          : `${antigravityVersion === null ? "" : `Antigravity ${antigravityVersion} satisfies stable 1.x; `}${successfulPreflightEvidence(options.provider, options.model, apiKeyAuth)}`
       : renderPreflightDetail();
 
     if (
@@ -1117,6 +1132,7 @@ async function executeLane(
   }
 
   if (openCode !== null && !openCodeFilesUnchanged(openCode)) throw new OutputValidationError("OpenCode private configuration changed before invocation");
+  antigravityCreated?.assertUnchanged();
   const invocationStarted = Date.now();
   progress.modelStarted = true;
   const workloadResult = await runProcess(
@@ -1221,6 +1237,10 @@ async function executeLane(
   try {
     if (options.provider === "opencode" && openCode?.contract === "v2" && openCodeExport?.kind === "error") throw new ProviderTerminalError("opencode", "OpenCode reported a failed session", openCodeExport.envelope);
     if (options.provider === "opencode" && openCode?.contract === "v2" && openCodeExport?.kind !== "complete") throw new OutputValidationError(openCodeExport?.kind === "incomplete" ? openCodeExport.reason : "OpenCode native session export did not prove completion");
+    if (options.provider === "antigravity") {
+      const denial = antigravityHookDenial(result.stdout);
+      if (denial !== null) throw new ProviderToolDeniedError("antigravity", denial.evidence, undefined, denial, "child-failed");
+    }
     const parsed = options.provider === "opencode" && openCode?.contract === "v2" && openCodeExport?.kind === "complete" ? openCodeExport.output : parseProviderOutput(
       options.provider,
       options.provider === "devin" ? readDevinExport(options) : result.stdout,
@@ -1229,7 +1249,7 @@ async function executeLane(
     );
     if (options.provider === "antigravity") {
       auditAntigravityStream(result.stdout, antigravityLaneFiles(options), options.mode, options.model);
-      antigravityCreated?.assertUnchanged();
+      antigravityCreated?.verifySettlement(parsed.sessionId ?? "");
     }
     const proof = modelProof(
       options.provider,
@@ -1502,7 +1522,9 @@ export async function runLane(
             : status === "timed-out"
               ? "explicit deadline elapsed after reserving output paths"
               : "launcher failed after reserving output paths",
-          evidence: launcherDiagnostic(error),
+          evidence: error instanceof AntigravityPolicyError
+            ? `Antigravity policy source ${error.source}; key ${error.key}`
+            : launcherDiagnostic(error),
         },
         failurePhase: progress.modelStarted ? "invocation" : "preflight",
         processStarted: progress.modelStarted,
@@ -1521,7 +1543,26 @@ export async function runLane(
       if (createdOpenCodeConfig) rmSync(openCodeDirectory(options), { recursive: true, force: true });
       if (createdCursorConfig) rmSync(cursorConfigDirectory(options), { recursive: true, force: true });
       if (contractPromptCreated) removeIfExists(contractPromptPath(options));
-      antigravityCreated?.cleanup();
+      try {
+        antigravityCreated?.cleanup();
+      } catch (error) {
+        if (outcome === null) throw error;
+        const delivered = outcome.receipt.status === "complete" || outcome.receipt.status === "needs-parent-operation";
+        const status = delivered ? "malformed-output" : outcome.receipt.status;
+        const receipt: RunnerReceipt = {
+          ...outcome.receipt,
+          status,
+          failurePhase: delivered ? "postprocess" : outcome.receipt.failurePhase,
+          terminalSuccess: delivered ? true : outcome.receipt.terminalSuccess,
+          error: delivered || outcome.receipt.error === null
+            ? { message: "Antigravity cleanup could not remove owned lane files", evidence: launcherDiagnostic(error) }
+            : { ...outcome.receipt.error, evidence: `${outcome.receipt.error.evidence.slice(0, 500)}\nAntigravity cleanup could not remove owned lane files: ${launcherDiagnostic(error)}`.slice(0, 1000) },
+        };
+        removeIfExists(options.outputPath);
+        writeReceipt(options.receiptPath, receipt);
+        outcome = { exitCode: statusExitCode(status), receipt };
+        return outcome;
+      }
     } finally {
       try {
         reporter.record({ t: "terminal", receiptWritten: outcome !== null });

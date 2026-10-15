@@ -163,7 +163,7 @@ function workerGuidance(provider: Provider, mode: AccessMode): string {
     case "cursor":
       return "- Provider tools: use the available file and shell tools inside the configured workspace sandbox.";
     case "antigravity":
-      return "- Provider tools: the configured file tools are your only tools; command execution is unavailable, so request required checks through the run-checks handoff.";
+      return "- Provider tools: use file tools for edits and `run_command` for suitable checks in the native sandbox. Prefer foreground commands unless background work is needed; use `manage_task` or native completion to collect exit results. Repair ordinary check failures and rerun. Stop on any denial; never bypass the sandbox, select an external terminal, or alter agent/hooks policy.";
     case "opencode":
       return "- Provider tools: use file tools for edits and the shell tool for suitable checks inside the required sandbox. Use foreground commands. For the V2 shell tool, set timeout 0 unless the task supplies a deadline. For V1 Bash, omit timeout to retain its native default; zero is invalid. Stop on a denied command; never retry unsandboxed or change the configured shell.";
   }
@@ -194,7 +194,7 @@ export function invocationCommand(
           "--model", options.model, "--agent", files.agentName, "--sandbox",
           ...(options.mode === "read-only"
             ? ["--disable-slash-commands", "--add-dir", options.cwd]
-            : ["--mode", "accept-edits"]),
+            : ["--mode", "accept-edits", "--project", "default-cli-project"]),
         ],
         stdin: "prompt-ndjson",
         cwd: files.childCwd,

@@ -333,13 +333,13 @@ describe("worker guidance paired with invocation flags", () => {
     expect(spec.workerGuidance).toContain("never retry unsandboxed");
   });
 
-  it("directs file-only writers to the run-checks handoff", () => {
+  it("directs Antigravity writers to native sandboxed checks", () => {
     for (const provider of ["antigravity"] as const) {
       const spec = invocationCommand(
         options({ provider, model: "any-model", effort: "default", mode: "isolated-write" })
       );
-      expect(spec.workerGuidance, provider).toContain("run-checks");
-      expect(spec.workerGuidance, provider).toContain("command execution is unavailable");
+      expect(spec.workerGuidance, provider).toContain("`run_command`");
+      expect(spec.workerGuidance, provider).toContain("`manage_task`");
     }
   });
 });
