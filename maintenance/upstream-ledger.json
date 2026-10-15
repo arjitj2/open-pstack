@@ -343,9 +343,25 @@
       "subject": "chore(pstack): bump to 0.15.24 (#617)",
       "reason": "Record Cursor version 0.15.24 while retaining independent distribution version 1.16.0; version-only source metadata does not replace portable manifests.",
       "evidence": "https://github.com/arjitj2/open-pstack/pull/127"
+    },
+    {
+      "commit": "afd51cf66a3100a95f878d6c4b93a01f6508e3b0",
+      "date": "2026-10-14",
+      "status": "adapted",
+      "subject": "feat(pstack): have /ketchup explain changes with screenshots, videos, and diagrams (#628)",
+      "reason": "Adopt explanatory media-first formatting, plain grouped action bullets, visual choice comparisons and prose-only word limits; preserve portable current-human/read-only/UI permission/evidence guards and available chart-tool mapping. Both native hosts exercised the exact Ketchup contract with provided diagram and absent screenshots; frontend video rendering remains untested.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/132"
+    },
+    {
+      "commit": "6ce45c59b9301a638c1fe1a7b8dc2a82b650898f",
+      "date": "2026-10-14",
+      "status": "adapted",
+      "subject": "chore(pstack): bump to 0.15.25 (#614)",
+      "reason": "Record Cursor 0.15.25 with independent compatible patch 1.16.1 under the standing catch-up release policy; retain supported portable manifests.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/132"
     }
   ],
-  "reviewed_through": "1e5c90a4b6f249917bd21fe361b3a2a7deb741b8",
+  "reviewed_through": "6ce45c59b9301a638c1fe1a7b8dc2a82b650898f",
   "schema": 1,
   "source": {
     "path": "pstack/",
