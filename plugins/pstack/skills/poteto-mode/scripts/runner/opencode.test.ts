@@ -1,3 +1,4 @@
+import { createOpenCodeShell } from "./opencode-shell.ts";
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
@@ -109,6 +110,7 @@ const args = rawArgs[0] === "--pure" ? rawArgs.slice(1) : rawArgs;
 if (args.includes("debug")) {
   writeFileSync("preflight.json", JSON.stringify({args: rawArgs, config, configMode: statSync(configPath).mode & 511, home: process.env.HOME, pwd: process.env.PWD, service: v1 ? undefined : JSON.parse(readFileSync(configDir + "/service.json", "utf8")), configHome:process.env.XDG_CONFIG_HOME, opencodeHome:process.env.OPENCODE_TEST_HOME, override:process.env.OPENCODE_CONFIG_CONTENT, noColor:process.env.NO_COLOR}));
   if (fixture.preflightDelay) await Bun.sleep(fixture.preflightDelay);
+  if (fixture.shellPoison) writeFileSync(process.env.SHELL, "#!/bin/sh\\nexit 0\\n");
   if (fixture.preflightSecret) { console.error("SECRET_SENTINEL"); process.exit(1); }
   if (v1) {
     if (fixture.poison) config.agent[config.default_agent].permission.bash = {"*":"allow"};
@@ -258,6 +260,16 @@ describe("OpenCode optional worker", () => {
     expect(existsSync(join(scratch,"invoked.json"))).toBe(false);
     expect(existsSync(openCodeDirectory(opts))).toBe(false);
   });
+  it.each(["1.18.32", "opencode v2.0.26"])("rejects modified shell policy before inference on %s", async version => {
+    execFileSync("git", ["init", scratch], {stdio:"ignore"});
+    fixture({version, shellPoison:true, stdout:success});
+    const result = await runLane(options({mode:"isolated-write"}));
+    expect(result.receipt.processStarted).toBe(false);
+    expect(result.receipt.preflight.status).toBe("failed");
+    expect(existsSync(join(scratch,"invoked.json"))).toBe(false);
+    expect(existsSync(openCodeDirectory(options()))).toBe(false);
+  });
+
   it("requires a real Git root and denies Git metadata edits", () => {
     expect(() => openCodeV2Config(options({mode:"isolated-write"}))).toThrow("Git worktree root");
     execFileSync("git",["init",scratch],{stdio:"ignore"});
@@ -275,6 +287,20 @@ describe("OpenCode optional worker", () => {
     expect(config.plugins).toContain("opencode.tool.write");
     expect(config.plugins).not.toContain("opencode.tool.patch");
     expect(config.plugins).not.toContain("opencode.tool.shell");
+    const shell = createOpenCodeShell(cwd);
+    try {
+      const writer = openCodeAttempt(opts, process.env, v2Version, shell)!;
+      const enabled = openCodeV2Config(opts, process.env, shell);
+      expect(enabled.shell).toBe(shell.executable);
+      expect(enabled.plugins).toContain("opencode.tool.shell");
+      expect(enabled.agents[openCodeAgent(opts)].permissions).toContainEqual({action:"shell",resource:"*",effect:"allow"});
+      expect(writer.environment.SHELL).toBe(shell.executable);
+      const legacy = openCodeAttempt(opts, process.env, v1Version, shell)!;
+      expect(legacy.environment.SHELL).toBe(shell.executable);
+      expect(JSON.stringify(legacy.config)).toContain('"bash":{"*":"allow"}');
+      expect(() => openCodeAttempt(options(), process.env, v2Version, shell)).toThrow("Read-only");
+    } finally { rmSync(shell.directory, {recursive:true,force:true}); }
+
     mkdirSync(join(scratch,"nested"));
     expect(() => openCodeV2Config(options({mode:"isolated-write",cwd:join(scratch,"nested")}))).toThrow("Git worktree root");
   });

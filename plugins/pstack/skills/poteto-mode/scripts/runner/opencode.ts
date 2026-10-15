@@ -1,3 +1,4 @@
+import { openCodeShellUnchanged, type OpenCodeShell } from "./opencode-shell.ts";
 import { createHash } from "node:crypto";
 import { lstatSync, readFileSync, readdirSync, realpathSync } from "node:fs";
 import { homedir } from "node:os";
@@ -101,20 +102,21 @@ interface V1PermissionRule {
   readonly pattern: string;
   readonly action: "allow" | "deny";
 }
-function v1Permissions(options: RunnerOptions, env: NodeJS.ProcessEnv): readonly V1PermissionRule[] {
+function v1Permissions(options: RunnerOptions, env: NodeJS.ProcessEnv, shell?: OpenCodeShell): readonly V1PermissionRule[] {
   return [
     { permission: "*", pattern: "*", action: "deny" },
     ...["read", "glob", "grep"].map(permission => ({ permission, pattern: "*", action: "allow" as const })),
     ...(options.mode === "isolated-write" ? [{ permission: "edit", pattern: "*", action: "allow" as const }] : []),
+    ...(shell ? [{ permission: "bash", pattern: "*", action: "allow" as const }] : []),
     { permission: "external_directory", pattern: "*", action: "deny" },
     { permission: "external_directory", pattern: v1ToolOutputGlob(env), action: "deny" },
   ];
 }
 
-export function openCodeV1Config(options: RunnerOptions, env: NodeJS.ProcessEnv = process.env): object {
+export function openCodeV1Config(options: RunnerOptions, env: NodeJS.ProcessEnv = process.env, shell?: OpenCodeShell): object {
   openCodeWorktreeRoot(options);
   const permission: Record<string, Record<string, string>> = {};
-  for (const rule of v1Permissions(options, env)) (permission[rule.permission] ??= {})[rule.pattern] = rule.action;
+  for (const rule of v1Permissions(options, env, shell)) (permission[rule.permission] ??= {})[rule.pattern] = rule.action;
   return {
     $schema: "https://opencode.ai/config.json",
     model: options.model, small_model: options.model,
@@ -129,7 +131,7 @@ interface PermissionRule {
   readonly resource: string;
   readonly effect: "allow" | "deny";
 }
-function v2Permissions(options: RunnerOptions, env: NodeJS.ProcessEnv): readonly PermissionRule[] {
+function v2Permissions(options: RunnerOptions, env: NodeJS.ProcessEnv, shell?: OpenCodeShell): readonly PermissionRule[] {
   const data = env.XDG_DATA_HOME || join(homedir(), ".local", "share");
   return [
     { action: "*", resource: "*", effect: "deny" },
@@ -138,25 +140,28 @@ function v2Permissions(options: RunnerOptions, env: NodeJS.ProcessEnv): readonly
       { action: "edit", resource: "*", effect: "allow" as const },
       ...[".git", ".git/*", "*/.git", "*/.git/*", join(options.cwd, ".git"), join(options.cwd, ".git", "*")].map(resource => ({ action: "edit", resource, effect: "deny" as const })),
     ] : []),
+    ...(shell ? [{ action: "shell", resource: "*", effect: "allow" as const }] : []),
     { action: "external_directory", resource: "*", effect: "deny" },
     { action: "external_directory", resource: join(data, "opencode", "tool-output", "*"), effect: "deny" },
   ];
 }
 
-export function openCodeV2Config(options: RunnerOptions, env: NodeJS.ProcessEnv = process.env) {
+export function openCodeV2Config(options: RunnerOptions, env: NodeJS.ProcessEnv = process.env, shell?: OpenCodeShell) {
   openCodeWorktreeRoot(options);
   const separator = options.model.indexOf("/");
   const model = { providerID: options.model.slice(0, separator), model: options.model.slice(separator + 1) };
   const subscription = openCodeFunding(options)?.kind === "chatgpt-subscription";
   return {
     ...(subscription ? { providers: { openai: { settings: { baseURL: OPENCODE_CHATGPT_ENDPOINT, transport: "http" } } } } : {}),
+    ...(shell ? { shell: shell.executable } : {}),
     model, default_agent: openCodeAgent(options), share: "disabled", update: "disable",
     snapshots: false, lsp: false, formatter: false, compaction: { auto: false }, warming: false,
     plugins: ["-*", "opencode.models.dev", subscription ? "opencode.provider.openai" : "opencode.provider.*",
       ...(subscription ? ["opencode.config.provider"] : []),
+      ...(shell ? ["opencode.config.shell", "opencode.tool.shell"] : []),
       "opencode.config.agent", "opencode.config.compaction", "opencode.config.formatter", "opencode.config.snapshot",
       ...["read", "glob", "grep", ...(options.mode === "isolated-write" ? ["edit", "write"] : [])].map(tool => `opencode.tool.${tool}`)],
-    agents: { [openCodeAgent(options)]: { mode: "primary", model, permissions: v2Permissions(options, env) } },
+    agents: { [openCodeAgent(options)]: { mode: "primary", model, permissions: v2Permissions(options, env, shell) } },
   };
 }
 
@@ -201,6 +206,7 @@ export function openCodeEnvironment(options: RunnerOptions, inherited: NodeJS.Pr
 
 interface OpenCodeAttemptBase {
   readonly funding: OpenCodeFunding;
+  readonly shell?: OpenCodeShell;
   readonly environment: NodeJS.ProcessEnv;
 }
 export interface OpenCodeV1Attempt extends OpenCodeAttemptBase {
@@ -224,17 +230,19 @@ function freeze<T>(value: T): T {
   }
   return value;
 }
-export function openCodeAttempt(options: RunnerOptions, inherited: NodeJS.ProcessEnv, version: OpenCodeVersion): OpenCodeAttempt | null {
+export function openCodeAttempt(options: RunnerOptions, inherited: NodeJS.ProcessEnv, version: OpenCodeVersion, shell?: OpenCodeShell): OpenCodeAttempt | null {
   const funding = openCodeFunding(options);
   if (funding === null) return null;
-  const environment = openCodeEnvironment(options, inherited, version.contract);
+  if (shell && options.mode !== "isolated-write") throw new UsageError("Read-only OpenCode workers cannot use a shell sandbox");
+  const environment = { ...openCodeEnvironment(options, inherited, version.contract), ...(shell ? { SHELL: shell.executable } : {}) };
   return freeze(version.contract === "v1"
-    ? { contract: "v1" as const, version, funding, environment, configPath: join(openCodeDirectory(options), "opencode.json"), config: openCodeV1Config(options, environment) }
-    : { contract: "v2" as const, version, funding, environment, configDirectory: openCodeConfigDirectory(options), config: openCodeV2Config(options, environment) });
+    ? { contract: "v1" as const, version, funding, environment, shell, configPath: join(openCodeDirectory(options), "opencode.json"), config: openCodeV1Config(options, environment, shell) }
+    : { contract: "v2" as const, version, funding, environment, shell, configDirectory: openCodeConfigDirectory(options), config: openCodeV2Config(options, environment, shell) });
 }
 
 export function openCodeFilesUnchanged(attempt: OpenCodeAttempt): boolean {
   try {
+    if (attempt.shell && !openCodeShellUnchanged(attempt.shell)) return false;
     if (attempt.contract === "v1") {
       const file = lstatSync(attempt.configPath);
       return file.isFile() && !file.isSymbolicLink()

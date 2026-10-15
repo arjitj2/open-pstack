@@ -57,8 +57,9 @@ effort, and openai/gpt-6.1-sol with exactly one visible native OpenAI OAuth
 credential on either contract. The flag cannot authorize another provider,
 model, or paid fallback.
 Read-only permits file inspection; isolated-write requires a Git worktree root
-and additionally permits edits. Neither mode permits shell commands. OpenCode
-tool permissions are not an OS sandbox. The guard covers known ambient credential and routing
+and additionally permits edits and sandboxed shell commands. Writers require
+macOS or Linux and a working Anthropic sandbox-runtime installation. Direct
+file-tool permissions remain application checks, not an OS sandbox. The guard covers known ambient credential and routing
 takeover plus observable auth evidence only; provider-managed overage,
 on-demand credits, or account billing controls are not guaranteed locally.
 

@@ -165,7 +165,7 @@ function workerGuidance(provider: Provider, mode: AccessMode): string {
     case "antigravity":
       return "- Provider tools: the configured file tools are your only tools; command execution is unavailable, so request required checks through the run-checks handoff.";
     case "opencode":
-      return "- Provider tools: the configured edit tool is your only write path; command execution is unavailable, so request required checks through the run-checks handoff.";
+      return "- Provider tools: use file tools for edits and the shell tool for suitable checks inside the required sandbox. Use foreground commands. For the V2 shell tool, set timeout 0 unless the task supplies a deadline. For V1 Bash, omit timeout to retain its native default; zero is invalid. Stop on a denied command; never retry unsandboxed or change the configured shell.";
   }
 }
 
