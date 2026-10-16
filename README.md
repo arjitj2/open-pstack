@@ -55,7 +55,7 @@ The **parent** is the app where you start a task. It coordinates the work and ke
 
 External workers use their own authentication and do not inherit the parent's MCP connections. Why and Reflect stay native so they retain those tools. See the [provider dispatch contract](plugins/pstack/skills/poteto-mode/references/provider-dispatch.md) for supported models and permissions, and the [provider limits](plugins/pstack/skills/poteto-mode/references/provider-dispatch.md) for what each worker cannot do.
 
-OpenCode workers are opt-in. They require an exact `opencode:<provider>/<model>@default` assignment and explicit API-spend approval because subscription-only routing is unproven. Read-only workers inspect files. Writers edit a Git worktree root, but neither mode runs shell commands or builds. Initial support uses built-in OpenCode providers and native authentication. See [OpenCode worker limits](plugins/pstack/skills/poteto-mode/references/provider-dispatch.md#optional-opencode-models).
+OpenCode workers are opt-in. They require an exact `opencode:<provider>/<model>@default` assignment and explicit API-spend approval because subscription-only routing is unproven. Read-only workers inspect files. Writers edit a Git worktree root, but neither mode runs shell commands or builds. Built-in OpenCode providers use native authentication, and an [OpenCode provider file](plugins/pstack/skills/poteto-mode/references/provider-dispatch.md#user-defined-opencode-providers) adds an OpenAI-compatible gateway such as LiteLLM. See [OpenCode worker limits](plugins/pstack/skills/poteto-mode/references/provider-dispatch.md#optional-opencode-models).
 
 ## Install
 
