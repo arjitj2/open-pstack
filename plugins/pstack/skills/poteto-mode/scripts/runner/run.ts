@@ -889,6 +889,9 @@ async function executeLane(
         const selection = openCodeSelectVersion(preflightResult.stdout);
         if (selection.kind === "unsupported") {
           versionError = selection.message;
+        } else if (selection.version.contract === "v1" && options.opencodeProviderConfig !== undefined) {
+          detected = selection.version;
+          versionError = `--opencode-provider-config requires the OpenCode V2 contract (>=2.0.0); OpenCode ${selection.version.text} uses V1, whose preflight requires empty provider overrides`;
         } else {
           detected = selection.version;
           if (options.mode === "isolated-write") resources.openCodeShell = createOpenCodeShell(options.cwd);

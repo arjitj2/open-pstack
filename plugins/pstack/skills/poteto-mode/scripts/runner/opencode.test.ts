@@ -4,10 +4,11 @@ import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, sy
 import { execFileSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { inspectOpenCodeStream, parseOpenCodeExport, openCodeOAuthPreflightPassed, openCodeV1OAuthListPassed, OPENCODE_CHATGPT_SUBSCRIPTION_MODEL, OPENCODE_CHATGPT_ENDPOINT, OPENCODE_SUPPORTED_RANGE, OPENCODE_TESTED_VERSIONS, OPENCODE_V1_MINIMUM, openCodeAgent, openCodeAttempt, openCodeV1Config, openCodeV2Config, openCodeConfigDirectory, openCodeDirectory, openCodeEnvironment, openCodeFilesUnchanged, openCodeFunding, openCodePreflightPassed, openCodeSelectVersion, parseOpenCodeTranscript, validateOpenCodeModel, type OpenCodeAttempt, type OpenCodeV1Attempt, type OpenCodeV2Attempt, type OpenCodeVersion } from "./opencode.ts";
+import { inspectOpenCodeStream, parseOpenCodeExport, openCodeOAuthPreflightPassed, openCodeV1OAuthListPassed, OPENCODE_CHATGPT_SUBSCRIPTION_MODEL, OPENCODE_CHATGPT_ENDPOINT, OPENCODE_SUPPORTED_RANGE, OPENCODE_TESTED_VERSIONS, OPENCODE_V1_MINIMUM, openCodeAgent, openCodeAttempt, openCodeV1Config, openCodeV2Config, openCodeConfigDirectory, openCodeDirectory, openCodeEnvironment, openCodeFilesUnchanged, openCodeFunding, openCodePreflightPassed, openCodeSelectVersion, parseOpenCodeProviderConfig, parseOpenCodeTranscript, validateOpenCodeModel, type OpenCodeAttempt, type OpenCodeV1Attempt, type OpenCodeV2Attempt, type OpenCodeVersion } from "./opencode.ts";
 import { runLane } from "./run.ts";
 import { classifyProcessOutcome, hasTerminalSuccess } from "./provider-failure.ts";
 import { invocationCommand } from "./commands.ts";
+import { main } from "./cli.ts";
 import type { RunnerOptions } from "./types.ts";
 
 function event(type: string, id: string, detail: object = {}, messageID = "m1") {
@@ -806,5 +807,89 @@ describe("OpenCode V1 explicit ChatGPT subscription", () => {
     expect(existsSync(join(scratch,"invoked.json"))).toBe(false);
     expect(existsSync(join(scratch,"export.json"))).toBe(false);
     expect(JSON.stringify(result.receipt)).not.toContain("CANARY_");
+  });
+});
+
+const litellm = {name:"CANARY_PROVIDER_NAME",package:"@ai-sdk/openai-compatible",env:["LITELLM_API_KEY"],settings:{baseURL:"http://CANARY_HOST:4000/v1"},models:{"claude-haiku-5-5":{capabilities:{tools:true}}}};
+const providerFile = {litellm, other:{name:"CANARY_UNSELECTED",settings:{baseURL:"http://CANARY_UNSELECTED_HOST/v1"}}};
+function custom(overrides: Partial<RunnerOptions> = {}): RunnerOptions {
+  return options({model:"litellm/claude-haiku-5-5",opencodeProviderConfig:parseOpenCodeProviderConfig(JSON.stringify(providerFile),"litellm/claude-haiku-5-5"),...overrides});
+}
+async function cli(extra: readonly string[], file: object = providerFile, model = "litellm/claude-haiku-5-5") {
+  const path = join(scratch,"providers.json");
+  writeFileSync(path, JSON.stringify(file));
+  let stderr = "";
+  const code = await main(["--parent","codex","--provider","opencode","--model",model,"--effort","default","--mode","read-only","--prompt",join(scratch,"prompt"),"--cwd",scratch,"--output",join(scratch,"output"),"--receipt",join(scratch,"receipt"),"--opencode-provider-config",path,...extra], Date.now(), {stdout:()=>{},stderr:value=>{stderr+=value;}});
+  return {code, stderr};
+}
+describe("OpenCode user-defined provider config", () => {
+  it("adds exactly the selected entry and the config-provider plugin to the private V2 config", async () => {
+    const {code} = await cli(["--api-spend","approved"]);
+    expect(code).toBe(0);
+    expect(readFileSync(join(scratch,"output"),"utf8").trim()).toBe("FINAL");
+    const observed = JSON.parse(readFileSync(join(scratch,"preflight.json"),"utf8")).config;
+    expect(observed.providers).toEqual({litellm});
+    expect(observed.model).toEqual({providerID:"litellm",model:"claude-haiku-5-5"});
+    expect(observed.plugins.slice(0,4)).toEqual(["-*","opencode.models.dev","opencode.provider.*","opencode.config.provider"]);
+    expect(JSON.stringify(observed)).not.toContain("CANARY_UNSELECTED");
+  });
+  it("leaves the default V2 config without providers or the config-provider plugin", () => {
+    const config = openCodeV2Config(options());
+    expect(Object.keys(config)).toEqual(["model","default_agent","share","update","snapshots","lsp","formatter","compaction","warming","plugins","agents"]);
+    expect(config.plugins).toEqual(["-*","opencode.models.dev","opencode.provider.*","opencode.config.agent","opencode.config.compaction","opencode.config.formatter","opencode.config.snapshot","opencode.tool.read","opencode.tool.glob","opencode.tool.grep"]);
+  });
+  it("keeps V2 preflight exact with the entry and rejects a foreign source or a changed entry", async () => {
+    const attempt = v2Attempt(custom());
+    mkdirSync(attempt.configDirectory,{recursive:true});
+    writeFileSync(join(attempt.configDirectory,"opencode.json"),JSON.stringify(attempt.config));
+    writeFileSync(join(attempt.configDirectory,"service.json"),JSON.stringify({disabled:true}));
+    const entries = [{type:"document",path:join(attempt.configDirectory,"opencode.json"),info:attempt.config},{type:"directory",path:attempt.configDirectory}];
+    expect(openCodePreflightPassed(JSON.stringify(entries),attempt)).toBe(true);
+    const changed = {...attempt.config,providers:{litellm:{...litellm,settings:{baseURL:"http://elsewhere/v1"}}}};
+    expect(openCodePreflightPassed(JSON.stringify([{...entries[0],info:changed},entries[1]]),attempt)).toBe(false);
+    expect(openCodePreflightPassed(JSON.stringify([...entries,{type:"document",info:{model:{providerID:"evil",model:"evil"}}}]),attempt)).toBe(false);
+    fixture({extraSource:true,stdout:success});
+    const opts = custom({receiptPath:join(scratch,"foreign-receipt"),outputPath:join(scratch,"foreign-output")});
+    expect((await runLane(opts)).receipt).toMatchObject({processStarted:false,preflight:{status:"failed"}});
+    expect(existsSync(join(scratch,"invoked.json"))).toBe(false);
+  });
+  for (const [name, entry, key] of [
+    ["provider apiKey", {...litellm,settings:{...litellm.settings,apiKey:"CANARY_KEY"}}, "apiKey"],
+    ["provider headers", {...litellm,headers:{Authorization:"Bearer CANARY_KEY"}}, "headers"],
+    ["model headers", {...litellm,models:{"claude-haiku-5-5":{headers:{"x-api-key":"CANARY_KEY"}}}}, "headers"],
+    ["variant apiKey", {...litellm,models:{"claude-haiku-5-5":{variants:[{id:"fast",settings:{apiKey:"CANARY_KEY"}}]}}}, "apiKey"],
+  ] as const) it(`rejects credentials in the selected entry: ${name}`, async () => {
+    const {code, stderr} = await cli(["--api-spend","approved"], {litellm:entry});
+    expect(code).toBe(64);
+    expect(stderr).toContain(`must not contain ${key}`);
+    expect(stderr).toContain("name the key's environment variable in env");
+    expect(stderr).not.toContain("CANARY_KEY");
+    expect(existsSync(join(scratch,"version.json"))).toBe(false);
+  });
+  it("rejects a file without an entry for the model's provider", async () => {
+    const {code, stderr} = await cli(["--api-spend","approved"], {other:providerFile.other});
+    expect(code).toBe(64);
+    expect(stderr).toContain('no entry for provider "litellm"');
+    expect(existsSync(join(scratch,"version.json"))).toBe(false);
+  });
+  for (const [name, extra, model] of [
+    ["ChatGPT subscription mode", ["--api-spend","deny","--opencode-chatgpt-subscription"], OPENCODE_CHATGPT_SUBSCRIPTION_MODEL],
+    ["denied API spend", ["--api-spend","deny"], "litellm/claude-haiku-5-5"],
+    ["legacy API spend", [], "litellm/claude-haiku-5-5"],
+  ] as const) it(`rejects provider config with ${name}`, async () => {
+    const {code, stderr} = await cli(extra, {...providerFile,openai:litellm}, model);
+    expect(code).toBe(64);
+    expect(stderr).toContain("--opencode-provider-config requires provider opencode with ordinary native authentication");
+    expect(existsSync(join(scratch,"version.json"))).toBe(false);
+  });
+  it("blocks the V1 contract before writing configuration", async () => {
+    fixture({version:"1.18.32",stdout:success});
+    const opts = custom();
+    const receipt = (await runLane(opts)).receipt;
+    expect(receipt).toMatchObject({status:"unavailable-cli",processStarted:false,preflight:{status:"failed"}});
+    expect(receipt.error?.message).toContain("requires the OpenCode V2 contract");
+    expect(existsSync(join(scratch,"preflight.json"))).toBe(false);
+    expect(existsSync(join(scratch,"invoked.json"))).toBe(false);
+    expect(existsSync(openCodeDirectory(opts))).toBe(false);
   });
 });
