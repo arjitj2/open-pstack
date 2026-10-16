@@ -9,6 +9,7 @@ import { runLane } from "./run.ts";
 import { classifyProcessOutcome, hasTerminalSuccess } from "./provider-failure.ts";
 import { invocationCommand } from "./commands.ts";
 import { main } from "./cli.ts";
+import { createHash } from "node:crypto";
 import type { RunnerOptions } from "./types.ts";
 
 function event(type: string, id: string, detail: object = {}, messageID = "m1") {
@@ -891,5 +892,20 @@ describe("OpenCode user-defined provider config", () => {
     expect(existsSync(join(scratch,"preflight.json"))).toBe(false);
     expect(existsSync(join(scratch,"invoked.json"))).toBe(false);
     expect(existsSync(openCodeDirectory(opts))).toBe(false);
+  });
+  it("records the provider ID and entry digest in the receipt but not the entry body", async () => {
+    const opts = custom();
+    const result = await runLane(opts);
+    expect(result.receipt.status).toBe("complete");
+    const canonical = '{"env":["LITELLM_API_KEY"],"models":{"claude-haiku-5-5":{"capabilities":{"tools":true}}},"name":"CANARY_PROVIDER_NAME","package":"@ai-sdk/openai-compatible","settings":{"baseURL":"http://CANARY_HOST:4000/v1"}}';
+    expect(result.receipt.opencodeProviderConfig).toEqual({providerID:"litellm",sha256:createHash("sha256").update(canonical).digest("hex")});
+    const reordered = parseOpenCodeProviderConfig(JSON.stringify({litellm:Object.fromEntries(Object.entries(litellm).reverse())}),opts.model);
+    const again = await runLane(custom({opencodeProviderConfig:reordered,receiptPath:join(scratch,"receipt-2"),outputPath:join(scratch,"output-2")}));
+    expect(again.receipt.opencodeProviderConfig).toEqual(result.receipt.opencodeProviderConfig);
+    const serialized = `${JSON.stringify(result.receipt)}\n${readFileSync(opts.receiptPath,"utf8")}`;
+    expect(serialized).not.toContain("CANARY_");
+    expect(serialized).not.toContain("LITELLM_API_KEY");
+    expect(serialized).not.toContain("openai-compatible");
+    expect((await runLane(options({receiptPath:join(scratch,"receipt-3"),outputPath:join(scratch,"output-3")}))).receipt.opencodeProviderConfig).toBeUndefined();
   });
 });

@@ -91,6 +91,16 @@ export function parseOpenCodeProviderConfig(text: string, model: string): OpenCo
   return { providerID, entry };
 }
 
+function canonicalJson(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
+  const record = object(value);
+  if (record === null) return JSON.stringify(value);
+  return `{${Object.keys(record).sort().map(key => `${JSON.stringify(key)}:${canonicalJson(record[key])}`).join(",")}}`;
+}
+export function openCodeProviderConfigReceipt(config: OpenCodeProviderConfig): { readonly providerID: string; readonly sha256: string } {
+  return { providerID: config.providerID, sha256: createHash("sha256").update(canonicalJson(config.entry)).digest("hex") };
+}
+
 export function openCodeFunding(options: RunnerOptions): OpenCodeFunding | null {
   if (options.opencodeProviderConfig !== undefined && (options.provider !== "opencode" || options.apiSpend !== "approved" || options.opencodeChatgptSubscription)) {
     throw new UsageError("--opencode-provider-config requires provider opencode with ordinary native authentication (--api-spend approved) and cannot be combined with --opencode-chatgpt-subscription");
