@@ -60,6 +60,8 @@ Proceed autonomously through routine fixes and retries justified by evidence. Ex
 
 ## Documentation ownership
 
+README edits require explicit owner approval before editing. This includes the opening paragraphs, project purpose, positioning, comparisons, and other README content. Routine catch-up authorization does not approve README changes. Prepare the exact proposed diff outside the repository and ask the owner before applying it. Continue independently authorized work when the proposal does not block correctness. An approved README rollback covers only that rollback.
+
 Add or keep a public document only when it answers a question readers ask repeatedly. Each maintained fact has one owner. When behavior changes, update the owner in the same change; everywhere else, link rather than restate. Record validation of a particular candidate in its pull request and release notes. Keep reproducible proof in tests and in the verification recipes under `.agents/skills/verify-open-pstack/`. Do not commit lab reports, dated evidence files, or generated proposal artifacts; keep them outside the checkout. To cite past evidence, link a pull request or a commit-pinned GitHub permalink. Never edit an old record to track current state.
 
 | Fact | Owner |
