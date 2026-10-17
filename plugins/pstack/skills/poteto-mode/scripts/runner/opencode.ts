@@ -5,7 +5,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import { execFileSync } from "node:child_process";
-import { type Effort, type NormalizedUsage, type ParsedOutput, type RunnerOptions, UsageError } from "./types.ts";
+import { type Effort, type NormalizedUsage, type OpenCodeProviderConfig, type ParsedOutput, type RunnerOptions, UsageError } from "./types.ts";
 
 type JsonObject = Record<string, unknown>;
 function object(value: unknown): JsonObject | null {
@@ -66,7 +66,45 @@ export type OpenCodeFunding =
   | { readonly kind: "native-auth"; readonly apiSpend: "approved" }
   | { readonly kind: "chatgpt-subscription"; readonly apiSpend: "deny"; readonly model: typeof OPENCODE_CHATGPT_SUBSCRIPTION_MODEL };
 
+// Header values and apiKey settings can appear at provider, model, and variant
+// level in the V2 schema, so the whole entry is searched.
+function credentialKey(value: unknown): string | null {
+  if (value === null || typeof value !== "object") return null;
+  for (const [key, child] of Object.entries(value)) {
+    if (key === "apiKey" || key === "headers") return key;
+    const nested = credentialKey(child);
+    if (nested !== null) return nested;
+  }
+  return null;
+}
+
+export function parseOpenCodeProviderConfig(text: string, model: string): OpenCodeProviderConfig {
+  let document: JsonObject | null;
+  try { document = object(JSON.parse(text)); } catch { document = null; }
+  if (document === null) throw new UsageError("--opencode-provider-config must be a JSON object mapping provider ID to one OpenCode V2 provider entry");
+  const providerID = model.split("/")[0];
+  if (!Object.hasOwn(document, providerID)) throw new UsageError(`--opencode-provider-config has no entry for provider ${JSON.stringify(providerID)} in model ${model}`);
+  const entry = object(document[providerID]);
+  if (entry === null) throw new UsageError(`--opencode-provider-config entry ${JSON.stringify(providerID)} must be a JSON object`);
+  const key = credentialKey(entry);
+  if (key !== null) throw new UsageError(`--opencode-provider-config entry ${JSON.stringify(providerID)} must not contain ${key}; keep credentials out of the file and name the key's environment variable in env`);
+  return { providerID, entry };
+}
+
+function canonicalJson(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
+  const record = object(value);
+  if (record === null) return JSON.stringify(value);
+  return `{${Object.keys(record).sort().map(key => `${JSON.stringify(key)}:${canonicalJson(record[key])}`).join(",")}}`;
+}
+export function openCodeProviderConfigReceipt(config: OpenCodeProviderConfig): { readonly providerID: string; readonly sha256: string } {
+  return { providerID: config.providerID, sha256: createHash("sha256").update(canonicalJson(config.entry)).digest("hex") };
+}
+
 export function openCodeFunding(options: RunnerOptions): OpenCodeFunding | null {
+  if (options.opencodeProviderConfig !== undefined && (options.provider !== "opencode" || options.apiSpend !== "approved" || options.opencodeChatgptSubscription)) {
+    throw new UsageError("--opencode-provider-config requires provider opencode with ordinary native authentication (--api-spend approved) and cannot be combined with --opencode-chatgpt-subscription");
+  }
   if (options.opencodeChatgptSubscription) {
     if (options.provider !== "opencode" || options.apiSpend !== "deny" || options.model !== OPENCODE_CHATGPT_SUBSCRIPTION_MODEL || options.effort !== "default") {
       throw new UsageError(`--opencode-chatgpt-subscription requires provider opencode, --api-spend deny, default effort, and exact model ${OPENCODE_CHATGPT_SUBSCRIPTION_MODEL}`);
@@ -151,13 +189,16 @@ export function openCodeV2Config(options: RunnerOptions, env: NodeJS.ProcessEnv 
   const separator = options.model.indexOf("/");
   const model = { providerID: options.model.slice(0, separator), model: options.model.slice(separator + 1) };
   const subscription = openCodeFunding(options)?.kind === "chatgpt-subscription";
+  const custom = options.opencodeProviderConfig;
+  const providers = subscription ? { openai: { settings: { baseURL: OPENCODE_CHATGPT_ENDPOINT, transport: "http" } } }
+    : custom !== undefined ? { [custom.providerID]: custom.entry } : null;
   return {
-    ...(subscription ? { providers: { openai: { settings: { baseURL: OPENCODE_CHATGPT_ENDPOINT, transport: "http" } } } } : {}),
+    ...(providers !== null ? { providers } : {}),
     ...(shell ? { shell: shell.executable } : {}),
     model, default_agent: openCodeAgent(options), share: "disabled", update: "disable",
     snapshots: false, lsp: false, formatter: false, compaction: { auto: false }, warming: false,
     plugins: ["-*", "opencode.models.dev", subscription ? "opencode.provider.openai" : "opencode.provider.*",
-      ...(subscription ? ["opencode.config.provider"] : []),
+      ...(providers !== null ? ["opencode.config.provider"] : []),
       ...(shell ? ["opencode.config.shell", "opencode.tool.shell"] : []),
       "opencode.config.agent", "opencode.config.compaction", "opencode.config.formatter", "opencode.config.snapshot",
       ...["read", "glob", "grep", ...(options.mode === "isolated-write" ? ["edit", "write"] : [])].map(tool => `opencode.tool.${tool}`)],

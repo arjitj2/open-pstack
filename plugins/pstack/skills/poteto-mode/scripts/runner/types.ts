@@ -10,6 +10,11 @@ export type Effort = (typeof EFFORTS)[number] | "default";
 export type AccessMode = (typeof ACCESS_MODES)[number];
 export type WorkerContractMode = (typeof WORKER_CONTRACT_MODES)[number];
 
+export interface OpenCodeProviderConfig {
+  readonly providerID: string;
+  readonly entry: Readonly<Record<string, unknown>>;
+}
+
 export interface RunnerOptions {
   readonly parent: Parent;
   readonly provider: Provider;
@@ -26,6 +31,7 @@ export interface RunnerOptions {
   readonly timeoutMs: number | null;
   readonly apiSpend: ApiSpendMode | null;
   readonly opencodeChatgptSubscription?: boolean;
+  readonly opencodeProviderConfig?: OpenCodeProviderConfig;
   // The worker contract requested for the lane. Absent means the legacy
   // contract: ownership and handoff instructions without extra enforcement.
   readonly contract?: WorkerContractMode;
@@ -143,6 +149,9 @@ export interface RunnerReceipt {
   readonly failurePhase: FailurePhase | null;
   readonly processStarted: boolean;
   readonly apiSpend: ReceiptApiSpend;
+  // Identifies the user-defined OpenCode provider entry by digest; the entry
+  // body (endpoint, model list) stays out of receipts.
+  readonly opencodeProviderConfig?: { readonly providerID: string; readonly sha256: string };
   readonly funding?: { readonly kind: "chatgpt-subscription"; readonly model: "openai/gpt-6.1-sol"; readonly configuredEndpoint: "https://chatgpt.com/backend-api/codex" | null; readonly authentication: "native-openai-oauth" | null };
   // The worker contract the lane ran under; absent on receipts written
   // before contracts existed and treated as "legacy".

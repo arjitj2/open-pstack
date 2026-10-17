@@ -20,7 +20,7 @@ import {
 } from "./progress.ts";
 import { CLAUDE_WRITER_MINIMUM_VERSION, claudeWriterVersionError, invocationCommand, openCodeAuthListCommand, openCodePreflightCommand, preflightCommand, type CommandSpec } from "./commands.ts";
 import { nativeLane } from "./native-route.ts";
-import { openCodeAgent, openCodeAttempt, openCodeDirectory, openCodeFilesUnchanged, openCodeFunding, openCodeOAuthPreflightPassed, openCodePreflightPassed, openCodeProbeEnvironment, openCodeSelectVersion, openCodeV1OAuthListPassed, inspectOpenCodeStream, parseOpenCodeExport, OPENCODE_CHATGPT_ENDPOINT, OPENCODE_CHATGPT_SUBSCRIPTION_MODEL, OPENCODE_SUPPORTED_RANGE, OPENCODE_TESTED_VERSIONS, type OpenCodeContract, type OpenCodeTranscript, type OpenCodeVersion, validateOpenCodeModel, type OpenCodeAttempt } from "./opencode.ts";
+import { openCodeAgent, openCodeAttempt, openCodeDirectory, openCodeFilesUnchanged, openCodeFunding, openCodeOAuthPreflightPassed, openCodePreflightPassed, openCodeProviderConfigReceipt, openCodeProbeEnvironment, openCodeSelectVersion, openCodeV1OAuthListPassed, inspectOpenCodeStream, parseOpenCodeExport, OPENCODE_CHATGPT_ENDPOINT, OPENCODE_CHATGPT_SUBSCRIPTION_MODEL, OPENCODE_SUPPORTED_RANGE, OPENCODE_TESTED_VERSIONS, type OpenCodeContract, type OpenCodeTranscript, type OpenCodeVersion, validateOpenCodeModel, type OpenCodeAttempt } from "./opencode.ts";
 import { cursorConfigDirectory, cursorConfig, cursorHasApiKey, cursorUserConfigPath, validateCursorModel } from "./cursor.ts";
 import { AntigravityPolicyError } from "./antigravity-policy.ts";
 import { antigravityLaneFiles, antigravitySettingsPath, antigravitySettingsTakeover, antigravityStdin, antigravityWriterVersion, auditAntigravityStream, createAntigravityLaneFiles, validateAntigravityModel, type AntigravityCreatedFiles } from "./antigravity.ts";
@@ -630,6 +630,7 @@ function completeReceipt(
     },
     timeoutMs: options.timeoutMs,
     contract: options.contract ?? "legacy",
+    ...(options.opencodeProviderConfig !== undefined ? { opencodeProviderConfig: openCodeProviderConfigReceipt(options.opencodeProviderConfig) } : {}),
     ...(openCodeFunding(options)?.kind === "chatgpt-subscription" ? { funding: { kind: "chatgpt-subscription", model: OPENCODE_CHATGPT_SUBSCRIPTION_MODEL, configuredEndpoint: openCodeContract === "v2" ? OPENCODE_CHATGPT_ENDPOINT : null, authentication: partial.preflight.status === "passed" ? "native-openai-oauth" : null } } : {}),
     ...partial,
   };
@@ -889,6 +890,9 @@ async function executeLane(
         const selection = openCodeSelectVersion(preflightResult.stdout);
         if (selection.kind === "unsupported") {
           versionError = selection.message;
+        } else if (selection.version.contract === "v1" && options.opencodeProviderConfig !== undefined) {
+          detected = selection.version;
+          versionError = `--opencode-provider-config requires the OpenCode V2 contract (>=2.0.0); OpenCode ${selection.version.text} uses V1, whose preflight requires empty provider overrides`;
         } else {
           detected = selection.version;
           if (options.mode === "isolated-write") resources.openCodeShell = createOpenCodeShell(options.cwd);

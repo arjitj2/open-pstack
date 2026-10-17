@@ -1,4 +1,6 @@
+import { readFileSync } from "node:fs";
 import { parseArgs as parseNodeArgs } from "node:util";
+import { parseOpenCodeProviderConfig } from "./opencode.ts";
 import { statusMain } from "./progress.ts";
 import { resolvedOptions, runLane } from "./run.ts";
 import {
@@ -22,6 +24,7 @@ const HELP = `Usage: pstack-runner --parent <claude|codex> --provider <claude|co
   --model <slug> --effort <level> --mode <read-only|isolated-write> \\
   --prompt <file> --cwd <dir> --output <file> --receipt <file> [--timeout <seconds>]
   [--api-spend <deny|approved>] [--contract <legacy|strict>] [--progress <file>]
+  [--opencode-chatgpt-subscription | --opencode-provider-config <file>]
 
        pstack-runner status --progress <file> --receipt <file> [--progress <file> --receipt <file> ...] [--json]
 
@@ -56,6 +59,11 @@ native authentication requires explicit --api-spend approved.
 effort, and openai/gpt-6.1-sol with exactly one visible native OpenAI OAuth
 credential on either contract. The flag cannot authorize another provider,
 model, or paid fallback.
+--opencode-provider-config <file> reads a JSON object mapping provider ID to
+one OpenCode V2 provider entry and adds the entry for the model's provider to
+the private configuration. It requires --api-spend approved and the V2
+contract. Entries must not contain apiKey or headers; name the key's
+environment variable in env.
 Read-only permits file inspection; isolated-write requires a Git worktree root
 and additionally permits edits and sandboxed shell commands. Writers require
 macOS or Linux and a working Anthropic sandbox-runtime installation. Direct
@@ -131,6 +139,7 @@ export function parseArgs(argv: readonly string[]): RunnerOptions | null {
         timeout: { type: "string" },
         "api-spend": { type: "string" },
         "opencode-chatgpt-subscription": { type: "boolean", default: false },
+        "opencode-provider-config": { type: "string" },
         contract: { type: "string" },
         help: { type: "boolean", short: "h", default: false },
       },
@@ -160,10 +169,17 @@ export function parseArgs(argv: readonly string[]): RunnerOptions | null {
   const contract = contractValue === undefined
     ? undefined
     : (oneOf("contract", contractValue, WORKER_CONTRACT_MODES) as WorkerContractMode);
+  const model = required("model", stringValue(parsed.values.model));
+  const providerConfigPath = stringValue(parsed.values["opencode-provider-config"]);
+  let providerConfigText: string | undefined;
+  if (providerConfigPath !== undefined) {
+    try { providerConfigText = readFileSync(providerConfigPath, "utf8"); }
+    catch { throw new UsageError(`cannot read --opencode-provider-config file: ${providerConfigPath}`); }
+  }
   return resolvedOptions({
     parent: oneOf("parent", stringValue(parsed.values.parent), PARENTS) as Parent,
     provider: oneOf("provider", stringValue(parsed.values.provider), PROVIDERS) as Provider,
-    model: required("model", stringValue(parsed.values.model)),
+    model,
     effort: oneOf("effort", stringValue(parsed.values.effort), [...EFFORTS, "default"]) as Effort,
     mode,
     promptPath: required("prompt", stringValue(parsed.values.prompt)),
@@ -175,6 +191,7 @@ export function parseArgs(argv: readonly string[]): RunnerOptions | null {
     timeoutMs: timeoutSeconds === null ? null : timeoutSeconds * 1_000,
     apiSpend,
     opencodeChatgptSubscription: parsed.values["opencode-chatgpt-subscription"] === true,
+    ...(providerConfigText === undefined ? {} : { opencodeProviderConfig: parseOpenCodeProviderConfig(providerConfigText, model) }),
     contract,
   });
 }

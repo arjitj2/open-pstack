@@ -76,6 +76,30 @@ Native tool identity is `partID` on V2 and `id` on V1; both are admitted without
 
 The native configuration and event contracts were inspected in [OpenCode V2 source at 5e73d5c](https://github.com/anomalyco/opencode/tree/5e73d5cb1f788637b1b3d5cf1298ea694cbad0c5/packages), including `schema/src/config.ts`, `core/src/config/discovery.ts`, `core/src/plugin/internal.ts`, `core/src/plugin/provider/opencode.ts`, and `cli/src/run/noninteractive.ts`, and in the released V1 adapter contract restored from v1.13.0. Installed-parent runtime validation across the tested versions is a separate release gate.
 
+### User-defined OpenCode providers
+
+A provider that OpenCode does not include, such as an OpenAI-compatible LiteLLM gateway, needs a provider entry. Write the entries in a JSON file that maps provider ID to one [OpenCode V2 provider entry](https://github.com/anomalyco/opencode/blob/v2.0.29/packages/schema/src/config/provider.ts) (`name`, `env`, `package`, `settings`, `models`, and the other `Config.Provider` fields). One file can describe several providers:
+
+```json
+{
+  "litellm": {
+    "name": "LiteLLM",
+    "package": "@ai-sdk/openai-compatible",
+    "env": ["LITELLM_API_KEY"],
+    "settings": { "baseURL": "http://127.0.0.1:4000/v1" },
+    "models": { "claude-haiku-5-5": { "capabilities": { "tools": true } } }
+  }
+}
+```
+
+Pass the file with `--opencode-provider-config <file>`. The runner selects the entry whose key is the descriptor's provider ID, the text before the first `/` of the model (`litellm` for `opencode:litellm/claude-haiku-5-5@default`). It copies only that entry into the private configuration's `providers` and adds the `opencode.config.provider` plugin. It ignores the other entries. A file without an entry for the provider is a usage error. The runner does not reserve the IDs of providers that OpenCode includes. OpenCode decides how an entry with such an ID combines with its own provider.
+
+Keep credentials out of the file. The runner rejects an entry that contains an `apiKey` or `headers` key at any level, because header values can hold credentials. Name the key's environment variable in `env`. Ordinary native authentication keeps the inherited environment, so the variable reaches OpenCode from the parent's environment.
+
+The flag requires ordinary native authentication with `--api-spend approved` and the V2 contract. It is a usage error together with `--opencode-chatgpt-subscription`, with `--api-spend deny`, or without `--api-spend`. On a V1 banner the runner stops before it writes the configuration and records `unavailable-cli`, because V1 preflight requires empty provider overrides. The entry is part of the attempt's frozen configuration, so V2 preflight and the checks before invocation compare against it unchanged. The receipt records `opencodeProviderConfig` with the provider ID and the SHA-256 of the entry's canonical JSON (sorted keys, no whitespace). It never records the entry body.
+
+The model sheet remains the only routing source; the file only describes how a provider ID resolves. Keep the file as `pstack-opencode-providers.json` in the directory that holds the active model sheet. When the parent freezes the sheet for a run, it also copies this file next to the frozen sheet. For every `opencode:` attempt whose provider ID is a key in the frozen copy, the parent passes `--opencode-provider-config <frozen copy>`. For any other attempt, the parent omits the flag. `pstack-model-policy` does not read the file and does not change its decisions.
+
 ## Optional Antigravity models
 
 Antigravity is an opt-in external worker from either parent. Install and sign in to `agy`, inspect `agy models`, and use an exact listed slug such as `antigravity:gemini-3.1-pro-high@default`. The slug already contains the available reasoning variant; the runner does not pass `--effort`, and `auto` is invalid. Hosted Claude models remain Antigravity routes for access, receipts, and exhaustion grouping. It does not change the default panel. Every Antigravity attempt requires an explicit saved `apiSpend` choice, including on legacy sheets.
@@ -174,7 +198,8 @@ pstack-runner \
   [--execution-id <parent-assigned id>] \
   [--contract <legacy|strict>] \
   [--progress <unique progress file>] \
-  [--api-spend <deny|approved>] [--opencode-chatgpt-subscription] \
+  [--api-spend <deny|approved>] \
+  [--opencode-chatgpt-subscription | --opencode-provider-config <file>] \
   [--timeout <seconds>]
 ```
 
