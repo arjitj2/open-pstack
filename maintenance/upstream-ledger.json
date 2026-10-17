@@ -375,9 +375,17 @@
       "subject": "refactor(pstack): cut marginal sections from four skills (#634)",
       "reason": "Adopt the shortened migration/type principles, lead-judgment reference and Swarm with portable metadata and existing parent-owned dispatch/recovery retained. Both real hosts retain six demonstrated defects, external API compatibility, semantic-ID compiler rejection and explicit incomplete synthetic coverage. Cursor README table edits remain pinned source context rather than a duplicate guide. No provider runtime or saved model policy changes.",
       "evidence": "https://github.com/arjitj2/open-pstack/pull/149"
+    },
+    {
+      "commit": "182f2ce414e83224915c190d2f63239c1608d0a5",
+      "date": "2026-10-16",
+      "status": "adapted",
+      "subject": "feat(pstack): install pstack in Claude Code from a generated tree (#637)",
+      "reason": "Retain the existing shared Codex/Claude package, tested manifests and adapters instead of importing the generated duplicate tree. Adapt the new Claude adapter question-tool mapping to remove the remaining AskQuestion name in Setup, and correct the README upstream comparison. Exclude session-model substitution, setup shutdown, newest-transcript selection, manual-skill workarounds and upstream-only generation/CI/marketplace changes. Both real headless hosts complete only the budget question without probes or writes; graphical question-tool invocation is untested.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/153"
     }
   ],
-  "reviewed_through": "99743e9c151c8537cbbf1f98bb38f34ef3368453",
+  "reviewed_through": "182f2ce414e83224915c190d2f63239c1608d0a5",
   "schema": 1,
   "source": {
     "path": "pstack/",

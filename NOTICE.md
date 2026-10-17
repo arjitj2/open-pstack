@@ -34,3 +34,5 @@ The `afd51cf6` Ketchup adaptation preserves existing media, explanatory diagrams
 The `e5136d8` principle adaptations replace blanket recipes with evidence about premises, legitimate state, repeatable operations and observable testing contracts, while retaining portable host controls.
 
 The `99743e9` adaptation shortens the migration, type-system, Swarm and lead-review guidance while retaining portable metadata, parent-owned dispatch, saved recovery and compatibility conditions.
+
+The `182f2ce` adaptation retains the shared Codex/Claude tree while applying the Claude question-tool mapping to setup and recognizing upstream's official Claude package. Its generated tree and incompatible routing and transcript rules are not imported.
