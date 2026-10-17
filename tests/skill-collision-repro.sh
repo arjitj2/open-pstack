@@ -323,6 +323,29 @@ else
   note "ok: forge-neutral landing keeps head/base, auto-merge/queue, split-remote, fork-stack, rebase-push, and watch safety rules"
 fi
 
+if python3 - "$plugin/skills" <<'PY'
+from pathlib import Path
+import re
+import sys
+
+invalid = []
+for path in Path(sys.argv[1]).glob("*/SKILL.md"):
+    frontmatter = path.read_text().split("---", 2)[1]
+    match = re.search(r"^name:\s*(.+)$", frontmatter, re.MULTILINE)
+    name = match.group(1).strip().strip("\"'") if match else ""
+    folder = path.parent.name
+    if name != folder or not re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", folder) or len(folder) > 64:
+        invalid.append(f"{path}: name {name!r} must match a lowercase hyphenated folder of at most 64 characters")
+print("\n".join(invalid) if invalid else "ok: skill names match their portable folder names")
+sys.exit(bool(invalid))
+PY
+then
+  :
+else
+  note "FAIL: skill names do not match their portable folder names"
+  fail=1
+fi
+
 excluded_skill="$plugin/skills/make-bot-ui"
 if [ -e "$excluded_skill" ]; then
   note "FAIL: excluded upstream skill exists: $excluded_skill"
