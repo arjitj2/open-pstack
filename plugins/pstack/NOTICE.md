@@ -36,3 +36,5 @@ The `e5136d8` principle adaptations replace blanket recipes with evidence about 
 The `99743e9` adaptation shortens the migration, type-system, Swarm and lead-review guidance while retaining portable metadata, parent-owned dispatch, saved recovery and compatibility conditions.
 
 The `182f2ce` adaptation retains the shared Codex/Claude tree while applying the Claude question-tool mapping to setup and recognizing upstream's official Claude package. Its generated tree and incompatible routing and transcript rules are not imported.
+
+The `0317eb8` TypeScript update adopts Lauren Tan's verifying type-guard branding rule and example. The `a968159` naming validation is adapted to this distribution's static checks. The generated Claude tree and alternate setup policies from `1b80080` remain excluded.

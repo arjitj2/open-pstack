@@ -6,9 +6,9 @@ Entries describe package versions. Published release checkpoints have tag links;
 
 ## 1.17.5 validates branded identifiers without casts
 
-Cursor baseline: [0.15.25](https://github.com/cursor/plugins/tree/182f2ce414e83224915c190d2f63239c1608d0a5/pstack). [Issue #157](https://github.com/arjitj2/open-pstack/issues/157).
+Cursor baseline: [0.15.25](https://github.com/cursor/plugins/tree/1b800800583ee8ff7f2676caf7a5cb7f0804be85/pstack). [Issue #157](https://github.com/arjitj2/open-pstack/issues/157). [PR #158](https://github.com/arjitj2/open-pstack/pull/158). Tag [v1.17.5](https://github.com/arjitj2/open-pstack/releases/tag/v1.17.5).
 
-TypeScript guidance builds branded identifiers through verifying type guards. Static checks require skill names to match their portable folder names. The shared package and saved routing policies remain unchanged outside that guidance.
+TypeScript guidance builds branded identifiers through verifying type guards. Static checks require skill names to match their portable folder names. Existing model storage, routing, recovery and README content are preserved; the generated Claude tree remains excluded.
 
 ## 1.17.4 adapts the official Claude Code packaging update
 

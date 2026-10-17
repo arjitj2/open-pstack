@@ -387,20 +387,26 @@
     {
       "commit": "0317eb8b858c991c57721358daaee19dbe8c814d",
       "date": "2026-10-17",
-      "status": "pending",
-      "subject": "fix(pstack): make a brand with a type guard, not as (#700)"
+      "status": "adopted",
+      "subject": "fix(pstack): make a brand with a type guard, not as (#700)",
+      "reason": "Adopt the verifying type-guard branding rule and example while retaining existing portable invocation metadata. Both native hosts loaded the guidance and produced strictly compiling cast-free parsers; raw and mixed semantic identifiers are rejected by the compiler, and supplied runtime format controls pass. These bounded fixtures do not prove automatic selection or universal parser correctness.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/158"
     },
     {
       "commit": "a968159326d1fc6b7d483491ec5c457986a20af2",
       "date": "2026-10-17",
-      "status": "pending",
-      "subject": "fix(pstack): name every skill after its folder (#702)"
+      "status": "adapted",
+      "subject": "fix(pstack): name every skill after its folder (#702)",
+      "reason": "All existing skill names already match their folders; make-bot-ui stays excluded. Adapt the generator naming constraint into the existing static metadata check. Actual CLI controls pass valid names and reject mismatched, uppercase and overlong names. Do not import the generated duplicate tree.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/158"
     },
     {
       "commit": "1b800800583ee8ff7f2676caf7a5cb7f0804be85",
       "date": "2026-10-17",
-      "status": "pending",
-      "subject": "fix(pstack): close three gaps in the Claude Code plugin (#705)"
+      "status": "excluded",
+      "subject": "fix(pstack): close three gaps in the Claude Code plugin (#705)",
+      "reason": "Retain existing parent-specific model sheets, exact provider descriptors and approved recovery instead of the alternate Claude rules file and implicit inherited defaults. Existing local skill references, forge commands, Bugbot-thread handling and local worktrees cover portable intent. Exclude the generated guide/README tree and blanket skip/placeholder rule for unavailable critical context. README content remains unchanged under owner approval policy.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/158"
     }
   ],
   "reviewed_through": "1b800800583ee8ff7f2676caf7a5cb7f0804be85",

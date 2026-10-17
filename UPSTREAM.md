@@ -10,13 +10,13 @@ This page records the current Cursor baseline and the maintainer procedure for r
 | --- | --- |
 | Repository | `https://github.com/cursor/plugins.git` |
 | Path | `pstack/` |
-| Commit | `182f2ce414e83224915c190d2f63239c1608d0a5` |
+| Commit | `1b800800583ee8ff7f2676caf7a5cb7f0804be85` |
 | Upstream version | `0.15.25` |
 | open-pstack version | `1.17.5` |
 
 The table records the packaged version on `main` and the Cursor content it incorporates, minus the exclusions below. Detecting or reviewing a newer Cursor commit does not advance this baseline. Cursor's version identifies the imported content. The open-pstack version identifies the cross-harness package, and its numbers are independent of Cursor and Eric's port.
 
-The upstream README at this baseline is [cursor/plugins `pstack/README.md` @ 182f2ce](https://github.com/cursor/plugins/blob/182f2ce414e83224915c190d2f63239c1608d0a5/pstack/README.md). [CHANGELOG.md](CHANGELOG.md) records the baseline of each release, and [NOTICE.md](NOTICE.md) records provenance.
+The upstream README at this baseline is [cursor/plugins `pstack/README.md` @ 1b80080](https://github.com/cursor/plugins/blob/1b800800583ee8ff7f2676caf7a5cb7f0804be85/pstack/README.md). [CHANGELOG.md](CHANGELOG.md) records the baseline of each release, and [NOTICE.md](NOTICE.md) records provenance.
 
 ## Upstream-only exclusions
 
@@ -37,6 +37,8 @@ The upstream README at this baseline is [cursor/plugins `pstack/README.md` @ 182
 - The `afd51cf6` Ketchup update retains human-message anchoring, read-only scope, explicit UI authorization and grounded proposal labels. It uses available chart tools rather than Cursor’s `/visualize`, makes table counting explicit, and keeps action consequences together while requiring a visual for unpictured choices.
 
 - The `182f2ce` generated Claude tree is not imported. This distribution keeps one shared Codex/Claude package and its existing adapters. Upstream's session-model substitution, setup shutdown, newest-transcript selection and manual-skill workaround conflict with preserved routing and evidence rules. Its portable question-tool mapping corrects the remaining `AskQuestion` name in setup. The upstream README and adapter remain source references.
+
+The `a968159` skill-name corrections already match this distribution. Its naming check runs in the existing static metadata checks instead of an upstream tree generator. The `1b80080` alternate Claude model-rule location and implicit model inheritance remain excluded. This port keeps its established sheet storage, exact routes, local skill references and forge/worktree mappings. The generated README/guide copies and blanket skip placeholders are not imported; unavailable critical pickup context must not become fabricated completion evidence. README changes require owner approval and were not part of this catch-up.
 
 Earlier exclusions include Cursor's Benny automation, tutorial and sticky-mode UI, Cursor-only agent metadata, and Team Kit tools covered by host built-ins or bundled skills. The [historical port record](https://github.com/arjitj2/open-pstack/blob/5f0bb42dea46344c2f1961ebeebaeee135b49778/docs/reference.md#whats-deliberately-not-ported) records those source revisions.
 
