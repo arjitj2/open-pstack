@@ -61,7 +61,7 @@ Ask only for routing facts discovery cannot prove: which providers have subscrip
 
 ### 3. Ask the reasoning budget
 
-Ask for a budget before changing assignments. Prefer AskQuestion over free text. Offer these four options with these exact labels, and name the current budget when the loaded sheet records one.
+Ask for a budget before changing assignments. Prefer AskUserQuestion over free text. Offer these four options with these exact labels, and name the current budget when the loaded sheet records one.
 
 - `unlimited — keep max`
 - `large — xhigh reasoning`

@@ -4,7 +4,7 @@
 
 Pstack helps you build a repo where agents follow the engineering practices you’d expect from a human teammate: understand the codebase, investigate problems, make deliberate design choices, review changes, and verify that they work. `poteto-mode` coordinates that process, and a repo-specific verification skill gives agents a way to test real features. That lets you move faster and run more work in parallel without supervising every step.
 
-Unlike Cursor’s original Pstack, which is limited to models available through Cursor, Open Pstack lets you [assign providers and models by role](#1-set-up-the-models) using your own provider subscriptions—so exploration, implementation, and review can each use a different provider and model. This cross-provider ability also comes with automatic failover when a worker hits a quota limit or a supported provider failure.
+Cursor’s original Pstack now supports Cursor and Claude Code. This distribution keeps one shared skill tree for Codex and Claude Code and lets you [assign providers and models by role](#1-set-up-the-models) using your own provider subscriptions. Exploration, implementation, and review can each use a different provider and model, with automatic recovery through your approved backup chains.
 
 ```mermaid
 flowchart LR
@@ -29,7 +29,7 @@ Arjit Jaiswal maintains this distribution's provider integrations and tested rel
 
 Choose based on where you run Pstack and how you want to use your model subscriptions:
 
-- **Cursor’s original Pstack** is Lauren Tan’s engineering workflow for Cursor. It assigns work to models available inside Cursor. Use it when Cursor is your parent app.
+- **Cursor’s original Pstack** is Lauren Tan’s engineering workflow for Cursor, with an [official generated Claude Code package](https://github.com/cursor/plugins/tree/182f2ce414e83224915c190d2f63239c1608d0a5/harness/pstack/claude-code). Its Claude adapter runs non-Claude model assignments on the session model and does not configure role assignments through `setup-pstack`.
 - **Eric Litman’s Open Pstack** brings those workflows to Codex and Claude Code, with Claude, Codex, and Grok workers. It provides the foundation for this distribution.
 - **This distribution** adds Devin, Cursor, Antigravity, and OpenCode CLI workers, subscription-aware model recommendations, setup that checks only the providers you select, and automatic recovery through your approved backup chains. It tracks Cursor directly and publishes its own tested releases, without waiting for Eric’s port to incorporate changes.
 

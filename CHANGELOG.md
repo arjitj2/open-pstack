@@ -4,6 +4,12 @@ This file records what each version of the Open Pstack package changed. Versions
 
 Entries describe package versions. Published release checkpoints have tag links; installation follows `main` unless pinned. Validation belongs to the linked pull requests. Older reports remain available through immutable links.
 
+## 1.17.4 adapts the official Claude Code packaging update
+
+Cursor baseline: [0.15.25](https://github.com/cursor/plugins/tree/182f2ce414e83224915c190d2f63239c1608d0a5/pstack). [Issue #152](https://github.com/arjitj2/open-pstack/issues/152). [PR #153](https://github.com/arjitj2/open-pstack/pull/153). Tag [v1.17.4](https://github.com/arjitj2/open-pstack/releases/tag/v1.17.4).
+
+Setup's reasoning-budget question uses `AskUserQuestion`, matching the existing Claude-to-Codex tool mapping. The README recognizes Cursor's official Claude Code package. The shared skill tree, model assignments, recovery policy and provider behavior stay unchanged.
+
 ## 1.17.3 shortens review and coordination guidance
 
 Cursor baseline: [0.15.25](https://github.com/cursor/plugins/tree/99743e9c151c8537cbbf1f98bb38f34ef3368453/pstack). [Issue #148](https://github.com/arjitj2/open-pstack/issues/148). [PR #149](https://github.com/arjitj2/open-pstack/pull/149). Tag [v1.17.3](https://github.com/arjitj2/open-pstack/releases/tag/v1.17.3).

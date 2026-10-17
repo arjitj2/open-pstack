@@ -30,3 +30,5 @@ Preconditions: Installation recipe passed in the parent being tested; dedicated 
 - A parent responding to its own marker is not a native-agent probe.
 - Do not invent subscription capacity, authorize API spending, or add provider fallbacks for convenience.
 - A policy-CLI validation pass does not prove setup's conversation, provider probes, or transactional writes.
+
+For the budget-question mapping, invoke installed Setup in each real host and execute only step 3. Supply a current recorded budget and a request to select a new one. Stop before provider probes, confirmation, or writes. Expect the four budget labels, the current budget, and a question through an available native tool or plain text when the tool is unavailable. Capture the loaded Setup body and actual native events. An unresolved budget must not change assignments or trigger probes. This bounded dialogue does not prove full setup, provider access, or persistence.
