@@ -383,9 +383,27 @@
       "subject": "feat(pstack): install pstack in Claude Code from a generated tree (#637)",
       "reason": "Retain the existing shared Codex/Claude package, tested manifests and adapters instead of importing the generated duplicate tree. Adapt the new Claude adapter question-tool mapping to remove the remaining AskQuestion name in Setup, and correct the README upstream comparison. Exclude session-model substitution, setup shutdown, newest-transcript selection, manual-skill workarounds and upstream-only generation/CI/marketplace changes. Both real headless hosts complete only the budget question without probes or writes; graphical question-tool invocation is untested.",
       "evidence": "https://github.com/arjitj2/open-pstack/pull/153"
+    },
+    {
+      "commit": "0317eb8b858c991c57721358daaee19dbe8c814d",
+      "date": "2026-10-17",
+      "status": "pending",
+      "subject": "fix(pstack): make a brand with a type guard, not as (#700)"
+    },
+    {
+      "commit": "a968159326d1fc6b7d483491ec5c457986a20af2",
+      "date": "2026-10-17",
+      "status": "pending",
+      "subject": "fix(pstack): name every skill after its folder (#702)"
+    },
+    {
+      "commit": "1b800800583ee8ff7f2676caf7a5cb7f0804be85",
+      "date": "2026-10-17",
+      "status": "pending",
+      "subject": "fix(pstack): close three gaps in the Claude Code plugin (#705)"
     }
   ],
-  "reviewed_through": "182f2ce414e83224915c190d2f63239c1608d0a5",
+  "reviewed_through": "1b800800583ee8ff7f2676caf7a5cb7f0804be85",
   "schema": 1,
   "source": {
     "path": "pstack/",

@@ -4,6 +4,12 @@ This file records what each version of the Open Pstack package changed. Versions
 
 Entries describe package versions. Published release checkpoints have tag links; installation follows `main` unless pinned. Validation belongs to the linked pull requests. Older reports remain available through immutable links.
 
+## 1.17.5 validates branded identifiers without casts
+
+Cursor baseline: [0.15.25](https://github.com/cursor/plugins/tree/182f2ce414e83224915c190d2f63239c1608d0a5/pstack). [Issue #157](https://github.com/arjitj2/open-pstack/issues/157).
+
+TypeScript guidance builds branded identifiers through verifying type guards. Static checks require skill names to match their portable folder names. The shared package and saved routing policies remain unchanged outside that guidance.
+
 ## 1.17.4 adapts the official Claude Code packaging update
 
 Cursor baseline: [0.15.25](https://github.com/cursor/plugins/tree/182f2ce414e83224915c190d2f63239c1608d0a5/pstack). [Issue #152](https://github.com/arjitj2/open-pstack/issues/152). [PR #153](https://github.com/arjitj2/open-pstack/pull/153). Tag [v1.17.4](https://github.com/arjitj2/open-pstack/releases/tag/v1.17.4).
