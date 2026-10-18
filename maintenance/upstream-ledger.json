@@ -407,9 +407,17 @@
       "subject": "fix(pstack): close three gaps in the Claude Code plugin (#705)",
       "reason": "Retain existing parent-specific model sheets, exact provider descriptors and approved recovery instead of the alternate Claude rules file and implicit inherited defaults. Existing local skill references, forge commands, Bugbot-thread handling and local worktrees cover portable intent. Exclude the generated guide/README tree and blanket skip/placeholder rule for unavailable critical context. README content remains unchanged under owner approval policy.",
       "evidence": "https://github.com/arjitj2/open-pstack/pull/158"
+    },
+    {
+      "commit": "019a6a20592c10bf92869e5740368f578a9997fd",
+      "date": "2026-10-17",
+      "status": "excluded",
+      "subject": "pstack: refresh the docs and add a docs-vs-tree check (#704)",
+      "reason": "Keep Cursor README/guide prose and generated copies upstream. The new checker assumes Cursor-specific paths, complete README skill/playbook/agent inventories, built-ins and model defaults. This distribution keeps its owning-document inventory, link/anchor and provider-ID checks instead; no unapproved README edits or duplicate guide are introduced. Source skills, agents and plugin manifest are unchanged, so the packaged baseline and release remain unchanged.",
+      "evidence": "https://github.com/arjitj2/open-pstack/issues/159"
     }
   ],
-  "reviewed_through": "1b800800583ee8ff7f2676caf7a5cb7f0804be85",
+  "reviewed_through": "019a6a20592c10bf92869e5740368f578a9997fd",
   "schema": 1,
   "source": {
     "path": "pstack/",

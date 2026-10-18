@@ -40,6 +40,8 @@ The upstream README at this baseline is [cursor/plugins `pstack/README.md` @ 1b8
 
 The `a968159` skill-name corrections already match this distribution. Its naming check runs in the existing static metadata checks instead of an upstream tree generator. The `1b80080` alternate Claude model-rule location and implicit model inheritance remain excluded. This port keeps its established sheet storage, exact routes, local skill references and forge/worktree mappings. The generated README/guide copies and blanket skip placeholders are not imported; unavailable critical pickup context must not become fabricated completion evidence. README changes require owner approval and were not part of this catch-up.
 
+The `019a6a2` README and Cursor-guide refresh remains upstream. Its docs-vs-tree checker assumes Cursor paths, complete README inventories, built-ins and model defaults. This distribution keeps its owning-document inventory, link/anchor checks and provider-ID checks. No README edits were approved or made, and no packaged skill, agent or manifest changed. This excluded commit advances the review ledger without changing the incorporated package baseline.
+
 Earlier exclusions include Cursor's Benny automation, tutorial and sticky-mode UI, Cursor-only agent metadata, and Team Kit tools covered by host built-ins or bundled skills. The [historical port record](https://github.com/arjitj2/open-pstack/blob/5f0bb42dea46344c2f1961ebeebaeee135b49778/docs/reference.md#whats-deliberately-not-ported) records those source revisions.
 
 ## Port adaptations
