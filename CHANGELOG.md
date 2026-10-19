@@ -4,6 +4,12 @@ This file records what each version of the Open Pstack package changed. Versions
 
 Entries describe package versions. Published release checkpoints have tag links; installation follows `main` unless pinned. Validation belongs to the linked pull requests. Older reports remain available through immutable links.
 
+## 1.17.6 adds formal-verification creation and upkeep
+
+Cursor baseline: [0.15.25](https://github.com/cursor/plugins/tree/1b800800583ee8ff7f2676caf7a5cb7f0804be85/pstack). [Issue #164](https://github.com/arjitj2/open-pstack/issues/164).
+
+Candidate catch-up through Cursor 0.15.28 is pending installed-host validation and independent review. It adds formal-verification creation and maintenance skills, optional Setup and Help entry points, complete Ketchup action lists, and the Sharpen prompt-ban removal. README content and provider policy are preserved.
+
 ## 1.17.5 validates branded identifiers without casts
 
 Cursor baseline: [0.15.25](https://github.com/cursor/plugins/tree/1b800800583ee8ff7f2676caf7a5cb7f0804be85/pstack). [Issue #157](https://github.com/arjitj2/open-pstack/issues/157). [PR #158](https://github.com/arjitj2/open-pstack/pull/158). Tag [v1.17.5](https://github.com/arjitj2/open-pstack/releases/tag/v1.17.5).
