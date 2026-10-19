@@ -26,6 +26,7 @@ Check the state that changes the answer, and mention it only when it does:
 
 - Read the active parent's model sheet: `~/.claude/pstack-models.md` on Claude Code or `~/.codex/pstack-models.md` on Codex. A missing sheet uses documented role defaults. A missing role in a policy-enabled sheet is an error, not permission to use a default; unreadable or malformed sheets also fail. See [provider dispatch](../poteto-mode/references/provider-dispatch.md) for the legacy-sheet distinction.
 - No `verify-*` skill or other app harness in the project means agents have no scripted way to drive the app. Mention `create-verification-skill` when the question is about proving a change works.
+- If no relevant formal verification skill or harness exists, mention `create-formal-verification-skill` when the question concerns a race, invariant, or another case tests rarely hit. If one exists and its covered code changed after its recorded sync commit, mention `maintain-formal-verification-skill` when the question touches that code. Keep its bounds and assumptions explicit; a pass does not prove the whole system.
 
 When no model sheet is saved and it matters, answer the question and include a Now/Later setup question in that same reply. It matters when the user is new, the question is about setup or cost, or the answer depends on which models run. Do not replace the question with only a setup link or example prompt. Ask at most once per chat, and if the need is also unclear ask both questions together. A request not to change settings or start workers does not prevent this explanation-only offer. Respect an explicit request not to ask questions, a previous choice of Later, or an earlier offer in this chat. The offer writes nothing; `setup-pstack` saves the sheet only after the user runs it and confirms. Offer two choices:
 
@@ -37,7 +38,7 @@ Skill names are namespaced under `pstack:`. In Claude Code, invoke `/pstack:pote
 ## Get set up
 
 1. Install from the README's Install section (`https://github.com/arjitj2/open-pstack/blob/main/README.md#install`). In Claude Code, run `/plugin marketplace add arjitj2/open-pstack` then `/plugin install pstack@open-pstack` inside the app. In Codex, run `codex plugin marketplace add arjitj2/open-pstack` then `codex plugin add pstack@open-pstack` in the shell.
-2. Run `setup-pstack`. It asks for a reasoning budget, checks the providers you pick, maps a model to each role, and writes the model sheet: `~/.claude/pstack-models.md` on Claude Code, `~/.codex/pstack-models.md` mirrored into `~/.codex/AGENTS.md` on Codex. The saved sheet loads at the start of a session or task.
+2. Run `setup-pstack`. It asks for a reasoning budget, checks the providers you pick, maps a model to each role, and writes the model sheet: `~/.claude/pstack-models.md` on Claude Code, `~/.codex/pstack-models.md` mirrored into `~/.codex/AGENTS.md` on Codex. The saved sheet loads at the start of a session or task. After the configured routes pass the behavioral smoke, it offers once each to generate a regular verification skill and a formal verification skill, unless a relevant project skill or harness already exists. Each generator requires an explicit yes; no moves on. Routing-only requests skip both offers. Project skills go under `.claude/skills/<name>/` on Claude Code or `.agents/skills/<name>/` on Codex.
 3. Start a real task with `poteto-mode`, a goal, and a check that can pass or fail.
 
 Claude Code loads pstack's session-start routing at session start, clear, and compaction, so non-trivial engineering work enters `poteto-mode` without naming it. Codex ships the same routing as an opt-in `SessionStart` hook covering startup, resume, clear, and compaction: it stays inactive until the user reviews and trusts the pstack entry in `/hooks`. The README's Get started section has the details. Offer to word their first prompt with them, per [`references/prompting.md`](references/prompting.md).
@@ -72,7 +73,7 @@ The default answer is `poteto-mode`, which runs most of the others when its step
 | Catch up on their own recent work on a topic | [`recall`](../recall/SKILL.md) |
 | Check the agent understood the goal and underlying problem before work starts | [`in-your-own-words`](../in-your-own-words/SKILL.md), invoked manually in either host |
 | Aim a task at its real goal with an expert approach and an outside check | [`sharpen`](../sharpen/SKILL.md), invoked manually in either host |
-| Catch up on this chat in short plain sentences and small visuals, without starting queued work | [`ketchup`](../ketchup/SKILL.md), invoked manually as `/pstack:ketchup` in Claude Code or `$pstack:ketchup` or the skill picker in Codex |
+| Catch up on this chat in plain words and small visuals, with every pending human call and enough context to decide each item, without starting queued work | [`ketchup`](../ketchup/SKILL.md), invoked manually as `/pstack:ketchup` in Claude Code or `$pstack:ketchup` or the skill picker in Codex |
 | Know what a small diff could break outside itself | [`blast-radius`](../blast-radius/SKILL.md) |
 | Settle types and module shape before code that crosses a function boundary | [`architect`](../architect/SKILL.md) |
 | Get several attempts at one brief, merged into the best one | [`arena`](../arena/SKILL.md) |
@@ -87,6 +88,8 @@ The default answer is `poteto-mode`, which runs most of the others when its step
 | Hear the last reply again in plain words | [`bro`](../bro/SKILL.md) |
 | Give agents a scripted way to drive the app and prove behavior | [`create-verification-skill`](../create-verification-skill/SKILL.md) |
 | Bring a verification skill and its feature map back in line with the app | [`maintain-verification-skill`](../maintain-verification-skill/SKILL.md) |
+| Formally verify a race, invariant, or other property that tests rarely reach | [`create-formal-verification-skill`](../create-formal-verification-skill/SKILL.md) |
+| Bring formal verification back in line after covered code changes, and distinguish drift from a bug | [`maintain-formal-verification-skill`](../maintain-formal-verification-skill/SKILL.md) |
 | Vet a performance number before reporting or acting on it | [`benchmark-checklist`](../benchmark-checklist/SKILL.md) |
 | Run a large or cross-cutting change, or one to review after stepping away | [`figure-it-out`](../figure-it-out/SKILL.md) |
 | Keep a decision log during a run, and review it afterward | [`show-me-your-work`](../show-me-your-work/SKILL.md) |
