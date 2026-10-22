@@ -419,62 +419,82 @@
     {
       "commit": "16541c6bc1ed6c8d808b2f78a33364003e82b967",
       "date": "2026-10-17",
-      "status": "pending",
-      "subject": "fix(pstack): list every waiting item so each ketchup call is decidable (#692)"
+      "status": "adapted",
+      "subject": "fix(pstack): list every waiting item so each ketchup call is decidable (#692)",
+      "reason": "List every waiting item with context, recommendation, evidence and risk. Preserve human-message anchoring, read-only scope, UI permission and supplied-evidence limits; the new item format supersedes the older per-item waiting-cost and mandatory-visual format.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/165"
     },
     {
       "commit": "bc1443790cc980d0ea857663260a831299884508",
       "date": "2026-10-17",
-      "status": "pending",
-      "subject": "fix(pstack): say outright that ketchup never cuts items to stay under a word count (#708)"
+      "status": "adopted",
+      "subject": "fix(pstack): say outright that ketchup never cuts items to stay under a word count (#708)",
+      "reason": "Never cut waiting items to satisfy a word count. Both real hosts retained all thirty supplied items; Claude renamed labels while preserving item coverage.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/165"
     },
     {
       "commit": "4382e687a50b8d2c5ce4d141d001186589cff8d5",
       "date": "2026-10-17",
-      "status": "pending",
-      "subject": "feat(pstack): add /create-formal-verification-skill (#709)"
+      "status": "adapted",
+      "subject": "feat(pstack): add /create-formal-verification-skill (#709)",
+      "reason": "Add formal verification creation with one active-host project-skill tree, parent-owned Git and observed native registration/execution. Real-code generated-input fallback and disposable fault checks passed in both hosts; source guide and generated duplicate packaging are excluded.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/165"
     },
     {
       "commit": "0b8e952052d482ee6de06deebf14d590d77b1b34",
       "date": "2026-10-18",
-      "status": "pending",
-      "subject": "chore(pstack): bump to 0.15.26 (#710)"
+      "status": "excluded",
+      "subject": "chore(pstack): bump to 0.15.26 (#710)",
+      "reason": "Retain independent distribution numbering. Cursor patch releases map to one tested distribution patch for this batch; upstream manifest and README/guide version copies are not imported.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/165"
     },
     {
       "commit": "75fabace38ce507ee044546eaca64167c8c1e21b",
       "date": "2026-10-18",
-      "status": "pending",
-      "subject": "pstack: drop the rewritten-prompt ban from sharpen (#712)"
+      "status": "adapted",
+      "subject": "pstack: drop the rewritten-prompt ban from sharpen (#712)",
+      "reason": "Remove only the rewritten-prompt ban while preserving manual invocation, task execution and explicit constraints. Both real hosts calculated the supplied control result and delivered the explicitly requested rewrite.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/165"
     },
     {
       "commit": "0148b78c56c72a1b8412055913c79f767095b217",
       "date": "2026-10-18",
-      "status": "pending",
-      "subject": "chore(pstack): bump to 0.15.27 (#713)"
+      "status": "excluded",
+      "subject": "chore(pstack): bump to 0.15.27 (#713)",
+      "reason": "Retain independent distribution numbering and exclude Cursor-specific manifest/README version copies. This patch increment is covered by the batch distribution patch.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/165"
     },
     {
       "commit": "f9be7aa00c2b2bf4b13562143a6918445e06b99d",
       "date": "2026-10-18",
-      "status": "pending",
-      "subject": "pstack: offer formal verification in setup, sync help and guide (#715)"
+      "status": "adapted",
+      "subject": "pstack: offer formal verification in setup, sync help and guide (#715)",
+      "reason": "Offer regular and formal generators independently only after successful setup smoke and explicit yes; preserve no/duplicate/failure/routing-only guards. Portable Help names both skills. Both hosts exercised supplied-state offer decisions; unchanged setup probes/persistence were not repeated, and full yes-path setup transactions remain unverified. Cursor guide/README edits stay upstream.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/165"
     },
     {
       "commit": "6b78e9f4e46c75d1697d837e51f07c2692e60b24",
       "date": "2026-10-19",
-      "status": "pending",
-      "subject": "fix(pstack): add TLA+ default and no-verifier fallback to create-formal-verification-skill (#721)"
+      "status": "adapted",
+      "subject": "fix(pstack): add TLA+ default and no-verifier fallback to create-formal-verification-skill (#721)",
+      "reason": "Retain TLA+ as the default for interleaving models and use bounded generated inputs against real code when no suitable verifier is available. Both hosts distinguished the supplied modeling plan from actual parser fallback checks; no TLA+ engine execution is claimed.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/165"
     },
     {
       "commit": "7b353f78f6ec193bdbe48ed8059444eb09b6878e",
       "date": "2026-10-19",
-      "status": "pending",
-      "subject": "pstack: add maintain-formal-verification-skill (#716)"
+      "status": "adapted",
+      "subject": "pstack: add maintain-formal-verification-skill (#716)",
+      "reason": "Add verification-only maintenance with exact sync commits, no-effect/intended-promise/renamed-implementation classification, stale-pass disclosure, fault sensitivity and reachable bug reports. Both hosts loaded updated native local skills and executed real code; parent staged reviewed artifacts and owned fixture Git. Preserve failures, policy deviations and scope limits.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/165"
     },
     {
       "commit": "d457567332aa6989e753ea289f30ea2bfbc80bc0",
       "date": "2026-10-19",
-      "status": "pending",
-      "subject": "chore(pstack): bump to 0.15.28, sync guide with create-formal-verification-skill (#724)"
+      "status": "excluded",
+      "subject": "chore(pstack): bump to 0.15.28, sync guide with create-formal-verification-skill (#724)",
+      "reason": "Record Cursor0.15.28 as the incorporated source checkpoint while retaining distribution1.17.6. Exclude upstream version/README/guide copies; portable skill intent is implemented by preceding adapted entries.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/165"
     }
   ],
   "reviewed_through": "d457567332aa6989e753ea289f30ea2bfbc80bc0",

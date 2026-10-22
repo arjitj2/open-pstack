@@ -6,9 +6,9 @@ Entries describe package versions. Published release checkpoints have tag links;
 
 ## 1.17.6 adds formal-verification creation and upkeep
 
-Cursor baseline: [0.15.25](https://github.com/cursor/plugins/tree/1b800800583ee8ff7f2676caf7a5cb7f0804be85/pstack). [Issue #164](https://github.com/arjitj2/open-pstack/issues/164).
+Cursor baseline: [0.15.28](https://github.com/cursor/plugins/tree/d457567332aa6989e753ea289f30ea2bfbc80bc0/pstack). [Issue #164](https://github.com/arjitj2/open-pstack/issues/164). [PR #165](https://github.com/arjitj2/open-pstack/pull/165). Tag [v1.17.6](https://github.com/arjitj2/open-pstack/releases/tag/v1.17.6).
 
-Candidate catch-up through Cursor 0.15.28 is pending installed-host validation and independent review. It adds formal-verification creation and maintenance skills, optional Setup and Help entry points, complete Ketchup action lists, and the Sharpen prompt-ban removal. README content and provider policy are preserved.
+Adds formal-verification creation and maintenance skills, optional Setup offers and Help entry points. Ketchup lists every waiting item without a word-count cutoff. Sharpen permits an explicitly requested rewritten prompt while retaining task execution and manual invocation. Generated skills use the active host’s project directory and preserve parent Git ownership, bounded-scope reporting and separate product findings. README content and saved provider policy remain unchanged. Validation and its limits are recorded in the PR.
 
 ## 1.17.5 validates branded identifiers without casts
 
