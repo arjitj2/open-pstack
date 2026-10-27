@@ -437,7 +437,7 @@
       "date": "2026-10-17",
       "status": "adapted",
       "subject": "feat(pstack): add /create-formal-verification-skill (#709)",
-      "reason": "Add formal verification creation with one active-host project-skill tree, parent-owned Git and observed native registration/execution. Real-code generated-input fallback and disposable fault checks passed in both hosts; source guide and generated duplicate packaging are excluded.",
+      "reason": "Add formal verification creation with one active-host project-skill tree, parent-owned Git and observed native registration/execution. Real-code generated-input fallback and disposable fault checks passed in both hosts; source guide and generated duplicate packaging are excluded. Exclude the upstream disable-model-invocation flag so the parent can invoke creation after successful Setup smoke and explicit consent, matching the regular verification pair. Automatic selection in either host remains unverified.",
       "evidence": "https://github.com/arjitj2/open-pstack/pull/165"
     },
     {
@@ -485,7 +485,7 @@
       "date": "2026-10-19",
       "status": "adapted",
       "subject": "pstack: add maintain-formal-verification-skill (#716)",
-      "reason": "Add verification-only maintenance with exact sync commits, no-effect/intended-promise/renamed-implementation classification, stale-pass disclosure, fault sensitivity and reachable bug reports. Both hosts loaded updated native local skills and executed real code; parent staged reviewed artifacts and owned fixture Git. Preserve failures, policy deviations and scope limits.",
+      "reason": "Add verification-only maintenance with exact sync commits, no-effect/intended-promise/renamed-implementation classification, stale-pass disclosure, fault sensitivity and reachable bug reports. Both hosts loaded updated native local skills and executed real code; parent staged reviewed artifacts and owned fixture Git. Preserve failures, policy deviations and scope limits. Exclude the upstream disable-model-invocation flag so parent verification workflows can invoke maintenance, matching the regular verification pair. Automatic selection in either host remains unverified.",
       "evidence": "https://github.com/arjitj2/open-pstack/pull/165"
     },
     {

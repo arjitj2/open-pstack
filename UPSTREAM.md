@@ -46,6 +46,8 @@ The `16541c6` and `bc14437` Ketchup changes list every waiting item without a wo
 
 The `4382e68`, `6b78e9f` and `7b353f7` formal-verification skills use the active host’s project-skill location and parent-owned Git operations. Native registration, bounded real-code execution, disposable fault sensitivity and verification-only maintenance remain required. The `f9be7aa` setup offers require successful smoke and an explicit yes; existing matching harnesses suppress duplicate offers. Help links the shared skills. Cursor-specific version, README and guide copies through `d457567` stay upstream.
 
+The `disable-model-invocation: true` flags from `4382e68` and `7b353f7` are not applied to `create-formal-verification-skill` or `maintain-formal-verification-skill`. Both remain model-invocable for parent verification workflows, matching the existing regular verification pair. In particular, Setup must invoke formal creation after successful smoke and explicit consent; the upstream flag blocks that model-origin Skill call in Claude Code. Automatic selection in either host remains unverified.
+
 Earlier exclusions include Cursor's Benny automation, tutorial and sticky-mode UI, Cursor-only agent metadata, and Team Kit tools covered by host built-ins or bundled skills. The [historical port record](https://github.com/arjitj2/open-pstack/blob/5f0bb42dea46344c2f1961ebeebaeee135b49778/docs/reference.md#whats-deliberately-not-ported) records those source revisions.
 
 ## Port adaptations
