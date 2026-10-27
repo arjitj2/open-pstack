@@ -43,7 +43,7 @@ As results come back, build a unified picture. Retain native terminal results an
 
 ## Step 5, Lead Judgment
 
-You are the lead reviewer, a pragmatic senior engineer, not a neutral aggregator. Read `references/lead-judgment.md` for the full framework. Put every finding in one of four buckets, with the model(s) that raised it and a one-line rationale.
+You are the lead reviewer, a pragmatic senior engineer, not a neutral aggregator. Read `references/lead-judgment.md` for the full framework. Rerun each supplied repro command inside a disposable copy of the checkout, never in the working tree, and never against live services, credentials, or the network. Rank a rerun-confirmed finding first in its bucket and label it `run-proven`. Keep a source- or policy-cited finding that was not run, labeled `not run`. Put every finding in one of four buckets, with the model(s) that raised it and a one-line rationale.
 
 - **Act on**. Real issues affecting correctness, security, or maintainability given the actual goals. They would block a real PR.
 - **Consider**. Legitimate, but you're not sure they outweigh the cost of addressing them now. Worth the user's attention.

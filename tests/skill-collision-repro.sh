@@ -45,9 +45,6 @@ else
   fail=1
 fi
 
-# Active configuration must use Claude's rolling family aliases. Concrete
-# provider reports may still appear in runner fixtures, but no shipped
-# descriptor, native-agent model field, or live test invocation may pin one.
 legacy_model_pins="$(
   grep -REn \
     --include='*.md' --include='*.ts' --include='*.sh' \
@@ -100,8 +97,6 @@ canon_quad="$(awk '
 ' "$dispatch")"
 quad_bad=""
 [ -n "$canon_quad" ] || quad_bad="could not read the canonical quad from $dispatch"$'\n'
-# Anchor on the quad's last slug rather than a hard-coded one, so a model swap in
-# setup-pstack cannot leave this check hunting for a slug nobody ships any more.
 anchor="${canon_quad##* }"
 for name in arena architect; do
   skill="$repo/plugins/pstack/skills/$name/SKILL.md"
@@ -354,7 +349,7 @@ else
   note "ok: excluded upstream skills stay absent"
 fi
 
-routed_model_skills=(how why unslop typescript-best-practices)
+routed_model_skills=(how why unslop typescript-best-practices statechart)
 routed_model_bad=""
 for name in "${routed_model_skills[@]}"; do
   routed_skill="$plugin/skills/$name/SKILL.md"

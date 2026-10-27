@@ -701,5 +701,26 @@ describe("check-plan", () => {
       expect(problems.length).toBeGreaterThan(0);
       expect(problems.join("\n")).toContain("Close the program");
     });
+
+    it("ignores prose punctuation inside matching multi-backtick code spans", () => {
+      for (const count of [2, 3, 4]) {
+        const delimiter = "`".repeat(count);
+        expect(
+          problemsOf(
+            skeleton +
+              `\nUse ${delimiter}echo \`x\`: \u201cquoted\u201d \u2014 example${delimiter}.`
+          )
+        ).toEqual([]);
+      }
+    });
+
+    it("checks prose following a multi-backtick span and unmatched delimiters", () => {
+      expect(
+        problemsOf(skeleton + "\nUse ``echo `x`: y``. Bad: prose.").join("\n")
+      ).toContain("mid-sentence colon");
+      expect(
+        problemsOf(skeleton + "\nUse ``unclosed: bad` here.").join("\n")
+      ).toContain("mid-sentence colon");
+    });
   });
 });

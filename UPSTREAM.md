@@ -10,13 +10,13 @@ This page records the current Cursor baseline and the maintainer procedure for r
 | --- | --- |
 | Repository | `https://github.com/cursor/plugins.git` |
 | Path | `pstack/` |
-| Commit | `d457567332aa6989e753ea289f30ea2bfbc80bc0` |
-| Upstream version | `0.15.28` |
-| open-pstack version | `1.17.6` |
+| Commit | `ab1f702ce8e8b6557edb56b09f52cde8bfb83f17` |
+| Upstream version | `0.15.35` |
+| open-pstack version | `1.17.7` |
 
 The table records the packaged version on `main` and the Cursor content it incorporates, minus the exclusions below. Detecting or reviewing a newer Cursor commit does not advance this baseline. Cursor's version identifies the imported content. The open-pstack version identifies the cross-harness package, and its numbers are independent of Cursor and Eric's port.
 
-The upstream README at this baseline is [cursor/plugins `pstack/README.md` @ d457567](https://github.com/cursor/plugins/blob/d457567332aa6989e753ea289f30ea2bfbc80bc0/pstack/README.md). [CHANGELOG.md](CHANGELOG.md) records the baseline of each release, and [NOTICE.md](NOTICE.md) records provenance.
+The upstream README at this baseline is [cursor/plugins `pstack/README.md` @ ab1f702](https://github.com/cursor/plugins/blob/ab1f702ce8e8b6557edb56b09f52cde8bfb83f17/pstack/README.md). [CHANGELOG.md](CHANGELOG.md) records the baseline of each release, and [NOTICE.md](NOTICE.md) records provenance.
 
 ## Upstream-only exclusions
 
@@ -48,6 +48,10 @@ The `4382e68`, `6b78e9f` and `7b353f7` formal-verification skills use the active
 
 The `disable-model-invocation: true` flags from `4382e68` and `7b353f7` are not applied to `create-formal-verification-skill` or `maintain-formal-verification-skill`. Both remain model-invocable for parent verification workflows, matching the existing regular verification pair. In particular, Setup must invoke formal creation after successful smoke and explicit consent; the upstream flag blocks that model-origin Skill call in Claude Code. Automatic selection in either host remains unverified.
 
+The changes from `88d4751` through `ab1f702` use the final typed Statechart compiler, not its superseded JavaScript APIs, PNG renderer or intermediate files. Statechart remains model-invocable so generated Claude verification skills can invoke the registered skill. Its upstream manual-only flag is omitted. Ketchup Video retains manual invocation and the outside-repository video write exception. Sharpen retains ordinary task execution and explicit rewrite-only requests; its upstream rewrite-only default is excluded.
+
+Reflect shows the host-local destination before approval and copies only afterward. Interrogate retains read-only reviewers, cited findings that were not run, four output buckets and saved provider choices while adding disposable lead repros. Arena retains the released terminal-or-recorded-dropout contract. Cursor's top-ups, model substitutions, verifier waivers, relaxed Shipping gates, removal of Interrogate at PR-open, remote-store copying and nonlinear stack topology are excluded. README changes remain unapproved and unapplied. The ledger records each commit and the linked PR records observed native behavior and its limits.
+
 Earlier exclusions include Cursor's Benny automation, tutorial and sticky-mode UI, Cursor-only agent metadata, and Team Kit tools covered by host built-ins or bundled skills. The [historical port record](https://github.com/arjitj2/open-pstack/blob/5f0bb42dea46344c2f1961ebeebaeee135b49778/docs/reference.md#whats-deliberately-not-ported) records those source revisions.
 
 ## Port adaptations
@@ -72,6 +76,10 @@ When incorporating Cursor content, translate harness primitives at the existing 
 The `e5136d8` principles update keeps shared portable metadata and genuine negative-path/invariant contracts while adopting premise falsification, legitimate-state root causes, state reconciliation and refactor-resistant testing. Cursor-only guide prose stays in the pinned upstream reference.
 
 The `99743e9` content update shortens Swarm, the migration and type principles, and Interrogate's lead judgment. Portable metadata, parent-owned dispatch, saved recovery, coverage requirements and external compatibility conditions remain in force. The upstream README table remains available through the pinned source link above.
+
+The `ab1f702` Statechart tree is imported as the final upstream compiler rather than replaying its earlier JavaScript forms. The `disable-model-invocation: true` flag in its `SKILL.md` is not applied: a generated formal-verification skill invokes Statechart by name, and the flag blocks that model-origin route on Claude Code, matching the `4382e68`/`7b353f7` precedent above. Invocation stays on the registered host names `/pstack:statechart` and `$pstack:statechart`, and `statechart` joins the model-invocable invariant in `tests/skill-collision-repro.sh`. The skill documents the `TLA2TOOLS` and `JAVA` overrides and the networked mise first run, notes that a `--view` module executes with the user's permissions rather than inside a sandbox, and keeps upstream's rule that a passing check over 500 states writes no `chart.mmd`. The final tree's qualified-action and process-group reap fixes are included. `scripts/package.json` pins TypeScript and `@types/node` to the versions this repository already tests, adds a strict `typecheck` script, and carries a lockfile completed by `bun install`. Engine tests that need a real `TLA2TOOLS` jar still skip without one, and recorded replay output is not claimed as a live engine run.
+
+The `3c0fdb4` Ketchup Video keeps `disable-model-invocation: true` and gains `agents/openai.yaml` with `allow_implicit_invocation: false`, matching the port's other manual-only skills. Rendering and writing outside the repository stays its sole write exception, and the final subtitle rules are unchanged.
 
 ## Decision ledger
 

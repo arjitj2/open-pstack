@@ -28,6 +28,8 @@ Read [AGENTS.md](AGENTS.md) and [UPSTREAM.md](UPSTREAM.md) before editing. Keep 
 
 [Bun](https://bun.sh) runs the packaged TypeScript tools and tests. Node runs `check-plan.mjs`; Python 3 runs repository maintenance scripts and their tests. Install dependencies with `bun install --frozen-lockfile` in `plugins/pstack/skills/poteto-mode/scripts/`.
 
+Statechart has separate dependencies in `plugins/pstack/skills/statechart/scripts/`. Run `bun install --frozen-lockfile`, `bun run typecheck`, and `bun run test` there. Live engine tests need Java and the pinned TLC jar named in `.github/workflows/ci.yml`; set `JAVA` and `TLA2TOOLS` to their paths. Engine tests report skips when the jar is unavailable.
+
 GitHub workflows need an authenticated `gh` CLI. The worktree audit additionally uses `jq` and `rg`. Install and authenticate provider CLIs only for the worker routes you test.
 
 Skill-authoring workflows in Claude Code use `plugin-dev:skill-development`. Install that optional plugin with `/plugin marketplace add anthropics/claude-plugins-official`, then `/plugin install plugin-dev@claude-plugins-official`. It is not declared as a hard dependency because local plugin-directory loading cannot resolve cross-marketplace dependencies. See the [original dependency change](https://github.com/arjitj2/open-pstack/blob/5f0bb42dea46344c2f1961ebeebaeee135b49778/CHANGES.md#093--dependency-declaration-removed).

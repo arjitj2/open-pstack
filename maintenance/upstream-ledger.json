@@ -495,9 +495,193 @@
       "subject": "chore(pstack): bump to 0.15.28, sync guide with create-formal-verification-skill (#724)",
       "reason": "Record Cursor0.15.28 as the incorporated source checkpoint while retaining distribution1.17.6. Exclude upstream version/README/guide copies; portable skill intent is implemented by preceding adapted entries.",
       "evidence": "https://github.com/arjitj2/open-pstack/pull/165"
+    },
+    {
+      "commit": "88d47514b82e7c44f00f2b2a72ff6dd12158038c",
+      "status": "adapted",
+      "subject": "pstack: restore /sharpen to the original prompt, return only the rewrite (#729)",
+      "date": "2026-10-19",
+      "reason": "Keep the four expert-framing questions while preserving ordinary task execution, explicit rewrite-only requests and manual invocation. Exclude the incompatible rewrite-only default and Cursor version/README/guide copies. Both-host ordinary-task and explicit-rewrite checks cover the retained contract.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/176"
+    },
+    {
+      "commit": "eb4db2b55b2b7dec3d9282754cddf0a56bf4ff10",
+      "status": "adapted",
+      "subject": "feat(pstack): add the statechart skill to draw TLA+ models as charts (#741)",
+      "date": "2026-10-21",
+      "reason": "Introduce Statechart through its final typed successor, not obsolete JavaScript from-chart/compare/fixed modes, OutputFolder model or PNG output. Preserve source provenance and new shared host entry points; Cursor README/guide/version copies are excluded. Final compiler, engine, rendering and native evidence cover the successor.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/176"
+    },
+    {
+      "commit": "7698375f92a729f8bb89d113c633dce9ff9dc6db",
+      "status": "adapted",
+      "subject": "fix(pstack): bring the statechart skill up to date with six fixes (#776)",
+      "date": "2026-10-22",
+      "reason": "Retain the final successor guarantees for config/model association, faithful labels, explicit unchecked rules, engine/error publication, property interpretation and real-code replay. Do not resurrect superseded options, per-CPU verdict runs, summary/stories files or filesystem copy fallback. Real TLC/corpus/parity tests and bounded native fault replay cover the retained behavior.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/176"
+    },
+    {
+      "commit": "4ec7ffa173eaa70d3d9467a627baf0954645a353",
+      "status": "excluded",
+      "subject": "refactor(pstack): delete statechart comments that repeat the code, and rename helpers (#779)",
+      "date": "2026-10-22",
+      "reason": "The intermediate JavaScript helper renames and comment cleanup are superseded by the final TypeScript compiler. Those old helpers are not shipped. Preserve the historical source record without restoring obsolete files; final source/comment review covers the actual shared tree.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/176"
+    },
+    {
+      "commit": "076f4b2f57844ff9eb4ada914d4763884d40146e",
+      "status": "adapted",
+      "subject": "feat(pstack): bring the statechart skill up to date, with the Pele renderer (#791)",
+      "date": "2026-10-23",
+      "reason": "Preserve final Pele SVG rendering guidance, projections and explicit tool discovery through the typed successor. Exclude removed JS/resvg/PNG rendering, OutputFolder fixtures and old region implementation. Test actual Pele/Mermaid plus real TLC; derived light-preview inspection is not browser or dark-mode proof.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/176"
+    },
+    {
+      "commit": "642289e6b1eb01c25b02ea041dccaf7b5864e131",
+      "status": "excluded",
+      "subject": "chore(pstack): bump to 0.15.31 (#792)",
+      "date": "2026-10-23",
+      "reason": "Retain independent distribution version1.17.7; exclude literal Cursor0.15.31 manifest values. The batch crosses only upstream patch increments.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/176"
+    },
+    {
+      "commit": "00d5decc6f05669044fd092dec73da9ef6f7eec0",
+      "status": "adapted",
+      "subject": "feat(pstack): tell generated verify skills to read each model-check result with /statechart (#794)",
+      "date": "2026-10-23",
+      "reason": "Generated TLA+ verification refers to the registered Statechart host name, without copying its changing commands/options/installed paths. Qualify the passing-over500-states no-chart case. Retain parent-owned registration, code mapping, fault sensitivity and bounds. Native generated-skill handoff evidence and execution-artifact portability limits are disclosed in the PR.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/176"
+    },
+    {
+      "commit": "3c0fdb4e76293ebcdaed16f0d096c788bd3b49b2",
+      "status": "adapted",
+      "subject": "feat(pstack): add the ketchup-video skill (#797)",
+      "date": "2026-10-23",
+      "reason": "Add final manual-only Ketchup Video in the shared tree with Claude manual flag, Codex implicit-invocation false and portable names. Retain inherited human-anchor/read-only rules and the sole outside-repo render write exception. Actual videos, source-frame holds, subtitles and controlled failure evidence are bounded and include failed native measurement attempts. README/guide changes remain excluded pending separate approval.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/176"
+    },
+    {
+      "commit": "b1a129891c49f6b84d0613477f5d021a0782b5e0",
+      "status": "excluded",
+      "subject": "chore(pstack): bump to 0.15.32 (#798)",
+      "date": "2026-10-23",
+      "reason": "Exclude literal Cursor0.15.32 version values; keep the compatible independent distribution patch increment.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/176"
+    },
+    {
+      "commit": "7054003c3723e82d099fb7620e3bc8d7d63eebc6",
+      "status": "adapted",
+      "subject": "fix(pstack): route reflect edits out of the plugin cache (#800)",
+      "date": "2026-10-23",
+      "reason": "Route approved Reflect edits to the active host project/user skill directory outside installed caches. Show destination before approval; copy only afterward, with no PR/push. Preserve existing review/synthesis approval gates. Native post-synthesis fixtures prove destination/no-copy behavior, not a new full Reflect panel.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/176"
+    },
+    {
+      "commit": "96dec8ee58deb7b388fa080fbceaba4460a7c9dd",
+      "status": "adapted",
+      "subject": "fix(watch-pr): distinguish fork heads during stack discovery (#801)",
+      "date": "2026-10-23",
+      "reason": "Use gh isCrossRepository to exclude fork heads as upstream parents and stop traversal through them. Validate the external Boolean field at the existing parser boundary. Preserve the watcher versus stricter frontier identity distinction. Real bounded orderStack regression and CLI/unit cases cover fork-main termination and parentage; no live fork API claim.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/176"
+    },
+    {
+      "commit": "fe096ef31c94c30997207ffb6e30c51f15a34f16",
+      "status": "adopted",
+      "subject": "fix(watch-pr): cap polling sleeps at the deadline (#802)",
+      "date": "2026-10-23",
+      "reason": "Cap poll and retry sleeps only by an explicitly supplied deadline. Timeout0 remains unbounded; add no implicit worker deadline. Simple/queued/backoff and zero-timeout behavior pass the actual Bun suite.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/176"
+    },
+    {
+      "commit": "86c2448db179ad2f9193aecea549e664c5905895",
+      "status": "adapted",
+      "subject": "fix(pstack): recognize matching inline code delimiters (#803)",
+      "date": "2026-10-23",
+      "reason": "Adopt matching-width inline-code delimiter parsing and adapt tests to the port CONTRACT/skeleton library and CLI. Retain punctuation checks outside code and malformed-delimiter rejection. Actual Bun and strict checks pass.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/176"
+    },
+    {
+      "commit": "3c596e701b5ca3d213e072464eec36baf0dee3e7",
+      "status": "adapted",
+      "subject": "fix(orch): prefer active PR over branch history (#804)",
+      "date": "2026-10-23",
+      "reason": "The existing GitHub-only frontier already selects a unique open PR over terminal history and fails ambiguous candidates. Retain that stricter fork-aware implementation; extend real fixture tests to stale closed and merged rows. Do not import Origin-forge code or duplicate the frontier API.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/176"
+    },
+    {
+      "commit": "f83fbe695ee14badf3ac128d3718f9fb71a3a3f9",
+      "status": "adapted",
+      "subject": "fix(pstack): read transcript mtimes with GNU stat and date in worktree-audit (#805)",
+      "date": "2026-10-23",
+      "reason": "Probe and pair GNU versus BSD stat/date forms in the existing both-host worktree audit. Preserve transcript-root override, GitHub-only PR reader and parent-owned fetch. Actual local-Git/BSD/GNU fixture runs agree on the recent-chat date and bucket. Inherited missing-reader safe-classification remains separately open in issue175.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/176"
+    },
+    {
+      "commit": "a0b0ad99fc11efee2b18b50c33dc94abad4fd51e",
+      "status": "excluded",
+      "subject": "docs(pstack): note Claude Code auto-update is off for third-party marketplaces (#806)",
+      "date": "2026-10-23",
+      "reason": "README marketplace auto-update prose requires explicit owner approval. No README edit was approved or made; the exact proposal remains outside the repository and is not a correctness blocker.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/176"
+    },
+    {
+      "commit": "e73df471cd4bd918367e99f3dd9c51bd53ddf5f0",
+      "status": "adapted",
+      "subject": "fix(pstack): renumber swarm's Phase A and fix its dangling table reference (#807)",
+      "date": "2026-10-23",
+      "reason": "Correct Swarm PhaseA numbering and name its result table while preserving the saved worker descriptors, efforts, recovery, spending rules and parent dispatch. The upstream PhaseB numeric reference has no port anchor; static/source checks cover the unchanged routing contract.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/176"
+    },
+    {
+      "commit": "34b1b7c96f09f81a21a6c78f65b7833f7dcb5b24",
+      "status": "adapted",
+      "subject": "feat(pstack): port the statechart compiler (#977)",
+      "date": "2026-10-26",
+      "reason": "Import the final typed Statechart compiler, corpus and launchers as a new shared skill; obsolete JS APIs were never public in this distribution. Preserve executable modes, qualified actions, finite budgets, explicit unchecked states and atomic output. Add pinned development dependencies, strict checking and real Java/TLC CI. Omit/document the manual-only flag for generated model-origin Claude calls, expose JAVA/TLA2TOOLS overrides and view-code permission boundary, and make no Deno/mise/Windows/universal parser claim. Test-only macOS realpath correction and type annotations are disclosed.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/176"
+    },
+    {
+      "commit": "7c7bde7033df2a83a23294571ef12c51cf560217",
+      "status": "excluded",
+      "subject": "chore(pstack): bump to 0.15.33 (#978)",
+      "date": "2026-10-26",
+      "reason": "Exclude literal Cursor0.15.33 version bump; record it as source history under independent distribution numbering.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/176"
+    },
+    {
+      "commit": "740d2c0786246cafac41906198f656b135194d3b",
+      "status": "adopted",
+      "subject": "fix(pstack): keep qualified action names in property traces (#982)",
+      "date": "2026-10-26",
+      "reason": "Retain full qualified action names in ordinary and property traces, including INSTANCE actions. Final CounterInstance and under/over-budget engine/corpus tests exercise the retained fix.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/176"
+    },
+    {
+      "commit": "164ced10fa576ddf91e1f03b4fa9d1183c8272fe",
+      "status": "excluded",
+      "subject": "chore(pstack): bump to 0.15.34 (#983)",
+      "date": "2026-10-26",
+      "reason": "Exclude literal Cursor0.15.34 version bump; preserve independent version1.17.7 for this compatible patch-range batch.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/176"
+    },
+    {
+      "commit": "519d36aa98955bf680db01bcde5fdfba686dc901",
+      "status": "adapted",
+      "subject": "test(pstack): wait for the reap in the statechart SIGKILL view test (#981)",
+      "date": "2026-10-26",
+      "reason": "Retain the process-group reap test polling through macOS EPERM until ESRCH, without weakening disappearance checks or adding a production deadline. Remove the unproven explanatory comment; the actual corrected candidate CLI/full suite passes.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/176"
+    },
+    {
+      "commit": "ab1f702ce8e8b6557edb56b09f52cde8bfb83f17",
+      "status": "adapted",
+      "subject": "feat(pstack): port recent skill updates (#986)",
+      "date": "2026-10-27",
+      "reason": "Adopt first-message goal framing, background steering guidance, numerical decision-before-measurement, final video subtitles/holds, compatible rebase/handoff wording and cosmetic lock-holder annotation. Adapt Interrogate with safe disposable repros ranked run-proven while retaining cited not-run findings, read-only reviewers, four buckets/table/references and saved models. Retain released Arena bytes: its existing terminal-or-recorded-dropout rule and dropout reporting already cover the completion clarification. The Claude Arena case was not reached after an unrelated private-cache denial, so no new Arena behavior is claimed. Exclude top-ups, nearest/default substitutions and suppression of approved same-provider backups. Preserve linear Autopilot-stack topology, all verifier/Shipping/PR-open gates, exact efforts and Setup/provider behavior. Exclude wording-only verifier waivers, relaxed verdicts, Interrogate removal at PR-open, remote-store copying, Cursor docs/version values and unapproved README changes. Bounded native supplied-input tests are not full panel/routing proof; unchanged contracts carry by exact file hashes.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/176"
     }
   ],
-  "reviewed_through": "d457567332aa6989e753ea289f30ea2bfbc80bc0",
+  "reviewed_through": "ab1f702ce8e8b6557edb56b09f52cde8bfb83f17",
   "schema": 1,
   "source": {
     "path": "pstack/",

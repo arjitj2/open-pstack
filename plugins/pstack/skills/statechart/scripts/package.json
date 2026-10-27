@@ -1,0 +1,14 @@
+{
+  "name": "@open-pstack/statechart",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --disable-warning=ExperimentalWarning --test --test-concurrency=1 test/*.test.ts",
+    "typecheck": "tsc --project tsconfig.json"
+  },
+  "devDependencies": {
+    "@types/node": "26.1.2",
+    "fast-check": "4.5.3",
+    "typescript": "7.0.2"
+  }
+}

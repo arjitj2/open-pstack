@@ -52,6 +52,7 @@ export interface PullRequestFacts {
 }
 export interface OpenPullRequest {
   readonly number: PrNumber;
+  readonly isCrossRepository: boolean;
   readonly headRefName: string;
   readonly baseRefName: string;
 }
@@ -231,14 +232,12 @@ export type QueryFailure =
     };
 /**
  * `frontier` names the lowest unmerged PR that is actually waiting, and
- * `pending` is that PR's checks only. Pooling every row's pending under the
- * bottom PR's number misattributed upstack waits to the frontier.
+ * `pending` is that PR's checks only.
  *
  * This decision serves single and `--stack` mode. Queued mode deliberately
  * reports its own merge frontier instead: when that PR is blocker-free it
  * emits a merge-queue wait that ignores upstack pending, because upstack
- * checks do not block the frontier's merge. That is the Python watcher's
- * contract, not an attribution bug.
+ * checks do not block the frontier's merge.
  */
 export interface WaitingDecision {
   readonly kind: "waiting";
