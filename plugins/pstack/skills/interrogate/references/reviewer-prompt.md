@@ -38,7 +38,8 @@ For each finding, provide:
    - `nit`: Style, naming, minor improvement.
 2. **Finding**: What the problem is, in concrete terms. Reference specific lines/functions.
 3. **Evidence**: Why you believe this is a problem. Show your reasoning. Don't just assert.
-4. **Suggestion** (optional): What you'd do instead, only if you have a concrete alternative.
+4. **Repro**: for a finding about behavior, one command that shows the wrong behavior, such as a failing test, a repro script, or output that shows the defect, when a safe one exists. Safe means it writes only inside a disposable copy and never touches live services, credentials, or the network. A source- or policy-cited finding needs no repro; write `not run` and give the citation instead.
+5. **Suggestion** (optional): What you'd do instead, only if you have a concrete alternative.
 
 A good finding references specific code, not vague concerns ("this could be better"). It distinguishes between "this is broken" and "I would have done this differently". It considers the stated intent. A finding that ignores the context of what's being built is a bad finding.
 
@@ -55,6 +56,7 @@ Return your findings as a structured list:
 **Location**: file:line or function name
 **Finding**: What's wrong
 **Evidence**: Why this matters
+**Repro**: the safe command, or `not run` with the citation
 **Suggestion**: (optional) What to do instead
 
 ### 2. [Severity] Short title

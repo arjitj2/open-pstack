@@ -43,6 +43,8 @@ Present the synthesizer's full Accepted / Rejected / Backlog output and wait for
 
 File Backlog items only when the task already authorizes that tracker write, using the repository's designated issue owner. Otherwise present them for approval. Reflect does not grant permission to message people, create an unrelated queue, or modify external state.
 
+Never edit a skill inside a host's installed plugin cache or store. Before approval, show the destination: the project's `.claude/skills/<skill>/` or `.agents/skills/<skill>/`, or the matching user-level skill directory `~/.claude/skills/<skill>/` or `~/.agents/skills/<skill>/`. After approval, copy the skill folder there and edit the copy. Never open a PR or push from this skill.
+
 Follow each approved row's Routing exactly:
 
 - Trivial existing-skill edit (a one-line bullet, a tightened sentence, a stale fact corrected): the parent does it directly.

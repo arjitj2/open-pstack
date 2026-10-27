@@ -495,9 +495,147 @@
       "subject": "chore(pstack): bump to 0.15.28, sync guide with create-formal-verification-skill (#724)",
       "reason": "Record Cursor0.15.28 as the incorporated source checkpoint while retaining distribution1.17.6. Exclude upstream version/README/guide copies; portable skill intent is implemented by preceding adapted entries.",
       "evidence": "https://github.com/arjitj2/open-pstack/pull/165"
+    },
+    {
+      "commit": "88d47514b82e7c44f00f2b2a72ff6dd12158038c",
+      "status": "pending",
+      "subject": "pstack: restore /sharpen to the original prompt, return only the rewrite (#729)",
+      "date": "2026-10-19"
+    },
+    {
+      "commit": "eb4db2b55b2b7dec3d9282754cddf0a56bf4ff10",
+      "status": "pending",
+      "subject": "feat(pstack): add the statechart skill to draw TLA+ models as charts (#741)",
+      "date": "2026-10-21"
+    },
+    {
+      "commit": "7698375f92a729f8bb89d113c633dce9ff9dc6db",
+      "status": "pending",
+      "subject": "fix(pstack): bring the statechart skill up to date with six fixes (#776)",
+      "date": "2026-10-22"
+    },
+    {
+      "commit": "4ec7ffa173eaa70d3d9467a627baf0954645a353",
+      "status": "pending",
+      "subject": "refactor(pstack): delete statechart comments that repeat the code, and rename helpers (#779)",
+      "date": "2026-10-22"
+    },
+    {
+      "commit": "076f4b2f57844ff9eb4ada914d4763884d40146e",
+      "status": "pending",
+      "subject": "feat(pstack): bring the statechart skill up to date, with the Pele renderer (#791)",
+      "date": "2026-10-23"
+    },
+    {
+      "commit": "642289e6b1eb01c25b02ea041dccaf7b5864e131",
+      "status": "pending",
+      "subject": "chore(pstack): bump to 0.15.31 (#792)",
+      "date": "2026-10-23"
+    },
+    {
+      "commit": "00d5decc6f05669044fd092dec73da9ef6f7eec0",
+      "status": "pending",
+      "subject": "feat(pstack): tell generated verify skills to read each model-check result with /statechart (#794)",
+      "date": "2026-10-23"
+    },
+    {
+      "commit": "3c0fdb4e76293ebcdaed16f0d096c788bd3b49b2",
+      "status": "pending",
+      "subject": "feat(pstack): add the ketchup-video skill (#797)",
+      "date": "2026-10-23"
+    },
+    {
+      "commit": "b1a129891c49f6b84d0613477f5d021a0782b5e0",
+      "status": "pending",
+      "subject": "chore(pstack): bump to 0.15.32 (#798)",
+      "date": "2026-10-23"
+    },
+    {
+      "commit": "7054003c3723e82d099fb7620e3bc8d7d63eebc6",
+      "status": "pending",
+      "subject": "fix(pstack): route reflect edits out of the plugin cache (#800)",
+      "date": "2026-10-23"
+    },
+    {
+      "commit": "96dec8ee58deb7b388fa080fbceaba4460a7c9dd",
+      "status": "pending",
+      "subject": "fix(watch-pr): distinguish fork heads during stack discovery (#801)",
+      "date": "2026-10-23"
+    },
+    {
+      "commit": "fe096ef31c94c30997207ffb6e30c51f15a34f16",
+      "status": "pending",
+      "subject": "fix(watch-pr): cap polling sleeps at the deadline (#802)",
+      "date": "2026-10-23"
+    },
+    {
+      "commit": "86c2448db179ad2f9193aecea549e664c5905895",
+      "status": "pending",
+      "subject": "fix(pstack): recognize matching inline code delimiters (#803)",
+      "date": "2026-10-23"
+    },
+    {
+      "commit": "3c596e701b5ca3d213e072464eec36baf0dee3e7",
+      "status": "pending",
+      "subject": "fix(orch): prefer active PR over branch history (#804)",
+      "date": "2026-10-23"
+    },
+    {
+      "commit": "f83fbe695ee14badf3ac128d3718f9fb71a3a3f9",
+      "status": "pending",
+      "subject": "fix(pstack): read transcript mtimes with GNU stat and date in worktree-audit (#805)",
+      "date": "2026-10-23"
+    },
+    {
+      "commit": "a0b0ad99fc11efee2b18b50c33dc94abad4fd51e",
+      "status": "pending",
+      "subject": "docs(pstack): note Claude Code auto-update is off for third-party marketplaces (#806)",
+      "date": "2026-10-23"
+    },
+    {
+      "commit": "e73df471cd4bd918367e99f3dd9c51bd53ddf5f0",
+      "status": "pending",
+      "subject": "fix(pstack): renumber swarm's Phase A and fix its dangling table reference (#807)",
+      "date": "2026-10-23"
+    },
+    {
+      "commit": "34b1b7c96f09f81a21a6c78f65b7833f7dcb5b24",
+      "status": "pending",
+      "subject": "feat(pstack): port the statechart compiler (#977)",
+      "date": "2026-10-26"
+    },
+    {
+      "commit": "7c7bde7033df2a83a23294571ef12c51cf560217",
+      "status": "pending",
+      "subject": "chore(pstack): bump to 0.15.33 (#978)",
+      "date": "2026-10-26"
+    },
+    {
+      "commit": "740d2c0786246cafac41906198f656b135194d3b",
+      "status": "pending",
+      "subject": "fix(pstack): keep qualified action names in property traces (#982)",
+      "date": "2026-10-26"
+    },
+    {
+      "commit": "164ced10fa576ddf91e1f03b4fa9d1183c8272fe",
+      "status": "pending",
+      "subject": "chore(pstack): bump to 0.15.34 (#983)",
+      "date": "2026-10-26"
+    },
+    {
+      "commit": "519d36aa98955bf680db01bcde5fdfba686dc901",
+      "status": "pending",
+      "subject": "test(pstack): wait for the reap in the statechart SIGKILL view test (#981)",
+      "date": "2026-10-26"
+    },
+    {
+      "commit": "ab1f702ce8e8b6557edb56b09f52cde8bfb83f17",
+      "status": "pending",
+      "subject": "feat(pstack): port recent skill updates (#986)",
+      "date": "2026-10-27"
     }
   ],
-  "reviewed_through": "d457567332aa6989e753ea289f30ea2bfbc80bc0",
+  "reviewed_through": "ab1f702ce8e8b6557edb56b09f52cde8bfb83f17",
   "schema": 1,
   "source": {
     "path": "pstack/",

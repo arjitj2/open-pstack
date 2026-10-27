@@ -30,7 +30,7 @@ After every Phase B candidate chain is terminal, choose the judge descriptor fro
 
 ## Phase D: Pick a base
 
-Read every candidate end to end before picking. Score each against the rubric criterion by criterion, not on holistic feel. Wait for the cross-judge's verified terminal result or recorded dropout before final selection, then compare its verdict with your scores. Agreement on the base confirms the pick. Disagreement means one of you is biased or the rubric was ambiguous. Read both rationales before deciding.
+Read every candidate end to end before picking. Score each against the rubric criterion by criterion, not on holistic feel. Wait for the cross-judge's verified terminal result or recorded dropout before final selection, then compare its verdict with your scores when one completed. Agreement on the base confirms the pick. Disagreement means one of you is biased or the rubric was ambiguous. Read both rationales before deciding.
 
 Pick the base a future maintainer can extend most easily without breaking invariants. When two feel tied, prefer the cleaner boundary or smaller API, per the Laziness Protocol.
 
@@ -46,4 +46,4 @@ Verify the synthesized artifact like any other output, per the **prove-it-works*
 
 ## Outputs
 
-One synthesized artifact, with a short synthesis note alongside naming the base and why, the cross-judge's verdict, each graft with its source candidate, what was rejected and why, any convergence or dropouts and fallback attempts with their actual descriptors, and the verification result.
+One synthesized artifact, with a short synthesis note alongside naming the base and why, the cross-judge's verdict or its recorded dropout, each graft with its source candidate, what was rejected and why, any convergence or dropouts and fallback attempts with their actual descriptors, and the verification result.

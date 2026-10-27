@@ -487,43 +487,45 @@ describe("frontier resolution", () => {
     });
   });
 
-  it("prefers the single open pull request over stale closed ones", async () => {
-    const { directory, store } = await initializedStore();
-    const stack = await makeGitStack(directory);
+  it("prefers the single open pull request over stale closed or merged ones", async () => {
+    for (const historicalState of ["closed", "merged"] as const) {
+      const { directory, store } = await initializedStore();
+      const stack = await makeGitStack(directory);
 
-    await withFakeGh({
-      directory,
-      files: {
-        table: pullRequestTable({
-          ...chainPulls(stack),
-          [prFile("head", "stack/open")]: ghRows([
-            {
-              number: 99,
-              state: "closed",
-              head: "stack/open",
-              base: "main",
-              sha: stack.openSha,
-            },
-            {
-              number: 11,
-              state: "open",
-              head: "stack/open",
-              base: "stack/closed",
-              sha: stack.openSha,
-            },
-          ]),
-        }),
-      },
-      operation: async () => {
-        const frontier = await store.frontier.set({
-          repo: stack.repo,
-          baseRepo: BASE_REPO,
-        });
-        expect(frontier.prs.map((row) => row.pr)).toEqual([
-          10, 13, 11, 14,
-        ]);
-      },
-    });
+      await withFakeGh({
+        directory,
+        files: {
+          table: pullRequestTable({
+            ...chainPulls(stack),
+            [prFile("head", "stack/open")]: ghRows([
+              {
+                number: 99,
+                state: historicalState,
+                head: "stack/open",
+                base: "main",
+                sha: stack.openSha,
+              },
+              {
+                number: 11,
+                state: "open",
+                head: "stack/open",
+                base: "stack/closed",
+                sha: stack.openSha,
+              },
+            ]),
+          }),
+        },
+        operation: async () => {
+          const frontier = await store.frontier.set({
+            repo: stack.repo,
+            baseRepo: BASE_REPO,
+          });
+          expect(frontier.prs.map((row) => row.pr)).toEqual([
+            10, 13, 11, 14,
+          ]);
+        },
+      });
+    }
   });
 
   it("rejects multiple pull requests on one branch", async () => {

@@ -12,7 +12,7 @@ This page records the current Cursor baseline and the maintainer procedure for r
 | Path | `pstack/` |
 | Commit | `d457567332aa6989e753ea289f30ea2bfbc80bc0` |
 | Upstream version | `0.15.28` |
-| open-pstack version | `1.17.6` |
+| open-pstack version | `1.17.7` |
 
 The table records the packaged version on `main` and the Cursor content it incorporates, minus the exclusions below. Detecting or reviewing a newer Cursor commit does not advance this baseline. Cursor's version identifies the imported content. The open-pstack version identifies the cross-harness package, and its numbers are independent of Cursor and Eric's port.
 
@@ -72,6 +72,10 @@ When incorporating Cursor content, translate harness primitives at the existing 
 The `e5136d8` principles update keeps shared portable metadata and genuine negative-path/invariant contracts while adopting premise falsification, legitimate-state root causes, state reconciliation and refactor-resistant testing. Cursor-only guide prose stays in the pinned upstream reference.
 
 The `99743e9` content update shortens Swarm, the migration and type principles, and Interrogate's lead judgment. Portable metadata, parent-owned dispatch, saved recovery, coverage requirements and external compatibility conditions remain in force. The upstream README table remains available through the pinned source link above.
+
+The `ab1f702` Statechart tree is imported as the final upstream compiler rather than replaying its earlier JavaScript forms. The `disable-model-invocation: true` flag in its `SKILL.md` is not applied: a generated formal-verification skill invokes Statechart by name, and the flag blocks that model-origin route on Claude Code, matching the `4382e68`/`7b353f7` precedent above. Invocation stays on the registered host names `/pstack:statechart` and `$pstack:statechart`, and `statechart` joins the model-invocable invariant in `tests/skill-collision-repro.sh`. The skill documents the `TLA2TOOLS` and `JAVA` overrides and the networked mise first run, notes that a `--view` module executes with the user's permissions rather than inside a sandbox, and keeps upstream's rule that a passing check over 500 states writes no `chart.mmd`. The final tree's qualified-action and process-group reap fixes are included. `scripts/package.json` pins TypeScript and `@types/node` to the versions this repository already tests, adds a strict `typecheck` script, and carries a lockfile completed by `bun install`. Engine tests that need a real `TLA2TOOLS` jar still skip without one, and recorded replay output is not claimed as a live engine run.
+
+The `3c0fdb4` Ketchup Video keeps `disable-model-invocation: true` and gains `agents/openai.yaml` with `allow_implicit_invocation: false`, matching the port's other manual-only skills. Rendering and writing outside the repository stays its sole write exception, and the final subtitle rules are unchanged.
 
 ## Decision ledger
 

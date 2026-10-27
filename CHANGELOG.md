@@ -4,6 +4,12 @@ This file records what each version of the Open Pstack package changed. Versions
 
 Entries describe package versions. Published release checkpoints have tag links; installation follows `main` unless pinned. Validation belongs to the linked pull requests. Older reports remain available through immutable links.
 
+## 1.17.7 adds Statechart and Ketchup Video (candidate, pending validation)
+
+Cursor baseline: [0.15.28](https://github.com/cursor/plugins/tree/d457567332aa6989e753ea289f30ea2bfbc80bc0/pstack). [Issue #168](https://github.com/arjitj2/open-pstack/issues/168). Candidate under validation; no tag or release exists for this version.
+
+Imports Cursor's Statechart compiler and skill and the Ketchup Video skill. Statechart stays model-invocable so generated formal-verification skills can invoke it by host name, documents the `TLA2TOOLS` and `JAVA` overrides and the networked first-run provisioning, and notes that a passing check over 500 states may produce no chart. Ketchup Video stays manual-only and renders its video outside the repository as its sole write exception. Watch-pr keeps fork-ancestry ordering and deadline sleep caps, check-plan matches its backtick fence delimiters, and worktree-audit probes GNU and BSD `stat` and `date` forms. Prose updates cover first-message goal restatement, Sharpen's numbered framing, Interrogate's run-proven finding ranking, Reflect's outside-cache edit destinations, and playbook rebase and handoff rules. Saved provider routing, the linear Autopilot-stack structure, review output buckets, verifier requirements, and README content remain unchanged. Cursor commits through `ab1f702` (0.15.35) stay pending until live validation completes.
+
 ## 1.17.6 adds formal-verification creation and upkeep
 
 Cursor baseline: [0.15.28](https://github.com/cursor/plugins/tree/d457567332aa6989e753ea289f30ea2bfbc80bc0/pstack). [Issue #164](https://github.com/arjitj2/open-pstack/issues/164). [PR #165](https://github.com/arjitj2/open-pstack/pull/165). Tag [v1.17.6](https://github.com/arjitj2/open-pstack/releases/tag/v1.17.6).
