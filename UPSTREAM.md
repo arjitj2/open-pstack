@@ -10,13 +10,13 @@ This page records the current Cursor baseline and the maintainer procedure for r
 | --- | --- |
 | Repository | `https://github.com/cursor/plugins.git` |
 | Path | `pstack/` |
-| Commit | `1b800800583ee8ff7f2676caf7a5cb7f0804be85` |
-| Upstream version | `0.15.25` |
-| open-pstack version | `1.17.5` |
+| Commit | `d457567332aa6989e753ea289f30ea2bfbc80bc0` |
+| Upstream version | `0.15.28` |
+| open-pstack version | `1.17.6` |
 
 The table records the packaged version on `main` and the Cursor content it incorporates, minus the exclusions below. Detecting or reviewing a newer Cursor commit does not advance this baseline. Cursor's version identifies the imported content. The open-pstack version identifies the cross-harness package, and its numbers are independent of Cursor and Eric's port.
 
-The upstream README at this baseline is [cursor/plugins `pstack/README.md` @ 1b80080](https://github.com/cursor/plugins/blob/1b800800583ee8ff7f2676caf7a5cb7f0804be85/pstack/README.md). [CHANGELOG.md](CHANGELOG.md) records the baseline of each release, and [NOTICE.md](NOTICE.md) records provenance.
+The upstream README at this baseline is [cursor/plugins `pstack/README.md` @ d457567](https://github.com/cursor/plugins/blob/d457567332aa6989e753ea289f30ea2bfbc80bc0/pstack/README.md). [CHANGELOG.md](CHANGELOG.md) records the baseline of each release, and [NOTICE.md](NOTICE.md) records provenance.
 
 ## Upstream-only exclusions
 
@@ -41,6 +41,12 @@ The upstream README at this baseline is [cursor/plugins `pstack/README.md` @ 1b8
 The `a968159` skill-name corrections already match this distribution. Its naming check runs in the existing static metadata checks instead of an upstream tree generator. The `1b80080` alternate Claude model-rule location and implicit model inheritance remain excluded. This port keeps its established sheet storage, exact routes, local skill references and forge/worktree mappings. The generated README/guide copies and blanket skip placeholders are not imported; unavailable critical pickup context must not become fabricated completion evidence. README changes require owner approval and were not part of this catch-up.
 
 The `019a6a2` README and Cursor-guide refresh remains upstream. Its docs-vs-tree checker assumes Cursor paths, complete README inventories, built-ins and model defaults. This distribution keeps its owning-document inventory, link/anchor checks and provider-ID checks. No README edits were approved or made, and no packaged skill, agent or manifest changed. This excluded commit advances the review ledger without changing the incorporated package baseline.
+
+The `16541c6` and `bc14437` Ketchup changes list every waiting item without a word-count cutoff. They supersede the earlier per-item waiting-cost and mandatory-visual format while preserving human-message anchoring, read-only scope, UI authorization and evidence limits. The `75fabac` Sharpen change removes its rewritten-prompt ban; manual invocation, task execution and explicit user constraints remain.
+
+The `4382e68`, `6b78e9f` and `7b353f7` formal-verification skills use the active host’s project-skill location and parent-owned Git operations. Native registration, bounded real-code execution, disposable fault sensitivity and verification-only maintenance remain required. The `f9be7aa` setup offers require successful smoke and an explicit yes; existing matching harnesses suppress duplicate offers. Help links the shared skills. Cursor-specific version, README and guide copies through `d457567` stay upstream.
+
+The `disable-model-invocation: true` flags from `4382e68` and `7b353f7` are not applied to `create-formal-verification-skill` or `maintain-formal-verification-skill`. Both remain model-invocable for parent verification workflows, matching the existing regular verification pair. In particular, Setup must invoke formal creation after successful smoke and explicit consent; the upstream flag blocks that model-origin Skill call in Claude Code. Automatic selection in either host remains unverified.
 
 Earlier exclusions include Cursor's Benny automation, tutorial and sticky-mode UI, Cursor-only agent metadata, and Team Kit tools covered by host built-ins or bundled skills. The [historical port record](https://github.com/arjitj2/open-pstack/blob/5f0bb42dea46344c2f1961ebeebaeee135b49778/docs/reference.md#whats-deliberately-not-ported) records those source revisions.
 

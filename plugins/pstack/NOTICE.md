@@ -38,3 +38,5 @@ The `99743e9` adaptation shortens the migration, type-system, Swarm and lead-rev
 The `182f2ce` adaptation retains the shared Codex/Claude tree while applying the Claude question-tool mapping to setup and recognizing upstream's official Claude package. Its generated tree and incompatible routing and transcript rules are not imported.
 
 The `0317eb8` TypeScript update adopts Lauren Tan's verifying type-guard branding rule and example. The `a968159` naming validation is adapted to this distribution's static checks. The generated Claude tree and alternate setup policies from `1b80080` remain excluded.
+
+The formal-verification creation and maintenance skills, complete Ketchup call lists, and Sharpen prompt-ban removal derive from Cursor commits through [`d457567`](https://github.com/cursor/plugins/tree/d457567332aa6989e753ea289f30ea2bfbc80bc0/pstack). Port adaptations preserve host-local skill registration, scoped proof, parent Git ownership, approved provider policy and optional post-setup offers. Cursor-specific guide prose and the generated duplicate Claude tree remain excluded.
