@@ -4,6 +4,12 @@ This file records what each version of the Open Pstack package changed. Versions
 
 Entries describe package versions. Published release checkpoints have tag links; installation follows `main` unless pinned. Validation belongs to the linked pull requests. Older reports remain available through immutable links.
 
+## 1.17.8 candidate checks Orchestrate reports and worker evidence
+
+Cursor baseline: [0.15.35](https://github.com/cursor/plugins/tree/ab1f702ce8e8b6557edb56b09f52cde8bfb83f17/pstack). [Issue #177](https://github.com/arjitj2/open-pstack/issues/177).
+
+This candidate adapts portable supervision from Cursor `c742dd6`. Final source disposition and baseline advancement await the applicable checks. It keeps the public bookkeeping CLI, parent Git ownership and saved provider policy. Validation remains in progress.
+
 ## 1.17.7 adds Statechart and Ketchup Video
 
 Cursor baseline: [0.15.35](https://github.com/cursor/plugins/tree/ab1f702ce8e8b6557edb56b09f52cde8bfb83f17/pstack). [Issue #168](https://github.com/arjitj2/open-pstack/issues/168). [PR #176](https://github.com/arjitj2/open-pstack/pull/176). Tag [v1.17.7](https://github.com/arjitj2/open-pstack/releases/tag/v1.17.7).

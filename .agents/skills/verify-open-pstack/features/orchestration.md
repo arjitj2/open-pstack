@@ -8,6 +8,8 @@ The orchestrate CLI lets an operator persist work-unit progress and consume work
 - `orch-inbox`: peek without consuming, drain, and confirm the inbox is empty.
 - `orch-frontier`: resolve the GitHub pull request base chain into `frontier.json`. Covered by the `orch` test suite's fake-`gh` PATH fixture against a real local git stack; that is a labeled boundary check, not live GitHub integration.
 - `orch-frontier-refresh`: plan the complete discovered graph, retaining linear terminal bridges and rejecting competing active paths before persisting, retain published heads for terminal PRs, and require explicit `--allow-empty` intent before replacing active work with empty or terminal-only discovery.
+- `orch-report-freshness`: read live PR state, head and checks, then match the verdict to that head before a checkpoint report.
+- `orch-worker-failure`: require concrete failure evidence before cancellation and apply saved recovery policy after terminal confirmation.
 
 ## How to get to it (user POV)
 
@@ -47,6 +49,26 @@ PY
 ```
 
 All commands must exit zero. `orch-get` is a fresh process that sees the saved state; the TSV assertion checks the stored side effect. Cleanup copies the entire store into evidence before deleting scratch. After Cleanup, require `orch-assert.stdout` and `scratch-final/store` to remain.
+
+### Drive a bounded checkpoint from each installed parent
+
+Install the exact candidate in separate Codex and Claude test profiles. Load `poteto-mode` and its Orchestrate playbook through each parent.
+Limit the request to the checkpoint and liveness phase. Do not start a complete program or modify a public PR.
+
+Use a disposable store, an explicit GitHub base repository and the selected stack checkout. Retain all commands and actual tool results.
+
+1. Seed a unit and a supplied obsolete ledger verdict for a controlled PR. Label the verdict as fixture data.
+2. Request a checkpoint report. Observe `gh pr view` and `gh pr checks` against the explicit base repository.
+3. Observe `orch ledger check <pr> <live-head>`. An obsolete verdict must not verify the current head, even when checks pass.
+4. Observe the unit update and guarded frontier recomputation from the selected stack checkout. Read both records again to confirm persistence.
+5. Give the parent separate quiet and repeatedly failing process fixtures with retained handles. Require a decision from actual process and error evidence.
+6. Confirm the quiet fixture remains active. Missing output, pushes or side effects alone must not trigger cancellation.
+7. For a cancelled failing fixture, confirm terminal state before the postmortem or recovery. Retain its output and inbox pointer.
+8. Exercise the actual model-policy CLI with a clearly labelled permission-interruption fixture. Confirm its decision without launching a recovery invocation.
+
+Record loading evidence separately from execution evidence. A Claude `Skill` event establishes native loading. Codex registration, prompts and file reads provide indirect loading evidence.
+These bounded cases do not prove full-program autonomy, real provider-agent cancellation, automatic selection or universal liveness detection.
+A supplied permission state does not prove a real provider denial. An unreadable live PR or failed frontier recomputation must remain unverified.
 
 ## Gotchas
 
