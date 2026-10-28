@@ -3,682 +3,682 @@
     {
       "commit": "f5bdd6826fd0a0d9cbc4347134c3a74a200b9d9d",
       "date": "2026-09-10",
-      "evidence": "https://github.com/arjitj2/open-pstack/pull/9; https://github.com/arjitj2/open-pstack/blob/5f0bb42dea46344c2f1961ebeebaeee135b49778/docs/cursor-adoption-20260924.md records exact-package Codex and Claude validation.",
-      "reason": "Adopt operator-neutral wording and new-information status reports while preserving host standing orders and evidence-based cancellation.",
       "status": "adapted",
-      "subject": "fix(pstack): operator-neutral pronouns + in-chat status tick (#362)"
+      "subject": "fix(pstack): operator-neutral pronouns + in-chat status tick (#362)",
+      "reason": "Adopt operator-neutral wording and new-information status reports while preserving host standing orders and evidence-based cancellation.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/9; https://github.com/arjitj2/open-pstack/blob/5f0bb42dea46344c2f1961ebeebaeee135b49778/docs/cursor-adoption-20260924.md records exact-package Codex and Claude validation."
     },
     {
       "commit": "889ec4b68fa5aab0e867dad71ec3fdf386ae48f3",
       "date": "2026-09-11",
-      "evidence": "https://github.com/arjitj2/open-pstack/pull/9; https://github.com/arjitj2/open-pstack/blob/5f0bb42dea46344c2f1961ebeebaeee135b49778/docs/cursor-adoption-20260924.md records exact-package Codex and Claude validation.",
-      "reason": "Preserve the documented Sol defaults for bug fixes, performance work, and hillclimbing while refreshing source documentation.",
       "status": "adapted",
-      "subject": "fix(pstack): bug-fix/perf/hillclimb defaults to grok 4.6 (#365)"
+      "subject": "fix(pstack): bug-fix/perf/hillclimb defaults to grok 4.6 (#365)",
+      "reason": "Preserve the documented Sol defaults for bug fixes, performance work, and hillclimbing while refreshing source documentation.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/9; https://github.com/arjitj2/open-pstack/blob/5f0bb42dea46344c2f1961ebeebaeee135b49778/docs/cursor-adoption-20260924.md records exact-package Codex and Claude validation."
     },
     {
       "commit": "5bf2b1544db739998121a306340631963c2ff3de",
       "date": "2026-09-12",
-      "evidence": "https://github.com/arjitj2/open-pstack/pull/9; https://github.com/arjitj2/open-pstack/blob/5f0bb42dea46344c2f1961ebeebaeee135b49778/docs/cursor-adoption-20260924.md records exact-package Codex and Claude validation.",
-      "reason": "Apply confirmed budget ceilings without raising lower efforts or changing model assignments, aliases, fixed-effort providers, or lane order.",
       "status": "adapted",
-      "subject": "feat(pstack): setup-pstack budget ask (max/xhigh/high/medium) (#366)"
+      "subject": "feat(pstack): setup-pstack budget ask (max/xhigh/high/medium) (#366)",
+      "reason": "Apply confirmed budget ceilings without raising lower efforts or changing model assignments, aliases, fixed-effort providers, or lane order.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/9; https://github.com/arjitj2/open-pstack/blob/5f0bb42dea46344c2f1961ebeebaeee135b49778/docs/cursor-adoption-20260924.md records exact-package Codex and Claude validation."
     },
     {
       "commit": "70b2dc8b4b85c8d5648624ca40d692c421fff32f",
       "date": "2026-09-22",
-      "evidence": "https://github.com/arjitj2/open-pstack/pull/9; https://github.com/arjitj2/open-pstack/blob/5f0bb42dea46344c2f1961ebeebaeee135b49778/docs/cursor-adoption-20260924.md records exact-package Codex and Claude validation.",
-      "reason": "Adopt the Opus/Sol/Grok panel and compatible workflow updates while retaining provider dispatch, native MCP roles, and guarded merges.",
       "status": "adapted",
-      "subject": "feat(pstack): port skill updates and default to Opus 5.5 and Grok 4.7 (#414)"
+      "subject": "feat(pstack): port skill updates and default to Opus 5.5 and Grok 4.7 (#414)",
+      "reason": "Adopt the Opus/Sol/Grok panel and compatible workflow updates while retaining provider dispatch, native MCP roles, and guarded merges.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/9; https://github.com/arjitj2/open-pstack/blob/5f0bb42dea46344c2f1961ebeebaeee135b49778/docs/cursor-adoption-20260924.md records exact-package Codex and Claude validation."
     },
     {
       "commit": "b42effe0aa50f59c693d7e2924714e015e00bf7c",
       "date": "2026-09-23",
-      "evidence": "https://github.com/arjitj2/open-pstack/pull/9; https://github.com/arjitj2/open-pstack/blob/5f0bb42dea46344c2f1961ebeebaeee135b49778/docs/cursor-adoption-20260924.md records exact-package Codex and Claude validation.",
-      "reason": "Adopt mapped public upgrade wording and the source README; Cursor-only guide paths remain excluded from this portable distribution.",
       "status": "adapted",
-      "subject": "fix(pstack): scrub old model names from public upgrade help (#416)"
+      "subject": "fix(pstack): scrub old model names from public upgrade help (#416)",
+      "reason": "Adopt mapped public upgrade wording and the source README; Cursor-only guide paths remain excluded from this portable distribution.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/9; https://github.com/arjitj2/open-pstack/blob/5f0bb42dea46344c2f1961ebeebaeee135b49778/docs/cursor-adoption-20260924.md records exact-package Codex and Claude validation."
     },
     {
       "commit": "b0b9c7a0baf8b6aa1d00bf77d4101e577d4ba411",
       "date": "2026-09-23",
-      "evidence": "https://github.com/arjitj2/open-pstack/pull/9; https://github.com/arjitj2/open-pstack/blob/5f0bb42dea46344c2f1961ebeebaeee135b49778/docs/cursor-adoption-20260924.md records exact-package Codex and Claude validation.",
-      "reason": "Trim repeated instructions while preserving provider contracts and installed-host verification gates.",
       "status": "adapted",
-      "subject": "docs(pstack): cut 19 more instructions Opus 5.5 does not need (#419)"
+      "subject": "docs(pstack): cut 19 more instructions Opus 5.5 does not need (#419)",
+      "reason": "Trim repeated instructions while preserving provider contracts and installed-host verification gates.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/9; https://github.com/arjitj2/open-pstack/blob/5f0bb42dea46344c2f1961ebeebaeee135b49778/docs/cursor-adoption-20260924.md records exact-package Codex and Claude validation."
     },
     {
       "commit": "12d587dfb20741cafc376c42c696c5f6e2a64487",
       "date": "2026-09-23",
-      "evidence": "https://github.com/arjitj2/open-pstack/pull/9; https://github.com/arjitj2/open-pstack/blob/5f0bb42dea46344c2f1961ebeebaeee135b49778/docs/cursor-adoption-20260924.md records exact-package Codex and Claude validation.",
-      "reason": "Resolve configured roles consistently and validate plan syntax while excluding raw Cursor task fields and implicit model fallback.",
       "status": "adapted",
-      "subject": "fix(pstack): resolve rule conflicts and read the model rule the same way (#422)"
+      "subject": "fix(pstack): resolve rule conflicts and read the model rule the same way (#422)",
+      "reason": "Resolve configured roles consistently and validate plan syntax while excluding raw Cursor task fields and implicit model fallback.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/9; https://github.com/arjitj2/open-pstack/blob/5f0bb42dea46344c2f1961ebeebaeee135b49778/docs/cursor-adoption-20260924.md records exact-package Codex and Claude validation."
     },
     {
       "commit": "23e4138daa01c42d4969f7a5465f82704e64f798",
       "date": "2026-10-03",
-      "evidence": "https://github.com/arjitj2/open-pstack/pull/111",
-      "reason": "Adapt benchmark and numerical-evidence guidance, fresh workers, hourly audits, PR headings, and schema-first validation to shared Codex/Claude invocation and tool boundaries; preserve saved provider policy, repository templates, and draft gates. Cursor-only guides remain excluded.",
       "status": "adapted",
-      "subject": "feat(pstack): port explain-the-number, fresh subagents, hourly autopilot tick, PR headings, schema-first cast (0.15.6)"
+      "subject": "feat(pstack): port explain-the-number, fresh subagents, hourly autopilot tick, PR headings, schema-first cast (0.15.6)",
+      "reason": "Adapt benchmark and numerical-evidence guidance, fresh workers, hourly audits, PR headings, and schema-first validation to shared Codex/Claude invocation and tool boundaries; preserve saved provider policy, repository templates, and draft gates. Cursor-only guides remain excluded.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/111"
     },
     {
       "commit": "9511e60321f7e533a187d62854a3d53a53752874",
       "date": "2026-10-03",
-      "evidence": "https://github.com/arjitj2/open-pstack/pull/111",
-      "reason": "Adapt the manual correct skill while preserving meaningful absence and relational-contract tests. Both hosts mined two historical mistakes, derived choices from one registry, and passed checks that fail when the historical omission is restored.",
       "status": "adapted",
-      "subject": "feat(pstack): add /correct skill (#494)"
+      "subject": "feat(pstack): add /correct skill (#494)",
+      "reason": "Adapt the manual correct skill while preserving meaningful absence and relational-contract tests. Both hosts mined two historical mistakes, derived choices from one registry, and passed checks that fail when the historical omission is restored.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/111"
     },
     {
       "commit": "a58628271271837ef5f386adca29c0812683a19a",
       "date": "2026-10-03",
-      "evidence": "https://github.com/arjitj2/open-pstack/pull/111",
-      "reason": "Adopt the four architectural red flags and screen-before-synthesis guidance in the shared skill tree; both installed hosts identified the supplied ownership, boundary, API, and list defects.",
       "status": "adopted",
-      "subject": "feat(pstack): make /architect designs resist agent mistakes (#495)"
+      "subject": "feat(pstack): make /architect designs resist agent mistakes (#495)",
+      "reason": "Adopt the four architectural red flags and screen-before-synthesis guidance in the shared skill tree; both installed hosts identified the supplied ownership, boundary, API, and list defects.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/111"
     },
     {
       "commit": "e43c7ee26e0038c6c1fa8380dd34ce86ff94cb2a",
       "date": "2026-10-03",
-      "evidence": "https://github.com/arjitj2/open-pstack/pull/111",
-      "reason": "Adapt ordered performance mantras into the provider-aware playbooks. Both hosts stop perf investigation at its verified target while retaining the hillclimb target AND iteration-floor predicate.",
       "status": "adapted",
-      "subject": "refactor(pstack): use bare performance mantras in perf-issue step 2 (#496)"
+      "subject": "refactor(pstack): use bare performance mantras in perf-issue step 2 (#496)",
+      "reason": "Adapt ordered performance mantras into the provider-aware playbooks. Both hosts stop perf investigation at its verified target while retaining the hillclimb target AND iteration-floor predicate.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/111"
     },
     {
       "commit": "4e5b1cf2ccb0ea3716f08c8ee0a5856b5ab93536",
       "date": "2026-10-04",
-      "evidence": "https://github.com/arjitj2/open-pstack/pull/114",
-      "reason": "Adapt poteto-help to Codex/Claude invocation, local model sheets, approved provider recovery, startup routing, bundled skills, and distribution documentation. Preserve help-versus-action intent. Cursor Custom Modes and Cursor-only guide edits remain excluded.",
       "status": "adapted",
-      "subject": "feat(pstack): add /poteto-help skill (#502)"
+      "subject": "feat(pstack): add /poteto-help skill (#502)",
+      "reason": "Adapt poteto-help to Codex/Claude invocation, local model sheets, approved provider recovery, startup routing, bundled skills, and distribution documentation. Preserve help-versus-action intent. Cursor Custom Modes and Cursor-only guide edits remain excluded.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/114"
     },
     {
       "commit": "00b52d954a99ff67802cad428ff19218659f76fd",
       "date": "2026-10-05",
-      "evidence": "https://github.com/arjitj2/open-pstack/pull/116",
-      "reason": "Make help manual-only with Claude frontmatter and Codex implicit-invocation policy. Both installed hosts retain explicit invocation and did not load help for the unqualified prompting fixture.",
       "status": "adapted",
-      "subject": "fix(pstack): make /poteto-help typed-only (#506)"
+      "subject": "fix(pstack): make /poteto-help typed-only (#506)",
+      "reason": "Make help manual-only with Claude frontmatter and Codex implicit-invocation policy. Both installed hosts retain explicit invocation and did not load help for the unqualified prompting fixture.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/116"
     },
     {
       "commit": "807c031086fcf71c88c863b4a4e6938b6785c58f",
       "date": "2026-10-05",
-      "evidence": "https://github.com/arjitj2/open-pstack/pull/116",
-      "reason": "Adapt prompting and recipe references to Codex/Claude invocation, shared workflow boundaries, and portable scheduling. Both installed hosts read them and drafted prompts without starting work.",
       "status": "adapted",
-      "subject": "feat(pstack): add prompting references to /poteto-help (#507)"
+      "subject": "feat(pstack): add prompting references to /poteto-help (#507)",
+      "reason": "Adapt prompting and recipe references to Codex/Claude invocation, shared workflow boundaries, and portable scheduling. Both installed hosts read them and drafted prompts without starting work.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/116"
     },
     {
       "commit": "2cbf58508f40de470d7490b55c51d71241928fa2",
       "date": "2026-10-05",
-      "evidence": "https://github.com/arjitj2/open-pstack/pull/116",
-      "reason": "Keep the Cursor-only guide upstream: Projects, cloud workers, routines/Benny and make-bot-ui are not shared host surfaces. Portable prompting guidance is adopted through 807c031; the help skill links the original guide.",
       "status": "excluded",
-      "subject": "docs(pstack): refresh guide for /correct, checklist, prompting tips (#508)"
+      "subject": "docs(pstack): refresh guide for /correct, checklist, prompting tips (#508)",
+      "reason": "Keep the Cursor-only guide upstream: Projects, cloud workers, routines/Benny and make-bot-ui are not shared host surfaces. Portable prompting guidance is adopted through 807c031; the help skill links the original guide.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/116"
     },
     {
       "commit": "1e56b2913469f05101e4ffd4d437c2e6fd2c1b8d",
       "date": "2026-10-05",
-      "evidence": "https://github.com/arjitj2/open-pstack/pull/116",
-      "reason": "Offer Now/Later once in a relevant missing-sheet answer while preserving confirmation and no-write help. Both installed hosts passed actual three-turn Later conversations; saved-sheet routes remained unchanged.",
       "status": "adapted",
-      "subject": "feat(pstack): have /poteto-help ask about /setup-pstack when no model rule exists (#509)"
+      "subject": "feat(pstack): have /poteto-help ask about /setup-pstack when no model rule exists (#509)",
+      "reason": "Offer Now/Later once in a relevant missing-sheet answer while preserving confirmation and no-write help. Both installed hosts passed actual three-turn Later conversations; saved-sheet routes remained unchanged.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/116"
     },
     {
       "commit": "df581122cde17e6e27686b5a448bde23e4ad4318",
       "date": "2026-10-05",
-      "evidence": "https://github.com/arjitj2/open-pstack/pull/116",
-      "reason": "Retain neutral help wording but exclude removal of Sol, changed provider/panel defaults, automatic effort increases, associated panel-count prose, test fixture rename, and Cursor guide edits. Provider and setup owner trees remain byte-identical to the previous release; both hosts read preserved SWE-2/Sol saved routes without writes.",
       "status": "adapted",
-      "subject": "feat(pstack): drop Sol, default to Opus xhigh and Grok (#511)"
+      "subject": "feat(pstack): drop Sol, default to Opus xhigh and Grok (#511)",
+      "reason": "Retain neutral help wording but exclude removal of Sol, changed provider/panel defaults, automatic effort increases, associated panel-count prose, test fixture rename, and Cursor guide edits. Provider and setup owner trees remain byte-identical to the previous release; both hosts read preserved SWE-2/Sol saved routes without writes.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/116"
     },
     {
       "commit": "00b14f1df36b32a8dd1529324a3a459f6563b127",
       "date": "2026-10-10",
-      "evidence": "https://github.com/arjitj2/open-pstack/pull/118",
-      "reason": "Adapt portable prompt distillation while retaining provider dispatch, completion ordering, meaningful negative tests and portable transcript evidence.",
       "status": "adapted",
-      "subject": "refactor(pstack): distill skill prompts to cut tokens (#538)"
+      "subject": "refactor(pstack): distill skill prompts to cut tokens (#538)",
+      "reason": "Adapt portable prompt distillation while retaining provider dispatch, completion ordering, meaningful negative tests and portable transcript evidence.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/118"
     },
     {
       "commit": "978ca6e9c0e012047cd5058b8e829240336e704e",
       "date": "2026-10-10",
-      "evidence": "https://github.com/arjitj2/open-pstack/pull/118",
-      "reason": "Adapt manual Ketchup with actual human anchor, automated-event exclusion, read-only scoped status and genuine user decisions.",
       "status": "adapted",
-      "subject": "feat(pstack): add /ketchup skill (#539)"
+      "subject": "feat(pstack): add /ketchup skill (#539)",
+      "reason": "Adapt manual Ketchup with actual human anchor, automated-event exclusion, read-only scoped status and genuine user decisions.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/118"
     },
     {
       "commit": "ea32d9562a1c9f077d7cdd3be53d07383eb18866",
       "date": "2026-10-11",
-      "evidence": "https://github.com/arjitj2/open-pstack/pull/118",
-      "reason": "Adapt grounded in-reply comparisons and later small-visual requirements; no inferred UI permission, invented screens/numbers, generated files or new task side effects.",
       "status": "adapted",
-      "subject": "feat(pstack): show /ketchup decisions as before/after visuals (#570)"
+      "subject": "feat(pstack): show /ketchup decisions as before/after visuals (#570)",
+      "reason": "Adapt grounded in-reply comparisons and later small-visual requirements; no inferred UI permission, invented screens/numbers, generated files or new task side effects.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/118"
     },
     {
       "commit": "08bd59b37834550f5e8fa0bb5e8852204a7534cf",
       "date": "2026-10-11",
-      "evidence": "https://github.com/arjitj2/open-pstack/pull/118",
-      "reason": "Adapt redundant prompt cuts while retaining unique structural and epistemic constraints and approved ownership boundaries.",
       "status": "adapted",
-      "subject": "refactor(pstack): cut unneeded sections from seven skills (#571)"
+      "subject": "refactor(pstack): cut unneeded sections from seven skills (#571)",
+      "reason": "Adapt redundant prompt cuts while retaining unique structural and epistemic constraints and approved ownership boundaries.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/118"
     },
     {
       "commit": "de2dba6ffa001bc3c97acf1f58bc7ab29d5fdc7a",
       "date": "2026-10-12",
-      "evidence": "https://github.com/arjitj2/open-pstack/pull/118",
-      "reason": "Exclude already-covered Comment Sicko ID change.",
       "status": "excluded",
-      "subject": "fix(pstack): rename Comment Sicko agent id so Grok can spawn it (#486)"
+      "subject": "fix(pstack): rename Comment Sicko agent id so Grok can spawn it (#486)",
+      "reason": "Exclude already-covered Comment Sicko ID change.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/118"
     },
     {
       "commit": "87c810326a9a1dc727651b7d9bbfc5a116d68582",
       "date": "2026-10-11",
-      "evidence": "https://github.com/arjitj2/open-pstack/pull/118",
-      "reason": "Adopt fence parsing intent and regressions while preserving complete portable checker suite.",
       "status": "adopted",
-      "subject": "fix(pstack): respect fenced code blocks in plan checks (#536)"
+      "subject": "fix(pstack): respect fenced code blocks in plan checks (#536)",
+      "reason": "Adopt fence parsing intent and regressions while preserving complete portable checker suite.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/118"
     },
     {
       "commit": "ff8f83da30af53de945acd0e1dc10a7b21a3187f",
       "date": "2026-10-12",
-      "evidence": "https://github.com/arjitj2/open-pstack/pull/118",
-      "reason": "Adapt paged review aggregation with later-page blockers, global Bugbot counts and fail-closed malformed/repeated cursors.",
       "status": "adapted",
-      "subject": "fix(watch-pr): paginate review threads instead of reading only the first 100 (#484)"
+      "subject": "fix(watch-pr): paginate review threads instead of reading only the first 100 (#484)",
+      "reason": "Adapt paged review aggregation with later-page blockers, global Bugbot counts and fail-closed malformed/repeated cursors.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/118"
     },
     {
       "commit": "bc697d0a5a163cec979e362b601e36f5616083fd",
       "date": "2026-10-11",
-      "evidence": "https://github.com/arjitj2/open-pstack/pull/118",
-      "reason": "Adopt description correction; explicit callers and stable body rules remain.",
       "status": "adopted",
-      "subject": "fix(pstack): drop \"Must always apply.\" from unslop description (#572)"
+      "subject": "fix(pstack): drop \"Must always apply.\" from unslop description (#572)",
+      "reason": "Adopt description correction; explicit callers and stable body rules remain.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/118"
     },
     {
       "commit": "cf9a111eaf1eda5724abb607ef4c446ced843d65",
       "date": "2026-10-11",
-      "evidence": "https://github.com/arjitj2/open-pstack/pull/118",
-      "reason": "Adapt default/explicit merge-base audit, parent-owned explicit refspec fetch and scoped transcript input.",
       "status": "adapted",
-      "subject": "fix(pstack): worktree-audit checks MERGED against the default branch, not origin/main (#574)"
+      "subject": "fix(pstack): worktree-audit checks MERGED against the default branch, not origin/main (#574)",
+      "reason": "Adapt default/explicit merge-base audit, parent-owned explicit refspec fetch and scoped transcript input.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/118"
     },
     {
       "commit": "2bd5dd4f22ef958435082c417c027079f8f4ddb7",
       "date": "2026-10-11",
-      "evidence": "https://github.com/arjitj2/open-pstack/pull/118",
-      "reason": "Adapt parent-runner/delegate distinction with portable role dispatch and parent Git/account ownership.",
       "status": "adapted",
-      "subject": "fix(pstack): make the /poteto-mode chat the runner, poteto-agent a delegate (#575)"
+      "subject": "fix(pstack): make the /poteto-mode chat the runner, poteto-agent a delegate (#575)",
+      "reason": "Adapt parent-runner/delegate distinction with portable role dispatch and parent Git/account ownership.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/118"
     },
     {
       "commit": "e5a02f8fb0409c2db7eb06eae9078b235a2b5009",
       "date": "2026-10-11",
-      "evidence": "https://github.com/arjitj2/open-pstack/pull/118",
-      "reason": "Exclude the additional Agent Plugins v1 root manifest pending actual new-format discovery validation; retain the existing supported Codex and Claude manifests.",
       "status": "excluded",
-      "subject": "feat(pstack): add Agent Plugins v1 root manifest (#576)"
+      "subject": "feat(pstack): add Agent Plugins v1 root manifest (#576)",
+      "reason": "Exclude the additional Agent Plugins v1 root manifest pending actual new-format discovery validation; retain the existing supported Codex and Claude manifests.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/118"
     },
     {
       "commit": "c49b37a2c0e7bede60a71ad7322e3f12c337a3da",
       "date": "2026-10-12",
-      "evidence": "https://github.com/arjitj2/open-pstack/pull/118",
-      "reason": "Adapt usable-from-empty readiness, required seed failure, host-correct generated-skill directories and explicit stand-in setup gaps.",
       "status": "adapted",
-      "subject": "fix(pstack): create-verification-skill readiness means the app is usable (#573)"
+      "subject": "fix(pstack): create-verification-skill readiness means the app is usable (#573)",
+      "reason": "Adapt usable-from-empty readiness, required seed failure, host-correct generated-skill directories and explicit stand-in setup gaps.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/118"
     },
     {
       "commit": "1b6d44ff26d4e242f4e8f68c391e6d2f7ca16def",
       "date": "2026-10-12",
-      "evidence": "https://github.com/arjitj2/open-pstack/pull/118",
-      "reason": "Exclude literal Cursor version; distribution uses its own release numbering.",
       "status": "excluded",
-      "subject": "chore(pstack): bump to 0.15.20 (#581)"
+      "subject": "chore(pstack): bump to 0.15.20 (#581)",
+      "reason": "Exclude literal Cursor version; distribution uses its own release numbering.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/118"
     },
     {
       "commit": "364a77eb358f16292410a7295fd8d103fb7dd40e",
       "date": "2026-10-12",
-      "evidence": "https://github.com/arjitj2/open-pstack/pull/118",
-      "reason": "Adapt bundled sibling leaf paths and absolute installed Poteto skill pointer in delegate contracts.",
       "status": "adapted",
-      "subject": "fix(pstack): tell agents where bundled leaf skills live (#577)"
+      "subject": "fix(pstack): tell agents where bundled leaf skills live (#577)",
+      "reason": "Adapt bundled sibling leaf paths and absolute installed Poteto skill pointer in delegate contracts.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/118"
     },
     {
       "commit": "997ffc7fe26bdaa6478a14e7f5b8d5f9ed747102",
       "date": "2026-10-12",
-      "evidence": "https://github.com/arjitj2/open-pstack/pull/118",
-      "reason": "Exclude literal Cursor version; record it only as source content baseline after validation.",
       "status": "excluded",
-      "subject": "chore(pstack): bump to 0.15.21 (#584)"
+      "subject": "chore(pstack): bump to 0.15.21 (#584)",
+      "reason": "Exclude literal Cursor version; record it only as source content baseline after validation.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/118"
     },
     {
       "commit": "b93e8117880f695bc49ef7b1ef72c09bfcc7c1de",
       "date": "2026-10-13",
-      "evidence": "https://github.com/arjitj2/open-pstack/pull/118",
-      "reason": "Retain parent-supplied active installation paths and bundled-leaf pointers instead of searching Cursor caches for the highest version; ignored frontmatter is already absent and host slash-menu instructions remain portable.",
       "status": "adapted",
-      "subject": "fix(pstack): let poteto-agent find poteto-mode, drop ignored frontmatter, document the / menu (#597)"
+      "subject": "fix(pstack): let poteto-agent find poteto-mode, drop ignored frontmatter, document the / menu (#597)",
+      "reason": "Retain parent-supplied active installation paths and bundled-leaf pointers instead of searching Cursor caches for the highest version; ignored frontmatter is already absent and host slash-menu instructions remain portable.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/118"
     },
     {
       "commit": "7d8d9091e59a1fe9600bb317a1b7f69a31daa349",
       "date": "2026-10-13",
-      "evidence": "https://github.com/arjitj2/open-pstack/pull/118",
-      "reason": "Adapt manual goal-restatement skill with shared upstream body and Codex implicit-invocation metadata.",
       "status": "adapted",
-      "subject": "feat(pstack): add /in-your-own-words to play back the goal before work (#602)"
+      "subject": "feat(pstack): add /in-your-own-words to play back the goal before work (#602)",
+      "reason": "Adapt manual goal-restatement skill with shared upstream body and Codex implicit-invocation metadata.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/118"
     },
     {
       "commit": "d00ba6ee9b26ff3bb084b8a5051ff6436860cbdf",
       "date": "2026-10-13",
-      "evidence": "https://github.com/arjitj2/open-pstack/pull/118",
-      "reason": "Adapt concise small in-reply visuals while preserving actual-human anchoring, read-only scope, explicit UI authorization and evidence gaps.",
       "status": "adapted",
-      "subject": "feat(pstack): shorten /ketchup replies and build them on real visuals (#595)"
+      "subject": "feat(pstack): shorten /ketchup replies and build them on real visuals (#595)",
+      "reason": "Adapt concise small in-reply visuals while preserving actual-human anchoring, read-only scope, explicit UI authorization and evidence gaps.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/118"
     },
     {
       "commit": "36cecbf2b5089b275254d59cb4612d6f96f00fbd",
       "date": "2026-10-13",
-      "evidence": "https://github.com/arjitj2/open-pstack/pull/118",
-      "reason": "Adopt proposal of a cheap always-on signal when debugging required a deep dig; do not automatically implement instrumentation.",
       "status": "adopted",
-      "subject": "feat(pstack): propose a cheap always-on signal after a deep debugging dig (#604)"
+      "subject": "feat(pstack): propose a cheap always-on signal after a deep debugging dig (#604)",
+      "reason": "Adopt proposal of a cheap always-on signal when debugging required a deep dig; do not automatically implement instrumentation.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/118"
     },
     {
       "commit": "3177dab5d4057724e6a02a198596664707795444",
       "date": "2026-10-13",
-      "evidence": "https://github.com/arjitj2/open-pstack/pull/118",
-      "reason": "Exclude literal Cursor release numbering; source version is recorded independently of distribution version.",
       "status": "excluded",
-      "subject": "chore(pstack): bump to 0.15.22 (#605)"
+      "subject": "chore(pstack): bump to 0.15.22 (#605)",
+      "reason": "Exclude literal Cursor release numbering; source version is recorded independently of distribution version.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/118"
     },
     {
       "commit": "dbf49813a39c1a5389c5e28cb8e4c1c2379e2454",
       "date": "2026-10-13",
-      "evidence": "https://github.com/arjitj2/open-pstack/pull/118",
-      "reason": "Adopt goal-and-problem restatement wording unchanged.",
       "status": "adopted",
-      "subject": "refactor(pstack): reword /in-your-own-words around goals and the problem (#606)"
+      "subject": "refactor(pstack): reword /in-your-own-words around goals and the problem (#606)",
+      "reason": "Adopt goal-and-problem restatement wording unchanged.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/118"
     },
     {
       "commit": "c86f349b102feb91f1966f8a6a60882a4e601b50",
       "date": "2026-10-13",
-      "evidence": "https://github.com/arjitj2/open-pstack/pull/118",
-      "reason": "Adapt under150word plain-voice visual catch-up, retaining portable evidence/proposal/unknown boundaries and scope. Observed Claude label imprecision remains an explicit P3 output limitation.",
       "status": "adapted",
-      "subject": "refactor(pstack): make /ketchup read like /bro in 150 words (#609)"
+      "subject": "refactor(pstack): make /ketchup read like /bro in 150 words (#609)",
+      "reason": "Adapt under150word plain-voice visual catch-up, retaining portable evidence/proposal/unknown boundaries and scope. Observed Claude label imprecision remains an explicit P3 output limitation.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/118"
     },
     {
       "commit": "ce649c03ac3b75b6ae80cbd15b7e2c536caedb5a",
       "date": "2026-10-13",
-      "evidence": "https://github.com/arjitj2/open-pstack/pull/127",
-      "reason": "Replace Graphite frontier resolution with a GitHub base-chain walk with an optional order pin and fix owner-approval gate classification. Preserve saved efforts and approved recovery; exclude nearest-family or speed substitutions, weaker shipping/autopilot rewrites and untested Origin paths. Both installed hosts exercised actual same-repo GitHub discovery and explicit fork rejection; multi-PR topology is covered at the labeled gh boundary.",
       "status": "adapted",
-      "subject": "feat(pstack): match subagent effort to the job, drop Graphite from orchestrate, and cut playbooks to principles (#613)"
+      "subject": "feat(pstack): match subagent effort to the job, drop Graphite from orchestrate, and cut playbooks to principles (#613)",
+      "reason": "Replace Graphite frontier resolution with a GitHub base-chain walk with an optional order pin and fix owner-approval gate classification. Preserve saved efforts and approved recovery; exclude nearest-family or speed substitutions, weaker shipping/autopilot rewrites and untested Origin paths. Both installed hosts exercised actual same-repo GitHub discovery and explicit fork rejection; multi-PR topology is covered at the labeled gh boundary.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/127"
     },
     {
       "commit": "8043881e5cbb962f8948d1a1f8f8e28089d67c9a",
       "date": "2026-10-13",
-      "evidence": "https://github.com/arjitj2/open-pstack/pull/127",
-      "reason": "Use Ketchup response formatting for automatic autopilot updates without implicitly loading the manual read-only skill or abandoning the authorized workflow. Both installed hosts retained unsupported fixture status and unchanged execution authority.",
       "status": "adapted",
-      "subject": "pstack: autopilot loops catch the operator up with /ketchup (#616)"
+      "subject": "pstack: autopilot loops catch the operator up with /ketchup (#616)",
+      "reason": "Use Ketchup response formatting for automatic autopilot updates without implicitly loading the manual read-only skill or abandoning the authorized workflow. Both installed hosts retained unsupported fixture status and unchanged execution authority.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/127"
     },
     {
       "commit": "79afd75d5bd51383fbb526b72f36db03180b8301",
       "date": "2026-10-13",
-      "evidence": "https://github.com/arjitj2/open-pstack/pull/127",
-      "reason": "Add manual Sharpen in the shared tree with namespaced invocation, Codex explicit-invocation metadata, user constraints and an outside check. Codex read the actual installed skill; Claude registered and accepted a leading slash invocation. Both delivered control-checked fixture reports.",
       "status": "adapted",
-      "subject": "feat(pstack): add /sharpen (#615)"
+      "subject": "feat(pstack): add /sharpen (#615)",
+      "reason": "Add manual Sharpen in the shared tree with namespaced invocation, Codex explicit-invocation metadata, user constraints and an outside check. Codex read the actual installed skill; Claude registered and accepted a leading slash invocation. Both delivered control-checked fixture reports.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/127"
     },
     {
       "commit": "1e5c90a4b6f249917bd21fe361b3a2a7deb741b8",
       "date": "2026-10-14",
-      "evidence": "https://github.com/arjitj2/open-pstack/pull/127",
-      "reason": "Record Cursor version 0.15.24 while retaining independent distribution version 1.16.0; version-only source metadata does not replace portable manifests.",
       "status": "adapted",
-      "subject": "chore(pstack): bump to 0.15.24 (#617)"
+      "subject": "chore(pstack): bump to 0.15.24 (#617)",
+      "reason": "Record Cursor version 0.15.24 while retaining independent distribution version 1.16.0; version-only source metadata does not replace portable manifests.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/127"
     },
     {
       "commit": "afd51cf66a3100a95f878d6c4b93a01f6508e3b0",
       "date": "2026-10-14",
-      "evidence": "https://github.com/arjitj2/open-pstack/pull/132",
-      "reason": "Adopt explanatory media-first formatting, plain grouped action bullets, visual choice comparisons and prose-only word limits; preserve portable current-human/read-only/UI permission/evidence guards and available chart-tool mapping. Both native hosts exercised the exact Ketchup contract with provided diagram and absent screenshots; frontend video rendering remains untested.",
       "status": "adapted",
-      "subject": "feat(pstack): have /ketchup explain changes with screenshots, videos, and diagrams (#628)"
+      "subject": "feat(pstack): have /ketchup explain changes with screenshots, videos, and diagrams (#628)",
+      "reason": "Adopt explanatory media-first formatting, plain grouped action bullets, visual choice comparisons and prose-only word limits; preserve portable current-human/read-only/UI permission/evidence guards and available chart-tool mapping. Both native hosts exercised the exact Ketchup contract with provided diagram and absent screenshots; frontend video rendering remains untested.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/132"
     },
     {
       "commit": "6ce45c59b9301a638c1fe1a7b8dc2a82b650898f",
       "date": "2026-10-14",
-      "evidence": "https://github.com/arjitj2/open-pstack/pull/132",
-      "reason": "Record Cursor 0.15.25 with independent compatible patch 1.16.1 under the standing catch-up release policy; retain supported portable manifests.",
       "status": "adapted",
-      "subject": "chore(pstack): bump to 0.15.25 (#614)"
+      "subject": "chore(pstack): bump to 0.15.25 (#614)",
+      "reason": "Record Cursor 0.15.25 with independent compatible patch 1.16.1 under the standing catch-up release policy; retain supported portable manifests.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/132"
     },
     {
       "commit": "e5136d82418d2db3165ea1050d17577cd618cc05",
       "date": "2026-10-15",
-      "evidence": "https://github.com/arjitj2/open-pstack/pull/142",
-      "reason": "Adopt the four principle bodies and Correct/Poteto summaries with portable metadata and legitimate absence/invariant safeguards. Native host controls exercise premise falsification, legitimate guards versus invalid producers, retry/crash reasoning and behavior/refactor checks. Cursor README/guide changes remain pinned source context rather than duplicate port guides. Cursor version stays 0.15.25; independently release compatible patch 1.17.1.",
       "status": "adapted",
-      "subject": "pstack: restate four overspecified principles as reasoning, not rules (#633)"
+      "subject": "pstack: restate four overspecified principles as reasoning, not rules (#633)",
+      "reason": "Adopt the four principle bodies and Correct/Poteto summaries with portable metadata and legitimate absence/invariant safeguards. Native host controls exercise premise falsification, legitimate guards versus invalid producers, retry/crash reasoning and behavior/refactor checks. Cursor README/guide changes remain pinned source context rather than duplicate port guides. Cursor version stays 0.15.25; independently release compatible patch 1.17.1.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/142"
     },
     {
       "commit": "99743e9c151c8537cbbf1f98bb38f34ef3368453",
       "date": "2026-10-15",
-      "evidence": "https://github.com/arjitj2/open-pstack/pull/149",
-      "reason": "Adopt the shortened migration/type principles, lead-judgment reference and Swarm with portable metadata and existing parent-owned dispatch/recovery retained. Both real hosts retain six demonstrated defects, external API compatibility, semantic-ID compiler rejection and explicit incomplete synthetic coverage. Cursor README table edits remain pinned source context rather than a duplicate guide. No provider runtime or saved model policy changes.",
       "status": "adapted",
-      "subject": "refactor(pstack): cut marginal sections from four skills (#634)"
+      "subject": "refactor(pstack): cut marginal sections from four skills (#634)",
+      "reason": "Adopt the shortened migration/type principles, lead-judgment reference and Swarm with portable metadata and existing parent-owned dispatch/recovery retained. Both real hosts retain six demonstrated defects, external API compatibility, semantic-ID compiler rejection and explicit incomplete synthetic coverage. Cursor README table edits remain pinned source context rather than a duplicate guide. No provider runtime or saved model policy changes.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/149"
     },
     {
       "commit": "182f2ce414e83224915c190d2f63239c1608d0a5",
       "date": "2026-10-16",
-      "evidence": "https://github.com/arjitj2/open-pstack/pull/153",
-      "reason": "Retain the existing shared Codex/Claude package, tested manifests and adapters instead of importing the generated duplicate tree. Adapt the new Claude adapter question-tool mapping to remove the remaining AskQuestion name in Setup, and correct the README upstream comparison. Exclude session-model substitution, setup shutdown, newest-transcript selection, manual-skill workarounds and upstream-only generation/CI/marketplace changes. Both real headless hosts complete only the budget question without probes or writes; graphical question-tool invocation is untested.",
       "status": "adapted",
-      "subject": "feat(pstack): install pstack in Claude Code from a generated tree (#637)"
+      "subject": "feat(pstack): install pstack in Claude Code from a generated tree (#637)",
+      "reason": "Retain the existing shared Codex/Claude package, tested manifests and adapters instead of importing the generated duplicate tree. Adapt the new Claude adapter question-tool mapping to remove the remaining AskQuestion name in Setup, and correct the README upstream comparison. Exclude session-model substitution, setup shutdown, newest-transcript selection, manual-skill workarounds and upstream-only generation/CI/marketplace changes. Both real headless hosts complete only the budget question without probes or writes; graphical question-tool invocation is untested.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/153"
     },
     {
       "commit": "0317eb8b858c991c57721358daaee19dbe8c814d",
       "date": "2026-10-17",
-      "evidence": "https://github.com/arjitj2/open-pstack/pull/158",
-      "reason": "Adopt the verifying type-guard branding rule and example while retaining existing portable invocation metadata. Both native hosts loaded the guidance and produced strictly compiling cast-free parsers; raw and mixed semantic identifiers are rejected by the compiler, and supplied runtime format controls pass. These bounded fixtures do not prove automatic selection or universal parser correctness.",
       "status": "adopted",
-      "subject": "fix(pstack): make a brand with a type guard, not as (#700)"
+      "subject": "fix(pstack): make a brand with a type guard, not as (#700)",
+      "reason": "Adopt the verifying type-guard branding rule and example while retaining existing portable invocation metadata. Both native hosts loaded the guidance and produced strictly compiling cast-free parsers; raw and mixed semantic identifiers are rejected by the compiler, and supplied runtime format controls pass. These bounded fixtures do not prove automatic selection or universal parser correctness.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/158"
     },
     {
       "commit": "a968159326d1fc6b7d483491ec5c457986a20af2",
       "date": "2026-10-17",
-      "evidence": "https://github.com/arjitj2/open-pstack/pull/158",
-      "reason": "All existing skill names already match their folders; make-bot-ui stays excluded. Adapt the generator naming constraint into the existing static metadata check. Actual CLI controls pass valid names and reject mismatched, uppercase and overlong names. Do not import the generated duplicate tree.",
       "status": "adapted",
-      "subject": "fix(pstack): name every skill after its folder (#702)"
+      "subject": "fix(pstack): name every skill after its folder (#702)",
+      "reason": "All existing skill names already match their folders; make-bot-ui stays excluded. Adapt the generator naming constraint into the existing static metadata check. Actual CLI controls pass valid names and reject mismatched, uppercase and overlong names. Do not import the generated duplicate tree.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/158"
     },
     {
       "commit": "1b800800583ee8ff7f2676caf7a5cb7f0804be85",
       "date": "2026-10-17",
-      "evidence": "https://github.com/arjitj2/open-pstack/pull/158",
-      "reason": "Retain existing parent-specific model sheets, exact provider descriptors and approved recovery instead of the alternate Claude rules file and implicit inherited defaults. Existing local skill references, forge commands, Bugbot-thread handling and local worktrees cover portable intent. Exclude the generated guide/README tree and blanket skip/placeholder rule for unavailable critical context. README content remains unchanged under owner approval policy.",
       "status": "excluded",
-      "subject": "fix(pstack): close three gaps in the Claude Code plugin (#705)"
+      "subject": "fix(pstack): close three gaps in the Claude Code plugin (#705)",
+      "reason": "Retain existing parent-specific model sheets, exact provider descriptors and approved recovery instead of the alternate Claude rules file and implicit inherited defaults. Existing local skill references, forge commands, Bugbot-thread handling and local worktrees cover portable intent. Exclude the generated guide/README tree and blanket skip/placeholder rule for unavailable critical context. README content remains unchanged under owner approval policy.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/158"
     },
     {
       "commit": "019a6a20592c10bf92869e5740368f578a9997fd",
       "date": "2026-10-17",
-      "evidence": "https://github.com/arjitj2/open-pstack/pull/160",
-      "reason": "Keep Cursor README/guide prose and generated copies upstream. The new checker assumes Cursor-specific paths, complete README skill/playbook/agent inventories, built-ins and model defaults. This distribution keeps its owning-document inventory, link/anchor and provider-ID checks instead; no unapproved README edits or duplicate guide are introduced. Source skills, agents and plugin manifest are unchanged, so the packaged baseline and release remain unchanged.",
       "status": "excluded",
-      "subject": "pstack: refresh the docs and add a docs-vs-tree check (#704)"
+      "subject": "pstack: refresh the docs and add a docs-vs-tree check (#704)",
+      "reason": "Keep Cursor README/guide prose and generated copies upstream. The new checker assumes Cursor-specific paths, complete README skill/playbook/agent inventories, built-ins and model defaults. This distribution keeps its owning-document inventory, link/anchor and provider-ID checks instead; no unapproved README edits or duplicate guide are introduced. Source skills, agents and plugin manifest are unchanged, so the packaged baseline and release remain unchanged.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/160"
     },
     {
       "commit": "16541c6bc1ed6c8d808b2f78a33364003e82b967",
       "date": "2026-10-17",
-      "evidence": "https://github.com/arjitj2/open-pstack/pull/165",
-      "reason": "List every waiting item with context, recommendation, evidence and risk. Preserve human-message anchoring, read-only scope, UI permission and supplied-evidence limits; the new item format supersedes the older per-item waiting-cost and mandatory-visual format.",
       "status": "adapted",
-      "subject": "fix(pstack): list every waiting item so each ketchup call is decidable (#692)"
+      "subject": "fix(pstack): list every waiting item so each ketchup call is decidable (#692)",
+      "reason": "List every waiting item with context, recommendation, evidence and risk. Preserve human-message anchoring, read-only scope, UI permission and supplied-evidence limits; the new item format supersedes the older per-item waiting-cost and mandatory-visual format.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/165"
     },
     {
       "commit": "bc1443790cc980d0ea857663260a831299884508",
       "date": "2026-10-17",
-      "evidence": "https://github.com/arjitj2/open-pstack/pull/165",
-      "reason": "Never cut waiting items to satisfy a word count. Both real hosts retained all thirty supplied items; Claude renamed labels while preserving item coverage.",
       "status": "adopted",
-      "subject": "fix(pstack): say outright that ketchup never cuts items to stay under a word count (#708)"
+      "subject": "fix(pstack): say outright that ketchup never cuts items to stay under a word count (#708)",
+      "reason": "Never cut waiting items to satisfy a word count. Both real hosts retained all thirty supplied items; Claude renamed labels while preserving item coverage.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/165"
     },
     {
       "commit": "4382e687a50b8d2c5ce4d141d001186589cff8d5",
       "date": "2026-10-17",
-      "evidence": "https://github.com/arjitj2/open-pstack/pull/165",
-      "reason": "Add formal verification creation with one active-host project-skill tree, parent-owned Git and observed native registration/execution. Real-code generated-input fallback and disposable fault checks passed in both hosts; source guide and generated duplicate packaging are excluded. Exclude the upstream disable-model-invocation flag so the parent can invoke creation after successful Setup smoke and explicit consent, matching the regular verification pair. Automatic selection in either host remains unverified.",
       "status": "adapted",
-      "subject": "feat(pstack): add /create-formal-verification-skill (#709)"
+      "subject": "feat(pstack): add /create-formal-verification-skill (#709)",
+      "reason": "Add formal verification creation with one active-host project-skill tree, parent-owned Git and observed native registration/execution. Real-code generated-input fallback and disposable fault checks passed in both hosts; source guide and generated duplicate packaging are excluded. Exclude the upstream disable-model-invocation flag so the parent can invoke creation after successful Setup smoke and explicit consent, matching the regular verification pair. Automatic selection in either host remains unverified.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/165"
     },
     {
       "commit": "0b8e952052d482ee6de06deebf14d590d77b1b34",
       "date": "2026-10-18",
-      "evidence": "https://github.com/arjitj2/open-pstack/pull/165",
-      "reason": "Retain independent distribution numbering. Cursor patch releases map to one tested distribution patch for this batch; upstream manifest and README/guide version copies are not imported.",
       "status": "excluded",
-      "subject": "chore(pstack): bump to 0.15.26 (#710)"
+      "subject": "chore(pstack): bump to 0.15.26 (#710)",
+      "reason": "Retain independent distribution numbering. Cursor patch releases map to one tested distribution patch for this batch; upstream manifest and README/guide version copies are not imported.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/165"
     },
     {
       "commit": "75fabace38ce507ee044546eaca64167c8c1e21b",
       "date": "2026-10-18",
-      "evidence": "https://github.com/arjitj2/open-pstack/pull/165",
-      "reason": "Remove only the rewritten-prompt ban while preserving manual invocation, task execution and explicit constraints. Both real hosts calculated the supplied control result and delivered the explicitly requested rewrite.",
       "status": "adapted",
-      "subject": "pstack: drop the rewritten-prompt ban from sharpen (#712)"
+      "subject": "pstack: drop the rewritten-prompt ban from sharpen (#712)",
+      "reason": "Remove only the rewritten-prompt ban while preserving manual invocation, task execution and explicit constraints. Both real hosts calculated the supplied control result and delivered the explicitly requested rewrite.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/165"
     },
     {
       "commit": "0148b78c56c72a1b8412055913c79f767095b217",
       "date": "2026-10-18",
-      "evidence": "https://github.com/arjitj2/open-pstack/pull/165",
-      "reason": "Retain independent distribution numbering and exclude Cursor-specific manifest/README version copies. This patch increment is covered by the batch distribution patch.",
       "status": "excluded",
-      "subject": "chore(pstack): bump to 0.15.27 (#713)"
+      "subject": "chore(pstack): bump to 0.15.27 (#713)",
+      "reason": "Retain independent distribution numbering and exclude Cursor-specific manifest/README version copies. This patch increment is covered by the batch distribution patch.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/165"
     },
     {
       "commit": "f9be7aa00c2b2bf4b13562143a6918445e06b99d",
       "date": "2026-10-18",
-      "evidence": "https://github.com/arjitj2/open-pstack/pull/165",
-      "reason": "Offer regular and formal generators independently only after successful setup smoke and explicit yes; preserve no/duplicate/failure/routing-only guards. Portable Help names both skills. Both hosts exercised supplied-state offer decisions; unchanged setup probes/persistence were not repeated, and full yes-path setup transactions remain unverified. Cursor guide/README edits stay upstream.",
       "status": "adapted",
-      "subject": "pstack: offer formal verification in setup, sync help and guide (#715)"
+      "subject": "pstack: offer formal verification in setup, sync help and guide (#715)",
+      "reason": "Offer regular and formal generators independently only after successful setup smoke and explicit yes; preserve no/duplicate/failure/routing-only guards. Portable Help names both skills. Both hosts exercised supplied-state offer decisions; unchanged setup probes/persistence were not repeated, and full yes-path setup transactions remain unverified. Cursor guide/README edits stay upstream.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/165"
     },
     {
       "commit": "6b78e9f4e46c75d1697d837e51f07c2692e60b24",
       "date": "2026-10-19",
-      "evidence": "https://github.com/arjitj2/open-pstack/pull/165",
-      "reason": "Retain TLA+ as the default for interleaving models and use bounded generated inputs against real code when no suitable verifier is available. Both hosts distinguished the supplied modeling plan from actual parser fallback checks; no TLA+ engine execution is claimed.",
       "status": "adapted",
-      "subject": "fix(pstack): add TLA+ default and no-verifier fallback to create-formal-verification-skill (#721)"
+      "subject": "fix(pstack): add TLA+ default and no-verifier fallback to create-formal-verification-skill (#721)",
+      "reason": "Retain TLA+ as the default for interleaving models and use bounded generated inputs against real code when no suitable verifier is available. Both hosts distinguished the supplied modeling plan from actual parser fallback checks; no TLA+ engine execution is claimed.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/165"
     },
     {
       "commit": "7b353f78f6ec193bdbe48ed8059444eb09b6878e",
       "date": "2026-10-19",
-      "evidence": "https://github.com/arjitj2/open-pstack/pull/165",
-      "reason": "Add verification-only maintenance with exact sync commits, no-effect/intended-promise/renamed-implementation classification, stale-pass disclosure, fault sensitivity and reachable bug reports. Both hosts loaded updated native local skills and executed real code; parent staged reviewed artifacts and owned fixture Git. Preserve failures, policy deviations and scope limits. Exclude the upstream disable-model-invocation flag so parent verification workflows can invoke maintenance, matching the regular verification pair. Automatic selection in either host remains unverified.",
       "status": "adapted",
-      "subject": "pstack: add maintain-formal-verification-skill (#716)"
+      "subject": "pstack: add maintain-formal-verification-skill (#716)",
+      "reason": "Add verification-only maintenance with exact sync commits, no-effect/intended-promise/renamed-implementation classification, stale-pass disclosure, fault sensitivity and reachable bug reports. Both hosts loaded updated native local skills and executed real code; parent staged reviewed artifacts and owned fixture Git. Preserve failures, policy deviations and scope limits. Exclude the upstream disable-model-invocation flag so parent verification workflows can invoke maintenance, matching the regular verification pair. Automatic selection in either host remains unverified.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/165"
     },
     {
       "commit": "d457567332aa6989e753ea289f30ea2bfbc80bc0",
       "date": "2026-10-19",
-      "evidence": "https://github.com/arjitj2/open-pstack/pull/165",
-      "reason": "Record Cursor0.15.28 as the incorporated source checkpoint while retaining distribution1.17.6. Exclude upstream version/README/guide copies; portable skill intent is implemented by preceding adapted entries.",
       "status": "excluded",
-      "subject": "chore(pstack): bump to 0.15.28, sync guide with create-formal-verification-skill (#724)"
+      "subject": "chore(pstack): bump to 0.15.28, sync guide with create-formal-verification-skill (#724)",
+      "reason": "Record Cursor0.15.28 as the incorporated source checkpoint while retaining distribution1.17.6. Exclude upstream version/README/guide copies; portable skill intent is implemented by preceding adapted entries.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/165"
     },
     {
       "commit": "88d47514b82e7c44f00f2b2a72ff6dd12158038c",
-      "date": "2026-10-19",
-      "evidence": "https://github.com/arjitj2/open-pstack/pull/176",
-      "reason": "Keep the four expert-framing questions while preserving ordinary task execution, explicit rewrite-only requests and manual invocation. Exclude the incompatible rewrite-only default and Cursor version/README/guide copies. Both-host ordinary-task and explicit-rewrite checks cover the retained contract.",
       "status": "adapted",
-      "subject": "pstack: restore /sharpen to the original prompt, return only the rewrite (#729)"
+      "subject": "pstack: restore /sharpen to the original prompt, return only the rewrite (#729)",
+      "date": "2026-10-19",
+      "reason": "Keep the four expert-framing questions while preserving ordinary task execution, explicit rewrite-only requests and manual invocation. Exclude the incompatible rewrite-only default and Cursor version/README/guide copies. Both-host ordinary-task and explicit-rewrite checks cover the retained contract.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/176"
     },
     {
       "commit": "eb4db2b55b2b7dec3d9282754cddf0a56bf4ff10",
-      "date": "2026-10-21",
-      "evidence": "https://github.com/arjitj2/open-pstack/pull/176",
-      "reason": "Introduce Statechart through its final typed successor, not obsolete JavaScript from-chart/compare/fixed modes, OutputFolder model or PNG output. Preserve source provenance and new shared host entry points; Cursor README/guide/version copies are excluded. Final compiler, engine, rendering and native evidence cover the successor.",
       "status": "adapted",
-      "subject": "feat(pstack): add the statechart skill to draw TLA+ models as charts (#741)"
+      "subject": "feat(pstack): add the statechart skill to draw TLA+ models as charts (#741)",
+      "date": "2026-10-21",
+      "reason": "Introduce Statechart through its final typed successor, not obsolete JavaScript from-chart/compare/fixed modes, OutputFolder model or PNG output. Preserve source provenance and new shared host entry points; Cursor README/guide/version copies are excluded. Final compiler, engine, rendering and native evidence cover the successor.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/176"
     },
     {
       "commit": "7698375f92a729f8bb89d113c633dce9ff9dc6db",
-      "date": "2026-10-22",
-      "evidence": "https://github.com/arjitj2/open-pstack/pull/176",
-      "reason": "Retain the final successor guarantees for config/model association, faithful labels, explicit unchecked rules, engine/error publication, property interpretation and real-code replay. Do not resurrect superseded options, per-CPU verdict runs, summary/stories files or filesystem copy fallback. Real TLC/corpus/parity tests and bounded native fault replay cover the retained behavior.",
       "status": "adapted",
-      "subject": "fix(pstack): bring the statechart skill up to date with six fixes (#776)"
+      "subject": "fix(pstack): bring the statechart skill up to date with six fixes (#776)",
+      "date": "2026-10-22",
+      "reason": "Retain the final successor guarantees for config/model association, faithful labels, explicit unchecked rules, engine/error publication, property interpretation and real-code replay. Do not resurrect superseded options, per-CPU verdict runs, summary/stories files or filesystem copy fallback. Real TLC/corpus/parity tests and bounded native fault replay cover the retained behavior.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/176"
     },
     {
       "commit": "4ec7ffa173eaa70d3d9467a627baf0954645a353",
-      "date": "2026-10-22",
-      "evidence": "https://github.com/arjitj2/open-pstack/pull/176",
-      "reason": "The intermediate JavaScript helper renames and comment cleanup are superseded by the final TypeScript compiler. Those old helpers are not shipped. Preserve the historical source record without restoring obsolete files; final source/comment review covers the actual shared tree.",
       "status": "excluded",
-      "subject": "refactor(pstack): delete statechart comments that repeat the code, and rename helpers (#779)"
+      "subject": "refactor(pstack): delete statechart comments that repeat the code, and rename helpers (#779)",
+      "date": "2026-10-22",
+      "reason": "The intermediate JavaScript helper renames and comment cleanup are superseded by the final TypeScript compiler. Those old helpers are not shipped. Preserve the historical source record without restoring obsolete files; final source/comment review covers the actual shared tree.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/176"
     },
     {
       "commit": "076f4b2f57844ff9eb4ada914d4763884d40146e",
-      "date": "2026-10-23",
-      "evidence": "https://github.com/arjitj2/open-pstack/pull/176",
-      "reason": "Preserve final Pele SVG rendering guidance, projections and explicit tool discovery through the typed successor. Exclude removed JS/resvg/PNG rendering, OutputFolder fixtures and old region implementation. Test actual Pele/Mermaid plus real TLC; derived light-preview inspection is not browser or dark-mode proof.",
       "status": "adapted",
-      "subject": "feat(pstack): bring the statechart skill up to date, with the Pele renderer (#791)"
+      "subject": "feat(pstack): bring the statechart skill up to date, with the Pele renderer (#791)",
+      "date": "2026-10-23",
+      "reason": "Preserve final Pele SVG rendering guidance, projections and explicit tool discovery through the typed successor. Exclude removed JS/resvg/PNG rendering, OutputFolder fixtures and old region implementation. Test actual Pele/Mermaid plus real TLC; derived light-preview inspection is not browser or dark-mode proof.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/176"
     },
     {
       "commit": "642289e6b1eb01c25b02ea041dccaf7b5864e131",
-      "date": "2026-10-23",
-      "evidence": "https://github.com/arjitj2/open-pstack/pull/176",
-      "reason": "Retain independent distribution version1.17.7; exclude literal Cursor0.15.31 manifest values. The batch crosses only upstream patch increments.",
       "status": "excluded",
-      "subject": "chore(pstack): bump to 0.15.31 (#792)"
+      "subject": "chore(pstack): bump to 0.15.31 (#792)",
+      "date": "2026-10-23",
+      "reason": "Retain independent distribution version1.17.7; exclude literal Cursor0.15.31 manifest values. The batch crosses only upstream patch increments.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/176"
     },
     {
       "commit": "00d5decc6f05669044fd092dec73da9ef6f7eec0",
-      "date": "2026-10-23",
-      "evidence": "https://github.com/arjitj2/open-pstack/pull/176",
-      "reason": "Generated TLA+ verification refers to the registered Statechart host name, without copying its changing commands/options/installed paths. Qualify the passing-over500-states no-chart case. Retain parent-owned registration, code mapping, fault sensitivity and bounds. Native generated-skill handoff evidence and execution-artifact portability limits are disclosed in the PR.",
       "status": "adapted",
-      "subject": "feat(pstack): tell generated verify skills to read each model-check result with /statechart (#794)"
+      "subject": "feat(pstack): tell generated verify skills to read each model-check result with /statechart (#794)",
+      "date": "2026-10-23",
+      "reason": "Generated TLA+ verification refers to the registered Statechart host name, without copying its changing commands/options/installed paths. Qualify the passing-over500-states no-chart case. Retain parent-owned registration, code mapping, fault sensitivity and bounds. Native generated-skill handoff evidence and execution-artifact portability limits are disclosed in the PR.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/176"
     },
     {
       "commit": "3c0fdb4e76293ebcdaed16f0d096c788bd3b49b2",
-      "date": "2026-10-23",
-      "evidence": "https://github.com/arjitj2/open-pstack/pull/176",
-      "reason": "Add final manual-only Ketchup Video in the shared tree with Claude manual flag, Codex implicit-invocation false and portable names. Retain inherited human-anchor/read-only rules and the sole outside-repo render write exception. Actual videos, source-frame holds, subtitles and controlled failure evidence are bounded and include failed native measurement attempts. README/guide changes remain excluded pending separate approval.",
       "status": "adapted",
-      "subject": "feat(pstack): add the ketchup-video skill (#797)"
+      "subject": "feat(pstack): add the ketchup-video skill (#797)",
+      "date": "2026-10-23",
+      "reason": "Add final manual-only Ketchup Video in the shared tree with Claude manual flag, Codex implicit-invocation false and portable names. Retain inherited human-anchor/read-only rules and the sole outside-repo render write exception. Actual videos, source-frame holds, subtitles and controlled failure evidence are bounded and include failed native measurement attempts. README/guide changes remain excluded pending separate approval.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/176"
     },
     {
       "commit": "b1a129891c49f6b84d0613477f5d021a0782b5e0",
-      "date": "2026-10-23",
-      "evidence": "https://github.com/arjitj2/open-pstack/pull/176",
-      "reason": "Exclude literal Cursor0.15.32 version values; keep the compatible independent distribution patch increment.",
       "status": "excluded",
-      "subject": "chore(pstack): bump to 0.15.32 (#798)"
+      "subject": "chore(pstack): bump to 0.15.32 (#798)",
+      "date": "2026-10-23",
+      "reason": "Exclude literal Cursor0.15.32 version values; keep the compatible independent distribution patch increment.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/176"
     },
     {
       "commit": "7054003c3723e82d099fb7620e3bc8d7d63eebc6",
-      "date": "2026-10-23",
-      "evidence": "https://github.com/arjitj2/open-pstack/pull/176",
-      "reason": "Route approved Reflect edits to the active host project/user skill directory outside installed caches. Show destination before approval; copy only afterward, with no PR/push. Preserve existing review/synthesis approval gates. Native post-synthesis fixtures prove destination/no-copy behavior, not a new full Reflect panel.",
       "status": "adapted",
-      "subject": "fix(pstack): route reflect edits out of the plugin cache (#800)"
+      "subject": "fix(pstack): route reflect edits out of the plugin cache (#800)",
+      "date": "2026-10-23",
+      "reason": "Route approved Reflect edits to the active host project/user skill directory outside installed caches. Show destination before approval; copy only afterward, with no PR/push. Preserve existing review/synthesis approval gates. Native post-synthesis fixtures prove destination/no-copy behavior, not a new full Reflect panel.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/176"
     },
     {
       "commit": "96dec8ee58deb7b388fa080fbceaba4460a7c9dd",
-      "date": "2026-10-23",
-      "evidence": "https://github.com/arjitj2/open-pstack/pull/176",
-      "reason": "Use gh isCrossRepository to exclude fork heads as upstream parents and stop traversal through them. Validate the external Boolean field at the existing parser boundary. Preserve the watcher versus stricter frontier identity distinction. Real bounded orderStack regression and CLI/unit cases cover fork-main termination and parentage; no live fork API claim.",
       "status": "adapted",
-      "subject": "fix(watch-pr): distinguish fork heads during stack discovery (#801)"
+      "subject": "fix(watch-pr): distinguish fork heads during stack discovery (#801)",
+      "date": "2026-10-23",
+      "reason": "Use gh isCrossRepository to exclude fork heads as upstream parents and stop traversal through them. Validate the external Boolean field at the existing parser boundary. Preserve the watcher versus stricter frontier identity distinction. Real bounded orderStack regression and CLI/unit cases cover fork-main termination and parentage; no live fork API claim.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/176"
     },
     {
       "commit": "fe096ef31c94c30997207ffb6e30c51f15a34f16",
-      "date": "2026-10-23",
-      "evidence": "https://github.com/arjitj2/open-pstack/pull/176",
-      "reason": "Cap poll and retry sleeps only by an explicitly supplied deadline. Timeout0 remains unbounded; add no implicit worker deadline. Simple/queued/backoff and zero-timeout behavior pass the actual Bun suite.",
       "status": "adopted",
-      "subject": "fix(watch-pr): cap polling sleeps at the deadline (#802)"
+      "subject": "fix(watch-pr): cap polling sleeps at the deadline (#802)",
+      "date": "2026-10-23",
+      "reason": "Cap poll and retry sleeps only by an explicitly supplied deadline. Timeout0 remains unbounded; add no implicit worker deadline. Simple/queued/backoff and zero-timeout behavior pass the actual Bun suite.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/176"
     },
     {
       "commit": "86c2448db179ad2f9193aecea549e664c5905895",
-      "date": "2026-10-23",
-      "evidence": "https://github.com/arjitj2/open-pstack/pull/176",
-      "reason": "Adopt matching-width inline-code delimiter parsing and adapt tests to the port CONTRACT/skeleton library and CLI. Retain punctuation checks outside code and malformed-delimiter rejection. Actual Bun and strict checks pass.",
       "status": "adapted",
-      "subject": "fix(pstack): recognize matching inline code delimiters (#803)"
+      "subject": "fix(pstack): recognize matching inline code delimiters (#803)",
+      "date": "2026-10-23",
+      "reason": "Adopt matching-width inline-code delimiter parsing and adapt tests to the port CONTRACT/skeleton library and CLI. Retain punctuation checks outside code and malformed-delimiter rejection. Actual Bun and strict checks pass.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/176"
     },
     {
       "commit": "3c596e701b5ca3d213e072464eec36baf0dee3e7",
-      "date": "2026-10-23",
-      "evidence": "https://github.com/arjitj2/open-pstack/pull/176",
-      "reason": "The existing GitHub-only frontier already selects a unique open PR over terminal history and fails ambiguous candidates. Retain that stricter fork-aware implementation; extend real fixture tests to stale closed and merged rows. Do not import Origin-forge code or duplicate the frontier API.",
       "status": "adapted",
-      "subject": "fix(orch): prefer active PR over branch history (#804)"
+      "subject": "fix(orch): prefer active PR over branch history (#804)",
+      "date": "2026-10-23",
+      "reason": "The existing GitHub-only frontier already selects a unique open PR over terminal history and fails ambiguous candidates. Retain that stricter fork-aware implementation; extend real fixture tests to stale closed and merged rows. Do not import Origin-forge code or duplicate the frontier API.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/176"
     },
     {
       "commit": "f83fbe695ee14badf3ac128d3718f9fb71a3a3f9",
-      "date": "2026-10-23",
-      "evidence": "https://github.com/arjitj2/open-pstack/pull/176",
-      "reason": "Probe and pair GNU versus BSD stat/date forms in the existing both-host worktree audit. Preserve transcript-root override, GitHub-only PR reader and parent-owned fetch. Actual local-Git/BSD/GNU fixture runs agree on the recent-chat date and bucket. Inherited missing-reader safe-classification remains separately open in issue175.",
       "status": "adapted",
-      "subject": "fix(pstack): read transcript mtimes with GNU stat and date in worktree-audit (#805)"
+      "subject": "fix(pstack): read transcript mtimes with GNU stat and date in worktree-audit (#805)",
+      "date": "2026-10-23",
+      "reason": "Probe and pair GNU versus BSD stat/date forms in the existing both-host worktree audit. Preserve transcript-root override, GitHub-only PR reader and parent-owned fetch. Actual local-Git/BSD/GNU fixture runs agree on the recent-chat date and bucket. Inherited missing-reader safe-classification remains separately open in issue175.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/176"
     },
     {
       "commit": "a0b0ad99fc11efee2b18b50c33dc94abad4fd51e",
-      "date": "2026-10-23",
-      "evidence": "https://github.com/arjitj2/open-pstack/pull/176",
-      "reason": "README marketplace auto-update prose requires explicit owner approval. No README edit was approved or made; the exact proposal remains outside the repository and is not a correctness blocker.",
       "status": "excluded",
-      "subject": "docs(pstack): note Claude Code auto-update is off for third-party marketplaces (#806)"
+      "subject": "docs(pstack): note Claude Code auto-update is off for third-party marketplaces (#806)",
+      "date": "2026-10-23",
+      "reason": "README marketplace auto-update prose requires explicit owner approval. No README edit was approved or made; the exact proposal remains outside the repository and is not a correctness blocker.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/176"
     },
     {
       "commit": "e73df471cd4bd918367e99f3dd9c51bd53ddf5f0",
-      "date": "2026-10-23",
-      "evidence": "https://github.com/arjitj2/open-pstack/pull/176",
-      "reason": "Correct Swarm PhaseA numbering and name its result table while preserving the saved worker descriptors, efforts, recovery, spending rules and parent dispatch. The upstream PhaseB numeric reference has no port anchor; static/source checks cover the unchanged routing contract.",
       "status": "adapted",
-      "subject": "fix(pstack): renumber swarm's Phase A and fix its dangling table reference (#807)"
+      "subject": "fix(pstack): renumber swarm's Phase A and fix its dangling table reference (#807)",
+      "date": "2026-10-23",
+      "reason": "Correct Swarm PhaseA numbering and name its result table while preserving the saved worker descriptors, efforts, recovery, spending rules and parent dispatch. The upstream PhaseB numeric reference has no port anchor; static/source checks cover the unchanged routing contract.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/176"
     },
     {
       "commit": "34b1b7c96f09f81a21a6c78f65b7833f7dcb5b24",
-      "date": "2026-10-26",
-      "evidence": "https://github.com/arjitj2/open-pstack/pull/176",
-      "reason": "Import the final typed Statechart compiler, corpus and launchers as a new shared skill; obsolete JS APIs were never public in this distribution. Preserve executable modes, qualified actions, finite budgets, explicit unchecked states and atomic output. Add pinned development dependencies, strict checking and real Java/TLC CI. Omit/document the manual-only flag for generated model-origin Claude calls, expose JAVA/TLA2TOOLS overrides and view-code permission boundary, and make no Deno/mise/Windows/universal parser claim. Test-only macOS realpath correction and type annotations are disclosed.",
       "status": "adapted",
-      "subject": "feat(pstack): port the statechart compiler (#977)"
+      "subject": "feat(pstack): port the statechart compiler (#977)",
+      "date": "2026-10-26",
+      "reason": "Import the final typed Statechart compiler, corpus and launchers as a new shared skill; obsolete JS APIs were never public in this distribution. Preserve executable modes, qualified actions, finite budgets, explicit unchecked states and atomic output. Add pinned development dependencies, strict checking and real Java/TLC CI. Omit/document the manual-only flag for generated model-origin Claude calls, expose JAVA/TLA2TOOLS overrides and view-code permission boundary, and make no Deno/mise/Windows/universal parser claim. Test-only macOS realpath correction and type annotations are disclosed.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/176"
     },
     {
       "commit": "7c7bde7033df2a83a23294571ef12c51cf560217",
-      "date": "2026-10-26",
-      "evidence": "https://github.com/arjitj2/open-pstack/pull/176",
-      "reason": "Exclude literal Cursor0.15.33 version bump; record it as source history under independent distribution numbering.",
       "status": "excluded",
-      "subject": "chore(pstack): bump to 0.15.33 (#978)"
+      "subject": "chore(pstack): bump to 0.15.33 (#978)",
+      "date": "2026-10-26",
+      "reason": "Exclude literal Cursor0.15.33 version bump; record it as source history under independent distribution numbering.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/176"
     },
     {
       "commit": "740d2c0786246cafac41906198f656b135194d3b",
-      "date": "2026-10-26",
-      "evidence": "https://github.com/arjitj2/open-pstack/pull/176",
-      "reason": "Retain full qualified action names in ordinary and property traces, including INSTANCE actions. Final CounterInstance and under/over-budget engine/corpus tests exercise the retained fix.",
       "status": "adopted",
-      "subject": "fix(pstack): keep qualified action names in property traces (#982)"
+      "subject": "fix(pstack): keep qualified action names in property traces (#982)",
+      "date": "2026-10-26",
+      "reason": "Retain full qualified action names in ordinary and property traces, including INSTANCE actions. Final CounterInstance and under/over-budget engine/corpus tests exercise the retained fix.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/176"
     },
     {
       "commit": "164ced10fa576ddf91e1f03b4fa9d1183c8272fe",
-      "date": "2026-10-26",
-      "evidence": "https://github.com/arjitj2/open-pstack/pull/176",
-      "reason": "Exclude literal Cursor0.15.34 version bump; preserve independent version1.17.7 for this compatible patch-range batch.",
       "status": "excluded",
-      "subject": "chore(pstack): bump to 0.15.34 (#983)"
+      "subject": "chore(pstack): bump to 0.15.34 (#983)",
+      "date": "2026-10-26",
+      "reason": "Exclude literal Cursor0.15.34 version bump; preserve independent version1.17.7 for this compatible patch-range batch.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/176"
     },
     {
       "commit": "519d36aa98955bf680db01bcde5fdfba686dc901",
-      "date": "2026-10-26",
-      "evidence": "https://github.com/arjitj2/open-pstack/pull/176",
-      "reason": "Retain the process-group reap test polling through macOS EPERM until ESRCH, without weakening disappearance checks or adding a production deadline. Remove the unproven explanatory comment; the actual corrected candidate CLI/full suite passes.",
       "status": "adapted",
-      "subject": "test(pstack): wait for the reap in the statechart SIGKILL view test (#981)"
+      "subject": "test(pstack): wait for the reap in the statechart SIGKILL view test (#981)",
+      "date": "2026-10-26",
+      "reason": "Retain the process-group reap test polling through macOS EPERM until ESRCH, without weakening disappearance checks or adding a production deadline. Remove the unproven explanatory comment; the actual corrected candidate CLI/full suite passes.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/176"
     },
     {
       "commit": "ab1f702ce8e8b6557edb56b09f52cde8bfb83f17",
-      "date": "2026-10-27",
-      "evidence": "https://github.com/arjitj2/open-pstack/pull/176",
-      "reason": "Adopt first-message goal framing, background steering guidance, numerical decision-before-measurement, final video subtitles/holds, compatible rebase/handoff wording and cosmetic lock-holder annotation. Adapt Interrogate with safe disposable repros ranked run-proven while retaining cited not-run findings, read-only reviewers, four buckets/table/references and saved models. Retain released Arena bytes: its existing terminal-or-recorded-dropout rule and dropout reporting already cover the completion clarification. The Claude Arena case was not reached after an unrelated private-cache denial, so no new Arena behavior is claimed. Exclude top-ups, nearest/default substitutions and suppression of approved same-provider backups. Preserve linear Autopilot-stack topology, all verifier/Shipping/PR-open gates, exact efforts and Setup/provider behavior. Exclude wording-only verifier waivers, relaxed verdicts, Interrogate removal at PR-open, remote-store copying, Cursor docs/version values and unapproved README changes. Bounded native supplied-input tests are not full panel/routing proof; unchanged contracts carry by exact file hashes.",
       "status": "adapted",
-      "subject": "feat(pstack): port recent skill updates (#986)"
+      "subject": "feat(pstack): port recent skill updates (#986)",
+      "date": "2026-10-27",
+      "reason": "Adopt first-message goal framing, background steering guidance, numerical decision-before-measurement, final video subtitles/holds, compatible rebase/handoff wording and cosmetic lock-holder annotation. Adapt Interrogate with safe disposable repros ranked run-proven while retaining cited not-run findings, read-only reviewers, four buckets/table/references and saved models. Retain released Arena bytes: its existing terminal-or-recorded-dropout rule and dropout reporting already cover the completion clarification. The Claude Arena case was not reached after an unrelated private-cache denial, so no new Arena behavior is claimed. Exclude top-ups, nearest/default substitutions and suppression of approved same-provider backups. Preserve linear Autopilot-stack topology, all verifier/Shipping/PR-open gates, exact efforts and Setup/provider behavior. Exclude wording-only verifier waivers, relaxed verdicts, Interrogate removal at PR-open, remote-store copying, Cursor docs/version values and unapproved README changes. Bounded native supplied-input tests are not full panel/routing proof; unchanged contracts carry by exact file hashes.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/176"
     },
     {
       "commit": "c742dd61706fbacc1b95f1a20b7b988cf096ce6c",
