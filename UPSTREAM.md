@@ -10,13 +10,13 @@ This page records the current Cursor baseline and the maintainer procedure for r
 | --- | --- |
 | Repository | `https://github.com/cursor/plugins.git` |
 | Path | `pstack/` |
-| Commit | `ab1f702ce8e8b6557edb56b09f52cde8bfb83f17` |
-| Upstream version | `0.15.35` |
+| Commit | `c742dd61706fbacc1b95f1a20b7b988cf096ce6c` |
+| Upstream version | `0.15.36` |
 | open-pstack version | `1.17.8` |
 
 The table records the packaged version on `main` and the Cursor content it incorporates, minus the exclusions below. Detecting or reviewing a newer Cursor commit does not advance this baseline. Cursor's version identifies the imported content. The open-pstack version identifies the cross-harness package, and its numbers are independent of Cursor and Eric's port.
 
-The upstream README at this baseline is [cursor/plugins `pstack/README.md` @ ab1f702](https://github.com/cursor/plugins/blob/ab1f702ce8e8b6557edb56b09f52cde8bfb83f17/pstack/README.md). [CHANGELOG.md](CHANGELOG.md) records the baseline of each release, and [NOTICE.md](NOTICE.md) records provenance.
+The upstream README at this baseline is [cursor/plugins `pstack/README.md` @ c742dd6](https://github.com/cursor/plugins/blob/c742dd61706fbacc1b95f1a20b7b988cf096ce6c/pstack/README.md). [CHANGELOG.md](CHANGELOG.md) records the baseline of each release, and [NOTICE.md](NOTICE.md) records provenance.
 
 ## Upstream-only exclusions
 
@@ -51,6 +51,8 @@ The `disable-model-invocation: true` flags from `4382e68` and `7b353f7` are not 
 The changes from `88d4751` through `ab1f702` use the final typed Statechart compiler, not its superseded JavaScript APIs, PNG renderer or intermediate files. Statechart remains model-invocable so generated Claude verification skills can invoke the registered skill. Its upstream manual-only flag is omitted. Ketchup Video retains manual invocation and the outside-repository video write exception. Sharpen retains ordinary task execution and explicit rewrite-only requests; its upstream rewrite-only default is excluded.
 
 Reflect shows the host-local destination before approval and copies only afterward. Interrogate retains read-only reviewers, cited findings that were not run, four output buckets and saved provider choices while adding disposable lead repros. Arena retains the released terminal-or-recorded-dropout contract. Cursor's top-ups, model substitutions, verifier waivers, relaxed Shipping gates, removal of Interrogate at PR-open, remote-store copying and nonlinear stack topology are excluded. README changes remain unapproved and unapplied. The ledger records each commit and the linked PR records observed native behavior and its limits.
+
+The `c742dd6` Orchestrate rewrite is adapted for live PR/head/check reads before reports and concrete failure evidence before worker cancellation. Its retry-by-cause sentence defers to the saved provider policy, including explicit continuation authorization and writer inspection. The public `orch` CLI, stores, tests and guarded GitHub frontier remain supported on 1.x. Cursor Project/store mechanisms are unmapped here. Raw cloud/model selectors, owner Git writes, CLI deletion and guide-only prose are excluded. Existing agent supervision and durable bookkeeping remain separate. README is unchanged. [PR #179](https://github.com/arjitj2/open-pstack/pull/179) records the bounded native tests and their limits.
 
 Earlier exclusions include Cursor's Benny automation, tutorial and sticky-mode UI, Cursor-only agent metadata, and Team Kit tools covered by host built-ins or bundled skills. The [historical port record](https://github.com/arjitj2/open-pstack/blob/5f0bb42dea46344c2f1961ebeebaeee135b49778/docs/reference.md#whats-deliberately-not-ported) records those source revisions.
 

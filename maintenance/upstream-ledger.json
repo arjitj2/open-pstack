@@ -683,8 +683,10 @@
     {
       "commit": "c742dd61706fbacc1b95f1a20b7b988cf096ce6c",
       "date": "2026-10-27",
-      "status": "pending",
-      "subject": "feat(pstack): make Orchestrate agentic and delete the orch scripts (#1043)"
+      "status": "adapted",
+      "subject": "feat(pstack): make Orchestrate agentic and delete the orch scripts (#1043)",
+      "reason": "Adapt live-head report freshness, evidence-based worker supervision and retry-by-cause under the saved provider policy. Retain the public orch CLI, stores and tests, parent Git ownership, exact model settings and existing review gates. Cursor Project/store mechanisms, raw cloud/model selectors, owner Git writes, CLI deletions, version literals and guide-only prose remain excluded. Both real hosts passed bounded checkpoint and controlled-process fixtures. Real provider-agent cancellation and automatic selection remain unverified.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/179"
     }
   ],
   "reviewed_through": "c742dd61706fbacc1b95f1a20b7b988cf096ce6c",
