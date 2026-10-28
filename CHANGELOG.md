@@ -4,6 +4,12 @@ This file records what each version of the Open Pstack package changed. Versions
 
 Entries describe package versions. Published release checkpoints have tag links; installation follows `main` unless pinned. Validation belongs to the linked pull requests. Older reports remain available through immutable links.
 
+## 1.17.8 checks live orchestration state
+
+Cursor baseline: [0.15.36](https://github.com/cursor/plugins/tree/c742dd61706fbacc1b95f1a20b7b988cf096ce6c/pstack). [Issue #177](https://github.com/arjitj2/open-pstack/issues/177). [PR #179](https://github.com/arjitj2/open-pstack/pull/179). Release tag `v1.17.8`.
+
+Orchestrate reads live PR state, head and checks before reports and matches each verdict to that head. It requires concrete failure evidence before worker cancellation and keeps recovery under the saved provider policy. The public bookkeeping CLI, stores, parent Git ownership and model settings remain unchanged. Cursor's CLI deletion and Project-specific mechanisms are excluded. Both hosts passed bounded checkpoint and controlled-process cases. Validation and its limits are recorded in the PR.
+
 ## 1.17.7 adds Statechart and Ketchup Video
 
 Cursor baseline: [0.15.35](https://github.com/cursor/plugins/tree/ab1f702ce8e8b6557edb56b09f52cde8bfb83f17/pstack). [Issue #168](https://github.com/arjitj2/open-pstack/issues/168). [PR #176](https://github.com/arjitj2/open-pstack/pull/176). Tag [v1.17.7](https://github.com/arjitj2/open-pstack/releases/tag/v1.17.7).

@@ -679,9 +679,17 @@
       "date": "2026-10-27",
       "reason": "Adopt first-message goal framing, background steering guidance, numerical decision-before-measurement, final video subtitles/holds, compatible rebase/handoff wording and cosmetic lock-holder annotation. Adapt Interrogate with safe disposable repros ranked run-proven while retaining cited not-run findings, read-only reviewers, four buckets/table/references and saved models. Retain released Arena bytes: its existing terminal-or-recorded-dropout rule and dropout reporting already cover the completion clarification. The Claude Arena case was not reached after an unrelated private-cache denial, so no new Arena behavior is claimed. Exclude top-ups, nearest/default substitutions and suppression of approved same-provider backups. Preserve linear Autopilot-stack topology, all verifier/Shipping/PR-open gates, exact efforts and Setup/provider behavior. Exclude wording-only verifier waivers, relaxed verdicts, Interrogate removal at PR-open, remote-store copying, Cursor docs/version values and unapproved README changes. Bounded native supplied-input tests are not full panel/routing proof; unchanged contracts carry by exact file hashes.",
       "evidence": "https://github.com/arjitj2/open-pstack/pull/176"
+    },
+    {
+      "commit": "c742dd61706fbacc1b95f1a20b7b988cf096ce6c",
+      "date": "2026-10-27",
+      "status": "adapted",
+      "subject": "feat(pstack): make Orchestrate agentic and delete the orch scripts (#1043)",
+      "reason": "Adapt live-head report freshness, evidence-based worker supervision and retry-by-cause under the saved provider policy. Retain the public orch CLI, stores and tests, parent Git ownership, exact model settings and existing review gates. Cursor Project/store mechanisms, raw cloud/model selectors, owner Git writes, CLI deletions, version literals and guide-only prose remain excluded. Both real hosts passed bounded checkpoint and controlled-process fixtures. Real provider-agent cancellation and automatic selection remain unverified.",
+      "evidence": "https://github.com/arjitj2/open-pstack/pull/179"
     }
   ],
-  "reviewed_through": "ab1f702ce8e8b6557edb56b09f52cde8bfb83f17",
+  "reviewed_through": "c742dd61706fbacc1b95f1a20b7b988cf096ce6c",
   "schema": 1,
   "source": {
     "path": "pstack/",
