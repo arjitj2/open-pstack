@@ -79,7 +79,9 @@ Commands:
       Strict-parse the sheet, require every documented role row, panel
       minimums, chain limits, and access-fact fields, then resolve every row
       for the given parent: each configured route must carry an authorized
-      access fact and no two attempts may resolve to the parent account.
+      access fact. Same-provider descriptors must name different models;
+      a parent-account alias cannot share a chain with a descriptor on that
+      provider. Quota exhaustion skips every later model on that provider.
       Exits nonzero with the issue list when the sheet could not be written
       by setup.
 
@@ -557,6 +559,7 @@ function commandNext(argv: readonly string[], io: Io): number {
   }
   let previous: AttemptEvent | undefined;
   const events: AttemptEvent[] = [];
+  const priorExhaustedGroups = new Set<Provider>();
   const executionCounts = new Map<number, number>();
   for (const raw of decision.events) {
     if (raw.attemptIndex >= lanePolicy.attempts.length) {
@@ -603,11 +606,20 @@ function commandNext(argv: readonly string[], io: Io): number {
       if (skippedAttempt.authorization.state === "blocked") {
         throw new UsageError("event history skips an unauthorized attempt");
       }
-      if (!decision.exhaustedGroups.has(skippedAttempt.exhaustionGroup)) {
+      if (!decision.exhaustedGroups.has(skippedAttempt.exhaustionGroup) &&
+          !priorExhaustedGroups.has(skippedAttempt.exhaustionGroup)) {
         throw new UsageError("event history skips an attempt whose provider is not exhausted");
       }
+      priorExhaustedGroups.add(skippedAttempt.exhaustionGroup);
+    }
+    if (event.parentOperation === undefined &&
+        priorExhaustedGroups.has(lanePolicy.attempts[event.attemptIndex].exhaustionGroup)) {
+      throw new UsageError("event history records an attempt on a provider already exhausted by an earlier event or skip");
     }
     events.push(event);
+    if (event.parentOperation === undefined && event.status === "usage-exhausted") {
+      priorExhaustedGroups.add(lanePolicy.attempts[event.attemptIndex].exhaustionGroup);
+    }
     previous = event;
   }
   const outcome = nextAttempt(

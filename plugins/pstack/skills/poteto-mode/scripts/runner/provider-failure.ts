@@ -150,6 +150,18 @@ function isSuccessfulTerminalEnvelope(value: unknown): boolean {
 // do not match.
 const CODEX_MESSAGE_WRAPPERS = ["stream disconnected after retries: "] as const;
 
+const CODEX_CAPACITY_DIAGNOSTIC = normalizeDiagnosticText(
+  "Selected model is at capacity. Please try a different model."
+);
+
+function isCodexCapacityMessage(message: string): boolean {
+  const normalized = normalizeDiagnosticText(message);
+  return normalized === CODEX_CAPACITY_DIAGNOSTIC ||
+    CODEX_MESSAGE_WRAPPERS.some((wrapper) =>
+      normalized === `${wrapper}${CODEX_CAPACITY_DIAGNOSTIC}`
+    );
+}
+
 function isCodexQuotaMessage(message: string): boolean {
   const normalized = normalizeDiagnosticText(message);
   const segments = [normalized];
@@ -223,6 +235,13 @@ interface QuotaAdapter {
 
 function classifyCodexTerminal(terminal: CodexTerminal): TerminalClassification {
   if (terminal.kind === "completed" || terminal.message === null) return UNKNOWN;
+  if (isCodexCapacityMessage(terminal.message)) {
+    return {
+      status: null,
+      code: "codex_model_capacity",
+      evidence: JSON.stringify(terminal.event).slice(0, 2_000),
+    };
+  }
   if (!isCodexQuotaMessage(terminal.message)) return UNKNOWN;
   return {
     status: "usage-exhausted",
@@ -327,6 +346,20 @@ function isClaudeQuotaDiagnostic(message: string): boolean {
 }
 
 function classifyClaudeResult(result: JsonObject): TerminalClassification {
+  if (
+    result.type === "result" &&
+    result.subtype === "success" &&
+    result.is_error === true &&
+    result.terminal_reason === "api_error" &&
+    result.api_error_status === 529 &&
+    typeof result.result === "string"
+  ) {
+    return {
+      status: null,
+      code: "claude_model_capacity",
+      evidence: JSON.stringify(result).slice(0, 2_000),
+    };
+  }
   if (
     result.type !== "result" ||
     result.is_error !== true ||
