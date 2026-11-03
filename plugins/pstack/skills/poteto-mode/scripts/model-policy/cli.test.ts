@@ -3,6 +3,7 @@ import { mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { main } from "./cli.ts";
+import { ROLE_ROWS } from "./model-policy.ts";
 
 const SHEET = `# pstack model configuration
 
@@ -962,5 +963,161 @@ interrogate reviewers: codex:gpt-5.6-sol@max, grok:grok-4.7@xhigh, claude:opus@m
     );
     expect(dupCode).toBe(65);
     expect(dup.stderr.join("")).toContain("codex account");
+  });
+});
+
+
+describe("same-provider fallback executable CLI", () => {
+  const first = "codex:gpt-6.1-sol@high";
+  const second = "codex:gpt-6-sol@high";
+  const claude = "claude:opus@high";
+  const chain = `${first} -> ${second} -> ${claude}`;
+  const broad = '# fallback: {"on":["usage-exhausted","route-unavailable","terminal-failure"]}';
+  const fact = (provider: string) => `# access: ${JSON.stringify({ provider, funding: "included", capacity: "high", apiSpend: "deny", provenance: "user" })}`;
+  function sheet(rhs = chain, fallback = broad): string {
+    return [fact("codex"), fact("claude"), fallback, ...ROLE_ROWS.map((row) =>
+      `${row.header}: ${row.header === "swarm workers" ? rhs : Array(row.minSeats).fill("inherit-parent").join(", ")}`
+    )].join("\n") + "\n";
+  }
+  function run(command: "validate" | "resolve" | "next", text = sheet(), state: object = { events: [] }, parent = "codex") {
+    const sheetPath = join(scratch, "executable-models.sheet");
+    const statePath = join(scratch, "executable-state.json");
+    writeFileSync(sheetPath, text);
+    writeFileSync(statePath, JSON.stringify({ access: "read-only", ...state }));
+    const argv = [process.execPath, join(import.meta.dir, "pstack-model-policy"), command, "--sheet", sheetPath, "--parent", parent];
+    if (command !== "validate") argv.push("--role", "swarm workers");
+    if (command === "next") argv.push("--state", statePath);
+    const child = Bun.spawnSync(argv, { stdout: "pipe", stderr: "pipe" });
+    const stdout = child.stdout.toString();
+    return { code: child.exitCode, stdout, stderr: child.stderr.toString(), json: stdout ? JSON.parse(stdout) : undefined };
+  }
+  function decision(text: string, state: object, expected: object) {
+    const result = run("next", text, state);
+    expect(result.code, result.stderr).toBe(0);
+    expect(result.json.decision).toMatchObject(expected);
+  }
+
+  it("validates three same-provider model descriptors and preserves exact native model and effort", () => {
+    const text = sheet(`${first} -> ${second} -> codex:gpt-5.6-sol@max`);
+    const valid = run("validate", text);
+    expect(valid.code, valid.stderr).toBe(0);
+    expect(valid.json).toEqual({ status: "valid", roles: ROLE_ROWS.length });
+    const result = run("resolve", text);
+    expect(result.code, result.stderr).toBe(0);
+    expect(result.json.lanes[0].attempts).toMatchObject([first, second, "codex:gpt-5.6-sol@max"].map((descriptor) => ({ descriptor, route: "native", exhaustionGroup: "codex", apiSpend: "deny" })));
+    decision(text, { events: [
+      { attemptIndex: 0, status: "route-unavailable", processStarted: false },
+      { attemptIndex: 1, status: "terminal-failure", processStarted: false },
+    ] }, { kind: "launch", attemptIndex: 2, attempt: { descriptor: "codex:gpt-5.6-sol@max", route: "native", apiSpend: "deny" } });
+    const external = run("resolve", text, {}, "claude");
+    expect(external.code, external.stderr).toBe(0);
+    expect(external.json.lanes[0].attempts.every((attempt: { route: string }) => attempt.route === "external")).toBe(true);
+  });
+
+  it("retains duplicate, effort-only, cap, Claude canonical alias and parent alias guards", () => {
+    for (const rhs of [`${first} -> ${first}`, `${first} -> codex:gpt-6.1-sol@max`, `${chain} -> codex:gpt-5.6-sol@high`, "inherit-parent -> auto", `inherit-parent -> ${first}`, `${first} -> inherit-parent`, "claude:opus@high -> claude:claude-opus-4-8@max"]) {
+      const result = run("validate", sheet(rhs));
+      expect(result.code, rhs).toBe(65);
+      expect(result.stdout).toBe("");
+    }
+    const otherParent = run("validate", sheet(`inherit-parent -> ${first}`), {}, "claude");
+    expect(otherParent.code, otherParent.stderr).toBe(0);
+    for (const header of ["why investigators, synthesizer", "reflect tooling, judgment, divergent, synthesizer"]) {
+      const result = run("validate", sheet().replace(`${header}: inherit-parent`, `${header}: ${first}`));
+      expect(result.code).toBe(65);
+      expect(result.stderr).toContain("live MCP surface");
+    }
+  });
+
+  for (const status of ["route-unavailable", "terminal-failure"] as const) {
+    it(`advances ${status} only with saved policy and does not exhaust that provider`, () => {
+      const events = [{ attemptIndex: 0, status, processStarted: false }];
+      decision(sheet(), { events }, { kind: "launch", attemptIndex: 1, attempt: { descriptor: second, route: "native", apiSpend: "deny" } });
+      decision(sheet(), { events: [...events, { attemptIndex: 1, status, processStarted: false }] }, { kind: "launch", attemptIndex: 2 });
+      for (const fallback of ["", '# fallback: {"on":[]}']) decision(sheet(chain, fallback), { events }, { kind: "stop", reason: "not-eligible" });
+    });
+  }
+
+  it("skips same-provider models after quota with missing, empty, and final global groups", () => {
+    for (const exhaustedGroups of [undefined, [], ["codex"]]) decision(sheet(), {
+      events: [{ attemptIndex: 0, status: "usage-exhausted", processStarted: false }], ...(exhaustedGroups === undefined ? {} : { exhaustedGroups }),
+    }, { kind: "launch", attemptIndex: 2, attempt: { descriptor: claude } });
+    decision(sheet(), { events: [], exhaustedGroups: ["codex"] }, { kind: "launch", attemptIndex: 2 });
+    decision(sheet(), { events: [{ attemptIndex: 0, status: "usage-exhausted", processStarted: false }], exhaustedGroups: ["claude"] }, { kind: "stop", reason: "chain-exhausted" });
+  });
+
+  it("stops a quota-only same-provider chain at capacity and honors empty-policy and failed stops", () => {
+    decision(sheet(`${first} -> ${second}`, ""), { events: [{ attemptIndex: 0, status: "usage-exhausted", processStarted: false }] }, { kind: "stop", reason: "chain-exhausted" });
+    for (const [status, fallback] of [["usage-exhausted", '# fallback: {"on":[]}'], ["failed", broad]]) decision(sheet(chain, fallback), { events: [{ attemptIndex: 0, status, processStarted: false }] }, { kind: "stop", reason: "not-eligible" });
+  });
+
+  it("accepts history skipping a provider exhausted earlier in this lane without global groups", () => {
+    for (const exhaustedGroups of [undefined, [], ["codex"], ["codex", "claude"]]) decision(sheet(), {
+      events: [{ attemptIndex: 0, status: "usage-exhausted", processStarted: false }, { attemptIndex: 2, status: "complete" }], ...(exhaustedGroups === undefined ? {} : { exhaustedGroups }),
+    }, { kind: "stop", reason: "complete" });
+    decision(sheet(`${first} -> ${claude} -> ${second}`), { events: [{ attemptIndex: 0, status: "route-unavailable", processStarted: false }, { attemptIndex: 1, status: "usage-exhausted", processStarted: false }, { attemptIndex: 2, status: "complete" }], exhaustedGroups: ["claude"] }, { kind: "stop", reason: "complete" });
+  });
+
+  it("rejects adjacent and nonadjacent reuse after a prior lane quota event", () => {
+    for (const [rhs, events] of [
+      [chain, [{ attemptIndex: 0, status: "usage-exhausted", processStarted: false }, { attemptIndex: 1, status: "complete" }]],
+      [`${first} -> ${claude} -> ${second}`, [{ attemptIndex: 0, status: "usage-exhausted", processStarted: false }, { attemptIndex: 1, status: "route-unavailable", processStarted: false }, { attemptIndex: 2, status: "complete" }]],
+    ] as const) for (const exhaustedGroups of [[], ["codex"]]) {
+      const result = run("next", sheet(rhs), { events, exhaustedGroups });
+      expect(result.code, result.stderr).toBe(64);
+      expect(result.stdout).toBe("");
+      expect(result.stderr).toContain("exhausted");
+    }
+  });
+
+  it("rejects history borrowing quota proof from a future event or skipping an available model", () => {
+    for (const events of [[{ attemptIndex: 1, status: "usage-exhausted", processStarted: false }], [{ attemptIndex: 0, status: "route-unavailable", processStarted: false }, { attemptIndex: 2, status: "complete" }]]) {
+      const result = run("next", sheet(), { events });
+      expect(result.code, result.stderr).toBe(64);
+      expect(result.stdout).toBe("");
+      expect(result.stderr).toContain("not exhausted");
+    }
+  });
+
+  it("rejects executing a provider whose exhaustion justified an earlier skipped model", () => {
+    for (const [rhs, events] of [
+      [chain, [{ attemptIndex: 1, status: "complete" }]],
+      [chain, [{ attemptIndex: 1, status: "terminal-failure", processStarted: false }]],
+      [`${first} -> ${claude} -> ${second}`, [{ attemptIndex: 2, status: "complete" }]],
+      [`${first} -> ${claude} -> ${second}`, [{ attemptIndex: 1, status: "route-unavailable", processStarted: false }, { attemptIndex: 2, status: "complete" }]],
+    ] as const) {
+      const result = run("next", sheet(rhs), { events, exhaustedGroups: ["codex", "claude"] });
+      expect(result.code, result.stderr).toBe(64);
+      expect(result.stdout).toBe("");
+      expect(result.stderr).toContain("exhausted");
+    }
+    decision(sheet(), { events: [{ attemptIndex: 2, status: "complete" }], exhaustedGroups: ["codex"] }, { kind: "stop", reason: "complete" });
+  });
+
+  it("requires funding and spending authorization even for exhausted skipped routes", () => {
+    for (const [before, after] of [['"funding":"included"', '"funding":"unknown"'], ['"funding":"included"', '"funding":"metered"'], ['"provenance":"user"', '"provenance":"provider"']]) {
+      const text = sheet().replace(fact("codex"), fact("codex").replace(before, after));
+      decision(text, { events: [], exhaustedGroups: ["codex"] }, { kind: "stop", reason: "unauthorized" });
+      const skipped = run("next", text, { events: [{ attemptIndex: 2, status: "complete" }], exhaustedGroups: ["codex"] });
+      expect(skipped.code, skipped.stderr).toBe(64);
+      expect(skipped.stderr).toContain("skips an unauthorized attempt");
+      expect(run("validate", text).code).toBe(65);
+    }
+    const missing = run("resolve", sheet().replace(fact("codex"), ""));
+    expect(missing.code).toBe(65);
+    expect(missing.stderr).toContain("no access fact for provider codex");
+    const approved = run("resolve", sheet().replace(fact("codex"), fact("codex").replace('"funding":"included"', '"funding":"metered"').replace('"apiSpend":"deny"', '"apiSpend":"approved"')));
+    expect(approved.code, approved.stderr).toBe(0);
+    expect(approved.json.lanes[0].attempts.slice(0, 2).every((attempt: { apiSpend: string; authorization: { state: string } }) => attempt.apiSpend === "approved" && attempt.authorization.state === "allowed")).toBe(true);
+  });
+
+  it("retains writer inspection and terminal success veto", () => {
+    const event = { attemptIndex: 0, status: "terminal-failure", processStarted: true };
+    for (const [inspection, expected] of [
+      [undefined, { kind: "inspect", reason: "started-writer" }],
+      [{ state: "unsafe", evidenceRef: "diff and effects" }, { kind: "stop", reason: "unsafe-writer" }],
+      [{ state: "clear", evidenceRef: "diff and effects" }, { kind: "launch", attemptIndex: 1 }],
+    ]) decision(sheet(), { events: [{ ...event, inspection }], access: "isolated-write" }, expected!);
+    decision(sheet(), { events: [{ attemptIndex: 0, status: "complete" }] }, { kind: "stop", reason: "complete" });
   });
 });

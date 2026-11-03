@@ -6,6 +6,7 @@ import {
   ModelPolicyError,
   assertCompleteSheet,
   eventAdvancesUnderPolicy,
+  eventSuccessorAuthorized,
   nextAttempt,
   parseSheet,
   renderSheet,
@@ -95,7 +96,7 @@ describe("model sheet parser", () => {
     ]);
   });
 
-  it("rejects a fourth attempt, duplicates, and same-provider chains", () => {
+  it("rejects a fourth attempt, duplicates, and same-model effort changes", () => {
     const feature = "feature, refactoring: ";
     for (const [name, rhs] of [
       ["four attempts", "grok:grok-4.7@xhigh -> codex:gpt-5.6-sol@high -> devin:swe-2@medium -> cursor:composer-2.5@default"],
@@ -1055,4 +1056,108 @@ it("round-trips explicit OpenCode descriptors without broadening other providers
   for (const invalid of ["opencode:provider/model@high", "opencode:auto@default", "opencode:provider/auto@default", "opencode:provider//model@default", "codex:provider/model@high"]) {
     expect(() => parseSheet(FIRST_RUN.replace("grok:grok-4.7@xhigh", invalid))).toThrow(ModelPolicyError);
   }
+});
+
+
+describe("same-provider model fallback", () => {
+  const facts = ["codex", "claude"].map((provider) =>
+    `# access: ${JSON.stringify({ provider, funding: "included", capacity: "high", apiSpend: "deny", provenance: "user" })}`
+  ).join("\n");
+  const chain = "codex:gpt-6.1-sol@high -> codex:gpt-6-sol@high -> claude:opus@high";
+  function lane(rhs = chain, saved = true): LanePolicy {
+    const sheet = `${facts}\n${saved ? '# fallback: {"on":["usage-exhausted","route-unavailable","terminal-failure"]}\n' : ""}swarm workers: ${rhs}\n`;
+    return resolveRole(parse(sheet), "swarm workers", "codex")!.lanes[0];
+  }
+
+  it("round-trips distinct models on one provider and preserves native exact descriptors", () => {
+    const sheet = `${facts}\nswarm workers: codex:gpt-6.1-sol@high -> codex:gpt-6-sol@high -> codex:gpt-5.6-sol@max\n`;
+    expect(renderSheet(parse(sheet))).toBe(sheet);
+    const attempts = resolveRole(parse(sheet), "swarm workers", "codex")!.lanes[0].attempts;
+    expect(attempts.map(({ descriptor, route, exhaustionGroup, apiSpend }) => ({ descriptor, route, exhaustionGroup, apiSpend })))
+      .toEqual(["gpt-6.1-sol@high", "gpt-6-sol@high", "gpt-5.6-sol@max"].map((model) => ({ descriptor: `codex:${model}`, route: "native", exhaustionGroup: "codex", apiSpend: "deny" })));
+    expect(resolveRole(parse(sheet), "swarm workers", "claude")!.lanes[0].attempts.every((attempt) => attempt.route === "external")).toBe(true);
+  });
+
+  it("rejects canonical Claude model aliases as repeated models without rewriting bytes", () => {
+    for (const rhs of [
+      "claude:opus@high -> claude:claude-opus-4-8@max",
+      "claude:claude-sonnet-4-7@high -> claude:sonnet@high",
+      "claude:claude-fable-5-1@high -> claude:claude-fable-5-2@max",
+    ]) expect(() => parse(`swarm workers: ${rhs}\n`), rhs).toThrow(ModelPolicyError);
+    const sheet = "swarm workers: claude:claude-opus-4-8@high -> claude:sonnet@high\n";
+    expect(renderSheet(parse(sheet))).toBe(sheet);
+  });
+
+  it("rejects Devin descriptors that select the same CLI model UID", () => {
+    for (const rhs of [
+      "devin:swe-2@high -> devin:swe-2-high@default",
+      "devin:swe-2-max@default -> devin:swe-2@max",
+      "devin:swe-1.6@default -> devin:swe-1-6@default",
+      "devin:swe-2@medium -> devin:swe-2@high",
+    ]) expect(() => parse(`swarm workers: ${rhs}\n`), rhs).toThrow(ModelPolicyError);
+    expect(() => parse("swarm workers: devin:swe-2@high -> devin:swe-1.6@default\n")).not.toThrow();
+    expect(() => parse("swarm workers: devin:custom-model@default\n")).not.toThrow();
+  });
+
+  it("advances to the exact second native model only for saved nonquota reasons", () => {
+    for (const status of ["route-unavailable", "terminal-failure"] as const) {
+      const policy = lane();
+      expect(nextAttempt(policy, [{ attemptIndex: 0, status, processStarted: false }], new Set(), "read-only"))
+        .toMatchObject({ kind: "launch", attemptIndex: 1, attempt: { descriptor: "codex:gpt-6-sol@high", route: "native", apiSpend: "deny" } });
+      expect(nextAttempt(lane(chain, false), [{ attemptIndex: 0, status, processStarted: false }], new Set(), "read-only"))
+        .toEqual({ kind: "stop", reason: "not-eligible" });
+    }
+  });
+
+  it("derives exhaustion from all prior quota events without mutating caller groups", () => {
+    const policy = lane("codex:gpt-6.1-sol@high -> claude:opus@high -> codex:gpt-6-sol@high");
+    const groups = new Set<"claude">();
+    expect(nextAttempt(policy, [
+      { attemptIndex: 0, status: "usage-exhausted", processStarted: false },
+      { attemptIndex: 1, status: "route-unavailable", processStarted: false },
+    ], groups, "read-only")).toEqual({ kind: "stop", reason: "chain-exhausted" });
+    expect(groups.size).toBe(0);
+    expect(nextAttempt(lane(), [{ attemptIndex: 0, status: "usage-exhausted", processStarted: false }], groups, "read-only"))
+      .toMatchObject({ kind: "launch", attemptIndex: 2, attempt: { descriptor: "claude:opus@high" } });
+    expect(nextAttempt(lane(), [], new Set(["codex"]), "read-only"))
+      .toMatchObject({ kind: "launch", attemptIndex: 2 });
+  });
+
+  it("ends a quota-only same-provider chain when its shared capacity is exhausted", () => {
+    const policy = lane("codex:gpt-6.1-sol@high -> codex:gpt-6-sol@high", false);
+    expect(nextAttempt(policy, [{ attemptIndex: 0, status: "usage-exhausted", processStarted: false }], new Set(), "read-only"))
+      .toEqual({ kind: "stop", reason: "chain-exhausted" });
+  });
+
+  it("requires authorization before skipping a provider exhausted by local history", () => {
+    const policy = lane();
+    const blocked: LanePolicy = {
+      ...policy,
+      attempts: policy.attempts.map((attempt, index) => index === 1
+        ? { ...attempt, authorization: { state: "blocked", reason: "funding unknown" } }
+        : attempt),
+    };
+    expect(nextAttempt(blocked, [{ attemptIndex: 0, status: "usage-exhausted", processStarted: false }], new Set(), "read-only"))
+      .toEqual({ kind: "stop", reason: "unauthorized" });
+  });
+
+  it("rejects a pairwise transition to the already exhausted provider", () => {
+    const policy = lane();
+    expect(eventSuccessorAuthorized(policy, { attemptIndex: 0, status: "usage-exhausted", processStarted: false }, { attemptIndex: 1, status: "complete" }, "read-only")).toBe(false);
+    expect(eventSuccessorAuthorized(policy, { attemptIndex: 0, status: "usage-exhausted", processStarted: false }, { attemptIndex: 2, status: "complete" }, "read-only")).toBe(true);
+  });
+
+  it("preserves inspection, unsafe verdicts, and success veto on same-provider advances", () => {
+    const policy = lane();
+    for (const processStarted of [true, undefined]) {
+      const event = { attemptIndex: 0, status: "terminal-failure" as const, processStarted };
+      expect(nextAttempt(policy, [event], new Set(), "isolated-write")).toEqual({ kind: "inspect", reason: "started-writer" });
+      expect(nextAttempt(policy, [{ ...event, inspection: { state: "clear", evidenceRef: "reviewed diff and effects" } }], new Set(), "isolated-write"))
+        .toMatchObject({ kind: "launch", attemptIndex: 1 });
+      expect(nextAttempt(policy, [{ ...event, inspection: { state: "unsafe", evidenceRef: "unsafe effects" } }], new Set(), "isolated-write"))
+        .toEqual({ kind: "stop", reason: "unsafe-writer" });
+    }
+    expect(nextAttempt(policy, [{ attemptIndex: 0, status: "complete" }], new Set(), "read-only"))
+      .toEqual({ kind: "stop", reason: "complete" });
+  });
 });

@@ -25,6 +25,146 @@ function outcome(partial: Partial<ProviderProcessOutcome>): ProviderProcessOutco
   return { stdout: "", stderr: "", exitCode: 1, ...partial };
 }
 
+const CODEX_CAPACITY_MESSAGE =
+  "Selected model is at capacity. Please try a different model.";
+const CLAUDE_CAPACITY_RESULT = {
+  type: "result",
+  subtype: "success",
+  is_error: true,
+  terminal_reason: "api_error",
+  api_error_status: 529,
+  result: "Overloaded",
+};
+
+describe("source-derived terminal capacity fixtures", () => {
+  it("classifies exact Codex capacity messages in either terminal error shape", () => {
+    for (const message of [
+      CODEX_CAPACITY_MESSAGE,
+      `  ${CODEX_CAPACITY_MESSAGE.toUpperCase()}\n`,
+      `stream disconnected after retries: ${CODEX_CAPACITY_MESSAGE}`,
+    ]) {
+      for (const event of [
+        { type: "turn.failed", error: { message } },
+        { type: "error", message },
+      ]) {
+        for (const result of [
+          classifyProcessOutcome("codex", outcome({ stdout: JSON.stringify(event) })),
+          classifyTerminalEnvelope("codex", event),
+        ]) {
+          expect(result.status).toBeNull();
+          expect(result.code, JSON.stringify(event)).toBe("codex_model_capacity");
+          expect(result.evidence).toBe(JSON.stringify(event));
+        }
+      }
+    }
+  });
+
+  it("requires the entire Codex diagnostic with at most one proven wrapper", () => {
+    for (const message of [
+      "Selected model is at capacity.",
+      `${CODEX_CAPACITY_MESSAGE} Retry soon.`,
+      `${CODEX_CAPACITY_MESSAGE}x`,
+      `"${CODEX_CAPACITY_MESSAGE}"`,
+      JSON.stringify({ message: CODEX_CAPACITY_MESSAGE }),
+      `Error: ${CODEX_CAPACITY_MESSAGE}`,
+      `HTTP 429: ${CODEX_CAPACITY_MESSAGE}`,
+      `Model unavailable: ${CODEX_CAPACITY_MESSAGE}`,
+      `stream disconnected after retries: stream disconnected after retries: ${CODEX_CAPACITY_MESSAGE}`,
+      "shared rollout token budget exhausted",
+      "rate limit exceeded: 429 Too Many Requests",
+    ]) {
+      const result = classifyTerminalEnvelope("codex", { type: "turn.failed", error: { message } });
+      expect(result, message).toEqual({ status: null, code: null, evidence: "" });
+    }
+  });
+
+  it("ignores Codex capacity prose, stderr and nonterminal item errors", () => {
+    for (const input of [
+      outcome({ stdout: CODEX_CAPACITY_MESSAGE }),
+      outcome({ stderr: CODEX_CAPACITY_MESSAGE }),
+      outcome({ stderr: JSON.stringify({ type: "error", message: CODEX_CAPACITY_MESSAGE }) }),
+      outcome({ stdout: JSON.stringify({ type: "item.completed", item: { type: "agent_message", text: CODEX_CAPACITY_MESSAGE } }) }),
+      outcome({ stdout: JSON.stringify({ type: "item.completed", item: { type: "error", message: CODEX_CAPACITY_MESSAGE } }) }),
+    ]) {
+      expect(classifyProcessOutcome("codex", input), JSON.stringify(input)).toEqual({ status: null, code: null, evidence: "" });
+    }
+  });
+
+  it("classifies a complete Claude api_error 529 result structurally", () => {
+    for (const text of ["Overloaded", "Request failed", ""]) {
+      const event = { ...CLAUDE_CAPACITY_RESULT, result: text };
+      for (const result of [
+        classifyProcessOutcome("claude", outcome({ stdout: JSON.stringify(event) })),
+        classifyTerminalEnvelope("claude", event),
+      ]) {
+        expect(result.status).toBeNull();
+        expect(result.code).toBe("claude_model_capacity");
+        expect(result.evidence).toBe(JSON.stringify(event));
+      }
+    }
+  });
+
+  it("requires every proven Claude capacity result field", () => {
+    for (const change of [
+      { type: "retry" },
+      { type: "assistant" },
+      { subtype: "error_during_execution" },
+      { subtype: undefined },
+      { is_error: false },
+      { is_error: "true" },
+      { is_error: undefined },
+      { terminal_reason: "max_turns" },
+      { terminal_reason: undefined },
+      { api_error_status: 429 },
+      { api_error_status: 500 },
+      { api_error_status: "529" },
+      { api_error_status: undefined },
+      { result: undefined },
+      { result: { message: "Overloaded" } },
+    ]) {
+      const event = { ...CLAUDE_CAPACITY_RESULT, ...change };
+      expect(classifyTerminalEnvelope("claude", event), JSON.stringify(event)).toEqual({ status: null, code: null, evidence: "" });
+    }
+  });
+
+  it("ignores Claude overload prose, stderr, retries and quoted results", () => {
+    for (const input of [
+      outcome({ stdout: "HTTP 529: Overloaded" }),
+      outcome({ stderr: JSON.stringify(CLAUDE_CAPACITY_RESULT) }),
+      outcome({ stdout: JSON.stringify({ type: "assistant", message: { content: [{ type: "text", text: JSON.stringify(CLAUDE_CAPACITY_RESULT) }] } }) }),
+      outcome({ stdout: JSON.stringify({ type: "system", subtype: "api_retry", api_error_status: 529, error: "Overloaded" }) }),
+      outcome({ stdout: JSON.stringify(JSON.stringify(CLAUDE_CAPACITY_RESULT)) }),
+    ]) {
+      expect(classifyProcessOutcome("claude", input), JSON.stringify(input)).toEqual({ status: null, code: null, evidence: "" });
+    }
+  });
+
+  it("uses the last terminal outcome instead of an earlier capacity or quota error", () => {
+    for (const [provider, earlier, final] of [
+      ["codex", { type: "turn.failed", error: { message: CODEX_CAPACITY_MESSAGE } }, { type: "turn.completed", usage: {} }],
+      ["codex", { type: "error", message: CODEX_CAPACITY_MESSAGE }, { type: "turn.completed", usage: {} }],
+      ["codex", { type: "turn.failed", error: { message: CODEX_QUOTA_MESSAGE } }, { type: "turn.completed", usage: {} }],
+      ["claude", CLAUDE_CAPACITY_RESULT, { type: "result", subtype: "success", is_error: false, result: "done" }],
+      ["claude", { ...CLAUDE_CAPACITY_RESULT, api_error_status: 429, result: "You've hit your session limit" }, { type: "result", subtype: "success", is_error: false, result: "done" }],
+      ["codex", { type: "error", message: CODEX_CAPACITY_MESSAGE }, { type: "turn.failed", error: { message: "transport failed" } }],
+      ["claude", CLAUDE_CAPACITY_RESULT, { ...CLAUDE_CAPACITY_RESULT, api_error_status: 500 }],
+    ] as const) {
+      const input = outcome({ stdout: [earlier, final].map(event => JSON.stringify(event)).join("\n") });
+      expect(classifyProcessOutcome(provider, input), JSON.stringify(input)).toEqual({ status: null, code: null, evidence: "" });
+    }
+  });
+
+  it("keeps account exhaustion distinct from model capacity", () => {
+    for (const [provider, event, code] of [
+      ["codex", { type: "turn.failed", error: { message: CODEX_QUOTA_MESSAGE } }, "codex_usage_limit_exceeded"],
+      ["claude", { ...CLAUDE_CAPACITY_RESULT, api_error_status: 429, result: "You've hit your session limit" }, "claude_usage_limit_exceeded"],
+    ] as const) {
+      expect(classifyTerminalEnvelope(provider, event)).toMatchObject({ status: "usage-exhausted", code });
+    }
+    expect(classifyTerminalEnvelope("claude", { ...CLAUDE_CAPACITY_RESULT, result: "You've hit your session limit" })).toMatchObject({ status: null, code: "claude_model_capacity" });
+  });
+});
+
 describe("codex terminal quota classification", () => {
   it("recognizes the canonical Codex quota diagnostic on a failed turn", () => {
     for (const message of [
