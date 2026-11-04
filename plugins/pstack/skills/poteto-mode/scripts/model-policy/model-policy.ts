@@ -9,6 +9,8 @@ import {
   type Provider,
 } from "../runner/types.ts";
 import { nativeLane } from "../runner/native-route.ts";
+import { versionedClaudeAlias } from "../runner/model-aliases.ts";
+import { devinModel } from "../runner/devin.ts";
 
 export const MAX_ATTEMPTS_PER_SEAT = 3;
 
@@ -461,7 +463,7 @@ export function parseSheet(text: string, context: PolicyContext = {}): SheetMode
       }
       const attempts: Attempt[] = [];
       let aliasCount = 0;
-      const providers = new Set<string>();
+      const models = new Set<string>();
       const seen = new Set<string>();
       for (const attemptText of attemptTexts) {
         let attempt: Attempt;
@@ -480,12 +482,22 @@ export function parseSheet(text: string, context: PolicyContext = {}): SheetMode
         if (attempt.kind === "alias") {
           aliasCount += 1;
         } else {
-          if (providers.has(attempt.provider)) {
+          let model = attempt.provider === "claude"
+            ? versionedClaudeAlias(attempt.model) ?? attempt.model
+            : attempt.model;
+          if (attempt.provider === "devin" &&
+              ((attempt.model === "swe-2" && ["medium", "high", "max"].includes(attempt.effort)) ||
+               (attempt.model === "swe-1.6" && attempt.effort === "default"))) {
+            model = devinModel(attempt.model, attempt.effort);
+          }
+          const modelKeys = new Set([`${attempt.provider}:${attempt.model}`, `${attempt.provider}:${model}`]);
+          const repeatedModel = [...modelKeys].find((key) => models.has(key));
+          if (repeatedModel !== undefined) {
             issues.push(
-              `${header}: seat ${JSON.stringify(seatText)} repeats provider ${attempt.provider}; a fallback to the same provider is the same account`
+              `${header}: seat ${JSON.stringify(seatText)} repeats model ${repeatedModel}; changing effort or alias does not select a different model`
             );
           }
-          providers.add(attempt.provider);
+          for (const key of modelKeys) models.add(key);
           if (context.checkAttempt !== undefined) {
             const issue = context.checkAttempt(attempt, header);
             if (issue !== null) issues.push(`${header}: ${issue}`);
@@ -660,16 +672,15 @@ export function resolveRole(
   const issues: string[] = [];
   const lanes: LanePolicy[] = row.seats.map((seat, index) => {
     const chained = seat.attempts.length > 1;
-    const groups = new Set<Provider>();
+    if (seat.attempts.some((attempt) => attempt.kind === "alias") &&
+        seat.attempts.some((attempt) => attempt.kind === "descriptor" && attempt.provider === parent)) {
+      issues.push(
+        `${row.spec.header} seat ${index + 1}: an alias and a descriptor resolve to the ${parent} account; the alias model is ambiguous`
+      );
+    }
     const attempts = seat.attempts.map((attempt): AttemptPolicy => {
       const provider = exhaustionGroupFor(attempt, parent);
       const fact = model.access.find((entry) => entry.provider === provider);
-      if (groups.has(provider)) {
-        issues.push(
-          `${row.spec.header} seat ${index + 1}: two attempts resolve to the ${provider} account; one current account per provider cannot recover exhausted capacity`
-        );
-      }
-      groups.add(provider);
       const native = attempt.kind === "alias" || nativeLane(parent, attempt, agentsDir) !== null;
       let authorization: AttemptAuthorization = { state: "allowed" };
       if (fact === undefined) {
@@ -1038,6 +1049,10 @@ export function eventSuccessorAuthorized(
       (next.continuationOrdinal ?? 0) === (prev.continuationOrdinal ?? 0) + 1
     );
   }
+  if (prev.status === "usage-exhausted" &&
+      lane.attempts[prev.attemptIndex]?.exhaustionGroup === lane.attempts[next.attemptIndex]?.exhaustionGroup) {
+    return false;
+  }
   return next.parentOperation === undefined && next.attemptIndex > prev.attemptIndex;
 }
 
@@ -1213,12 +1228,19 @@ export function nextAttempt(
       }
     }
   }
+  const effectiveExhaustedGroups = new Set(exhaustedGroups);
+  for (const event of events) {
+    if (event.parentOperation === undefined && event.status === "usage-exhausted") {
+      const attempt = lane.attempts[event.attemptIndex];
+      if (attempt !== undefined) effectiveExhaustedGroups.add(attempt.exhaustionGroup);
+    }
+  }
   for (let index = (last?.attemptIndex ?? -1) + 1; index < lane.attempts.length; index += 1) {
     const attempt = lane.attempts[index];
     if (attempt.authorization.state === "blocked") {
       return { kind: "stop", reason: "unauthorized" };
     }
-    if (exhaustedGroups.has(attempt.exhaustionGroup)) continue;
+    if (effectiveExhaustedGroups.has(attempt.exhaustionGroup)) continue;
     return { kind: "launch", attemptIndex: index, attempt, execution: 1 };
   }
   return { kind: "stop", reason: "chain-exhausted" };

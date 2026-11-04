@@ -48,6 +48,7 @@ fi
 legacy_model_pins="$(
   grep -REn \
     --include='*.md' --include='*.ts' --include='*.sh' \
+    --exclude='*.test.ts' \
     'claude:claude-(fable|opus|sonnet)-[0-9]|^model: claude-(fable|opus|sonnet)-[0-9]|--model claude-(fable|opus|sonnet)-[0-9]' \
     "$repo/plugins/pstack" "$repo/tests" "$repo/README.md" "$repo/UPSTREAM.md" \
     2>/dev/null || true

@@ -13,6 +13,7 @@ Users inspect how a saved role resolves, while the parent owns execution and any
 - `opencode-contracts`: verify V1 and V2 native CLI configuration, contract-appropriate completion, and explicit ChatGPT subscription funding through both installed parents.
 - `routing-live`: observe the exact approved descriptor and terminal outcome in a parent workflow.
 - `routing-recovery`: verify saved fallback transitions with authentic terminal evidence.
+- `same-provider-recovery`: distinguish model capacity from account exhaustion and retain exact native fallback models.
 
 ## How to get to it (user POV)
 
@@ -33,6 +34,12 @@ capture routing-unchanged diff -u "$VERIFY_EVIDENCE/routing-sheet-before.stdout"
 - **Inspect:** expect exit zero and JSON `status: resolved` with lane descriptors matching the saved `how explorer` row. Inspect authorization and route fields; successful parsing alone does not mean an executable route. `unconfigured` is an unmet precondition for this recipe.
 - **Live dispatch:** run the direct How entry in [workflows](workflows.md). Compare actual native launch metadata or external runner receipt with the resolved descriptor, parent, model, effort, access mode, and saved API-spend fact. Retain the final terminal outcome and output.
 - **Recovery:** follow the saved fallback-chain scenario in `tests/setup-selected-providers.md`. Require authentic terminal evidence, a visible failure/substitution notice, and any required writer inspection before the exact saved next attempt. A synthetic event passed to the `next` CLI proves a decision only, not a provider failure or parent recovery.
+
+### Same-provider model recovery
+
+Run the model-policy and provider-failure fixtures, plus the capacity receipt rows in `runner/run.test.ts`, against the candidate. Use a disposable complete sheet containing `codex:gpt-6.1-sol@high -> codex:gpt-6-astra@high -> claude:opus@high` with confirmed access facts and denied API spend. These are fixture descriptors, not authorization for live model execution. Check `validate`, `resolve`, and `next` directly. Under a saved broad policy, a synthetic `terminal-failure` or `route-unavailable` event must select the second Codex model natively with its exact effort. A quota event must skip that model and select Claude even if `exhaustedGroups` is empty. Replay valid quota-skipped history, reject history that executed an exhausted provider, and reject duplicate models and a fourth attempt. Without a saved policy, capacity must stop.
+
+For installed-parent proof, use only an approved saved chain and its spending policy in dedicated authenticated sessions. In Codex, retain authentic structured capacity metadata and the subsequent native `spawn_agent` call with the exact saved second model and effort. In Claude Code, retain the external Codex or Claude receipt and its normalization before the saved successor. Distinguish capacity diagnostic evidence from `usage-exhausted`, which must skip every later model on that provider. Require writer inspection when applicable. Do not manufacture a provider failure or invoke an unapproved model to complete this recipe. Missing authentic failures or authenticated parent sessions leave recovery unverified and the candidate draft.
 
 ### Documented receipt normalization
 

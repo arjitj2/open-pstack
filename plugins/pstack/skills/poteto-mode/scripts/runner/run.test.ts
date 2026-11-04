@@ -1706,6 +1706,89 @@ describe("childEnvironment", () => {
   });
 });
 
+describe("synthetic capacity executable-boundary receipts", () => {
+  const capacity = "Selected model is at capacity. Please try a different model.";
+  const cases = [
+    { provider: "codex", name: "turn-failed", code: "codex_model_capacity", event: { type: "turn.failed", error: { message: capacity } } },
+    { provider: "codex", name: "stream-error", code: "codex_model_capacity", event: { type: "error", message: capacity } },
+    { provider: "codex", name: "wrapped", code: "codex_model_capacity", event: { type: "error", message: `stream disconnected after retries: ${capacity}` } },
+    { provider: "claude", name: "api-error", code: "claude_model_capacity", event: { type: "result", subtype: "success", is_error: true, terminal_reason: "api_error", api_error_status: 529, result: "Overloaded" } },
+  ] as const;
+
+  for (const fixture of cases) {
+    for (const exit of [1, 0]) {
+      it(`retains ${fixture.provider} ${fixture.name} capacity evidence at exit ${exit}`, async () => {
+        process.env.FAKE_STDOUT = JSON.stringify(fixture.event);
+        process.env.FAKE_MODEL_EXIT = String(exit);
+        const input = { ...options(fixture.provider, `capacity-${fixture.name}-${exit}`), apiSpend: "deny" as const };
+        const result = await runLane(input);
+        const recorded = receipt(input.receiptPath);
+        expect(recorded).toEqual(result.receipt);
+        expect(recorded).toMatchObject({
+          status: "child-failed",
+          failurePhase: exit === 0 ? "postprocess" : "invocation",
+          exitCode: exit,
+          processStarted: true,
+          terminalSuccess: false,
+          apiSpend: "deny",
+        });
+        expect(result.exitCode).toBe(70);
+        expect(recorded.error?.evidence).toContain(`diagnostic: ${fixture.code}`);
+        expect(existsSync(input.outputPath)).toBe(false);
+        expect(normalizeReceiptEvent(recorded, {
+          parent: input.parent,
+          provider: input.provider,
+          model: input.model,
+          effort: input.effort,
+          mode: input.mode,
+          apiSpend: "deny",
+        }).status).toBe("terminal-failure");
+      });
+    }
+  }
+
+  for (const provider of ["codex", "claude"] as const) {
+    for (const exit of [0, 1]) {
+      it(`lets a final ${provider} success veto failure replay after capacity and quota at exit ${exit}`, async () => {
+        const capacityEvent = cases.find(fixture => fixture.provider === provider)!.event;
+        const quotaEvent = provider === "codex"
+          ? { type: "turn.failed", error: { message: "You've hit your usage limit." } }
+          : { type: "result", subtype: "success", is_error: true, terminal_reason: "api_error", api_error_status: 429, result: "You've hit your session limit" };
+        const final = provider === "codex" ? [
+          { type: "item.completed", item: { type: "agent_message", text: "RECOVERED_OK" } },
+          { type: "turn.completed", usage: {} },
+        ] : [
+          { type: "assistant", session_id: "capacity-recovery", parent_tool_use_id: null, message: { role: "assistant", model: "claude-fable-9-9", content: [{ type: "text", text: "RECOVERED_OK" }] } },
+          { type: "result", subtype: "success", is_error: false, session_id: "capacity-recovery", result: "RECOVERED_OK" },
+        ];
+        process.env.FAKE_STDOUT = [capacityEvent, quotaEvent, ...final].map(event => JSON.stringify(event)).join("\n");
+        process.env.FAKE_MODEL_EXIT = String(exit);
+        const input = { ...options(provider, `capacity-recovered-${exit}`), apiSpend: "deny" as const };
+        const result = await runLane(input);
+        const recorded = receipt(input.receiptPath);
+        expect(recorded).toEqual(result.receipt);
+        expect(recorded.apiSpend).toBe("deny");
+        expect(recorded.error?.evidence ?? "").not.toContain("diagnostic:");
+        expect(normalizeReceiptEvent(recorded, {
+          parent: input.parent,
+          provider: input.provider,
+          model: input.model,
+          effort: input.effort,
+          mode: input.mode,
+          apiSpend: "deny",
+        }).status).toBe(exit === 0 && provider === "codex" ? "complete" : "failed");
+        if (exit === 0 && provider === "codex") {
+          expect(recorded.status).toBe("complete");
+          expect(readFileSync(input.outputPath, "utf8")).toBe("RECOVERED_OK");
+        } else {
+          expect(recorded.status).toBe(exit === 0 ? "malformed-output" : "child-failed");
+          expect(recorded.terminalSuccess).toBe(true);
+        }
+      });
+    }
+  }
+});
+
 describe("usage exhaustion and billing guard", () => {
   const codexQuotaMessage =
     "You\u2019ve hit your usage limit. Visit https://chatgpt.com/codex/settings/usage to purchase more credits or try again later.";
