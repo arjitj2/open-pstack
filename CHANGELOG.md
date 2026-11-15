@@ -4,6 +4,12 @@ This file records what each version of the Open Pstack package changed. Versions
 
 Entries describe package versions. Published release checkpoints have tag links; installation follows `main` unless pinned. Validation belongs to the linked pull requests. Older reports remain available through immutable links.
 
+## 1.18.1 candidate: Statechart and workflow updates
+
+Cursor baseline: [0.15.36](https://github.com/cursor/plugins/tree/c742dd61706fbacc1b95f1a20b7b988cf096ce6c/pstack). [Issue #181](https://github.com/arjitj2/open-pstack/issues/181). Not published.
+
+Candidate catch-up for Cursor [0.15.42 at bf0c7cd8](https://github.com/cursor/plugins/tree/bf0c7cd80abdbf7fe47b634978a7d1b4071f71a7/pstack). The incorporated baseline and source decision remain pending until validation completes. Statechart routes eligible incoming arrows through parent states and reports SANY line and column errors. Workflow changes reduce required handoffs while preserving configured roles, exact descriptors, recovery and spending policy. README content remains unchanged.
+
 ## 1.18.0 allows distinct-model fallbacks within a provider
 
 Cursor baseline: [0.15.36](https://github.com/cursor/plugins/tree/c742dd61706fbacc1b95f1a20b7b988cf096ce6c/pstack). [PR #180](https://github.com/arjitj2/open-pstack/pull/180). Release tag `v1.18.0`.

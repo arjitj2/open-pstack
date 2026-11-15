@@ -151,7 +151,7 @@ Each live lane is one `swarm workers` lane at the PR head, resolved through prov
 
 ## Appendix D. Links and reading list
 
-<Docs to read before editing. Which PRs get `skills/how/SKILL.md` and `skills/interrogate/SKILL.md`. The trail per `skills/show-me-your-work/SKILL.md`.>
+<Docs to read before editing. Which PRs get `skills/interrogate/SKILL.md`. The trail per `skills/show-me-your-work/SKILL.md`.>
 ````
 
 **Reply:** the plan path, the PR ids with their dependencies and the review-gated set, what the prototypes proved and what stays unproven, and the check script's output.
